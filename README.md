@@ -31,20 +31,24 @@ end
 The included example project shows an embedded SpriteLoop component, movement
 script, collision object, collection proxy load/unload flow, and cache debug UI.
 
-## Supported Platforms
+## Supported Native Extension Libraries
 
-The repository currently includes prebuilt native libraries for:
+The repository currently includes prebuilt native extension libraries for these
+Defold arc-platform folders:
 
 ```text
 x86_64-win32
 x86_64-linux
-x86_64-macos
-arm64-macos
+x86_64-osx
+arm64-osx
 ```
 
 More Defold arc-platforms can be added by committing the matching library under
 `spriteloop/lib/<arc-platform>/` and validating the example project for that
 target.
+
+Defold/Bob uses `x86_64-macos` as the macOS build platform, but native extension
+libraries still live under `x86_64-osx` and `arm64-osx`. This is expected.
 
 ## Validate
 
@@ -53,6 +57,12 @@ matching the library you want to check:
 
 ```sh
 python3 utils/validate.py --bob path/to/bob.jar --platform x86_64-win32
+```
+
+For macOS validation, use Bob's macOS platform name:
+
+```sh
+python3 utils/validate.py --bob path/to/bob.jar --platform x86_64-macos
 ```
 
 On Windows, the same command works from PowerShell:

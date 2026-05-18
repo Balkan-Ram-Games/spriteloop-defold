@@ -16,7 +16,6 @@ DEFAULT_BUILD_SERVER = "https://build.defold.com"
 DEFAULT_PLATFORM = "x86_64-win32"
 DEFAULT_VARIANT = "debug"
 
-
 def default_java() -> str:
     return os.environ.get("JAVA") or "java"
 
@@ -68,6 +67,12 @@ def require_file(path: Path) -> None:
         raise FileNotFoundError(f"Missing required file: {path}")
 
 
+def required_lib_platforms(bob_platform: str) -> list[str]:
+    if bob_platform.endswith("-macos"):
+        return ["x86_64-osx", "arm64-osx"]
+    return [bob_platform]
+
+
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parent.parent
@@ -82,9 +87,10 @@ def main() -> int:
     require_file(repo_root / "spriteloop" / "include" / "spriteloop" / "spla.hpp")
     require_file(repo_root / "spriteloop" / "plugins" / "share" / "pluginSpla.jar")
 
-    platform_lib_dir = repo_root / "spriteloop" / "lib" / args.platform
-    if not platform_lib_dir.is_dir() or not any(platform_lib_dir.iterdir()):
-        raise FileNotFoundError(f"Missing platform library directory: {platform_lib_dir}")
+    for lib_platform in required_lib_platforms(args.platform):
+        platform_lib_dir = repo_root / "spriteloop" / "lib" / lib_platform
+        if not platform_lib_dir.is_dir() or not any(platform_lib_dir.iterdir()):
+            raise FileNotFoundError(f"Missing platform library directory: {platform_lib_dir}")
 
     command = [
         args.java,

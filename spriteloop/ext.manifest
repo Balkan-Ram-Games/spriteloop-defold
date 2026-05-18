@@ -15,9 +15,9 @@ platforms:
   x86_64-linux:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]
-  x86_64-macos:
+  x86_64-osx:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]
-  arm64-macos:
+  arm64-osx:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]
