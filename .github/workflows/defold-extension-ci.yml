@@ -1,0 +1,40 @@
+name: Defold Extension CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DEFOLD_VERSION: "1.12.4"
+  DEFOLD_SDK: "402218d5544666871f07ecdfa21032a7fb59413f"
+  BOB_URL: "https://github.com/defold/defold/releases/download/1.12.4/bob.jar"
+  BUILD_SERVER: "https://build.defold.com"
+  JAVA_TOOL_OPTIONS: "--enable-native-access=ALL-UNNAMED"
+
+jobs:
+  bob-validate:
+    name: Bob validate x86_64-win32
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Download Bob
+        run: |
+          mkdir -p .artifacts/tools
+          curl -fsSL "$BOB_URL" -o .artifacts/tools/bob.jar
+
+      - name: Bob build
+        run: |
+          python3 utils/validate.py \
+            --bob .artifacts/tools/bob.jar \
+            --platform x86_64-win32 \
+            --build-server "$BUILD_SERVER" \
+            --defold-sdk "$DEFOLD_SDK"
