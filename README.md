@@ -38,8 +38,8 @@ The repository currently includes prebuilt native libraries for:
 ```text
 x86_64-win32
 x86_64-linux
-x86_64-osx
-arm64-osx
+x86_64-macos
+arm64-macos
 ```
 
 More Defold arc-platforms can be added by committing the matching library under

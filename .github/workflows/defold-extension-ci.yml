@@ -20,8 +20,8 @@ jobs:
         platform:
           - x86_64-win32
           - x86_64-linux
-          - x86_64-osx
-          - arm64-osx
+          - x86_64-macos
+          - arm64-macos
 
     steps:
       - uses: actions/checkout@v6
