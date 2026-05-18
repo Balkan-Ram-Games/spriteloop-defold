@@ -4,6 +4,8 @@ SpriteLoop for Defold adds native playback for `.spla` animation packages. It
 includes a `spriteloop` component, editor integration, Bob builders, Lua helpers,
 and a small example project.
 
+<img src="media/component.png" alt="SpriteLoop component in Defold" width="560">
+
 ## Install
 
 Add a tagged GitHub archive URL to your Defold project dependencies:
