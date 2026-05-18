@@ -15,6 +15,12 @@ https://github.com/<owner>/spriteloop-defold/archive/refs/tags/<version>.zip
 Then fetch libraries from the Defold editor. The archive exposes the extension
 folder at `spriteloop/`, which lets Defold discover `spriteloop/ext.manifest`.
 
+After the first install, restart the Defold editor before opening collections or
+game objects that already contain embedded SpriteLoop components. Defold can
+fetch the extension files without errors, but already-loaded editor resources may
+not recognize the newly registered custom component type until the editor starts
+again.
+
 ## Use
 
 Create a SpriteLoop component and point its package field at a `.spla` file in
