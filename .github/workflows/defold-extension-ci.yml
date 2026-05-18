@@ -12,8 +12,16 @@ env:
 
 jobs:
   bob-validate:
-    name: Bob validate x86_64-win32
+    name: Bob validate ${{ matrix.platform }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - x86_64-win32
+          - x86_64-linux
+          - x86_64-osx
+          - arm64-osx
 
     steps:
       - uses: actions/checkout@v6
@@ -33,6 +41,6 @@ jobs:
         run: |
           python3 utils/validate.py \
             --bob .artifacts/tools/bob.jar \
-            --platform x86_64-win32 \
+            --platform ${{ matrix.platform }} \
             --build-server "$BUILD_SERVER" \
             --defold-sdk "$DEFOLD_SDK"
