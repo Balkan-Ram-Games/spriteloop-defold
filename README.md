@@ -11,7 +11,7 @@ and a small example project.
 Add a tagged GitHub archive URL to your Defold project dependencies:
 
 ```text
-https://github.com/<owner>/spriteloop-defold/archive/refs/tags/<version>.zip
+https://github.com/Balkan-Ram-Games/spriteloop-defold/archive/refs/tags/v0.2.0-alpha.zip
 ```
 
 Then fetch libraries from the Defold editor. The archive exposes the extension
