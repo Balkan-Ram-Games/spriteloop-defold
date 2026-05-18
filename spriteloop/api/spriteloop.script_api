@@ -1,0 +1,97 @@
+- name: spriteloop
+  type: table
+  desc: SpriteLoop component playback API.
+  members:
+  - name: play_anim
+    type: function
+    desc: Plays an animation on a SpriteLoop component.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: animation_id
+      type: string
+      desc: Animation id to play.
+    - name: playback
+      type: number
+      desc: Defold playback mode. Accepted for API compatibility.
+    returns:
+    - name: played
+      type: boolean
+      desc: True when the animation id exists and playback started.
+  - name: stop_anim
+    type: function
+    desc: Stops playback on a SpriteLoop component.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+  - name: set_time
+    type: function
+    desc: Sets playback time in seconds.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: seconds
+      type: number
+      desc: Playback time.
+  - name: set_frame
+    type: function
+    desc: Sets the current frame index.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: frame_index
+      type: number
+      desc: Frame index.
+  - name: set_playback_rate
+    type: function
+    desc: Sets playback rate multiplier.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: rate
+      type: number
+      desc: Playback rate multiplier.
+  - name: set_visible
+    type: function
+    desc: Sets SpriteLoop component visibility.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: visible
+      type: boolean
+      desc: Visibility state.
+  - name: debug_destroy_component
+    type: function
+    desc: Debug helper that releases one SpriteLoop component runtime instance.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    returns:
+    - name: destroyed
+      type: boolean
+      desc: True when a live component instance was destroyed.
+  - name: get_info
+    type: function
+    desc: Gets debug playback and package information.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    returns:
+    - name: info
+      type: table
+      desc: Package and playback information.
+  - name: get_cache_info
+    type: function
+    desc: Gets shared package and texture cache diagnostics.
+    returns:
+    - name: info
+      type: table
+      desc: Cache entries, reference counts, texture counts, and approximate texture bytes.

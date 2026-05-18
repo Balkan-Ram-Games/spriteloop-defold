@@ -1,0 +1,72 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local function format_bytes(bytes)
+    local mb = bytes / (1024 * 1024)
+    return string.format("%.2f MB", mb)
+end
+
+local function cache_text()
+    local ok, info = pcall(spriteloop.get_cache_info)
+    if not ok or not info then
+        return "cache: unavailable"
+    end
+
+    local lines = {
+        string.format("cache entries: %d", info.entry_count or 0),
+        string.format("total refs: %d", info.total_ref_count or 0),
+        string.format("textures: %d", info.total_texture_count or 0),
+        string.format("texture bytes: %s", format_bytes(info.total_texture_bytes or 0)),
+    }
+
+    local entries = info.entries or {}
+    for i, entry in ipairs(entries) do
+        lines[#lines + 1] = string.format(
+            "%d. %s refs=%d textures=%d bytes=%s",
+            i,
+            tostring(entry.path),
+            entry.ref_count or 0,
+            entry.texture_count or 0,
+            format_bytes(entry.texture_bytes or 0))
+    end
+
+    return table.concat(lines, "\n")
+end
+
+local function refresh(self)
+    local text = string.format(
+        "SpriteLoop debug\nstate: %s%s\nloads: %d  unloads: %d\nclick: toggle proxy\n\n%s",
+        self.state,
+        self.busy and " (busy)" or "",
+        self.loads,
+        self.unloads,
+        cache_text())
+    gui.set_text(self.text_node, text)
+end
+
+function init(self)
+    self.text_node = gui.get_node("debug_text")
+    self.state = "starting"
+    self.busy = false
+    self.loads = 0
+    self.unloads = 0
+    self.elapsed = 0
+    refresh(self)
+end
+
+function update(self, dt)
+    self.elapsed = self.elapsed + dt
+    if self.elapsed >= 0.25 then
+        self.elapsed = 0
+        refresh(self)
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("proxy_state") then
+        self.state = message.state or self.state
+        self.busy = message.busy or false
+        self.loads = message.loads or self.loads
+        self.unloads = message.unloads or self.unloads
+        refresh(self)
+    end
+end

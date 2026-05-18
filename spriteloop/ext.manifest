@@ -1,0 +1,23 @@
+# Native extension manifest for the SpriteLoop Defold adapter.
+# Defold's build server reads this file to find exported symbols and platform compiler flags.
+name: "Spla"
+
+platforms:
+  common:
+    context:
+      # ResourceTypeSpriteLoopExt registers .spriteloopc resources, ResourceTypeSplaPackageExt
+      # registers raw .spla package resources, and ComponentTypeSpriteLoopExt registers the
+      # runtime component type.
+      symbols: ["ResourceTypeSpriteLoopExt", "ResourceTypeSplaPackageExt", "ComponentTypeSpriteLoopExt"]
+  x86_64-win32:
+    context:
+      flags: ["-std=c++17", "-Wno-unused-private-field"]
+  x86_64-linux:
+    context:
+      flags: ["-std=c++17", "-Wno-unused-private-field"]
+  x86_64-osx:
+    context:
+      flags: ["-std=c++17", "-Wno-unused-private-field"]
+  arm64-osx:
+    context:
+      flags: ["-std=c++17", "-Wno-unused-private-field"]

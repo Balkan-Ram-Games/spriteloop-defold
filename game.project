@@ -1,0 +1,28 @@
+[project]
+title = SpriteLoopDefoldAdapter
+
+[library]
+include_dirs = spriteloop
+defold_min_version = 1.12.2
+
+[bootstrap]
+main_collection = /example/main/root.collectionc
+
+[script]
+shared_state = 1
+
+[display]
+width = 1280
+height = 720
+high_dpi = 1
+vsync = 1
+
+[android]
+input_method = HiddenInputField
+
+[physics]
+gravity_y = -1000.0
+scale = 0.01
+
+[html5]
+scale_mode = stretch

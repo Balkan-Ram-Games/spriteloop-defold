@@ -1,0 +1,29 @@
+syntax = "proto2";
+
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+
+option java_package = "com.dynamo.spriteloop.proto";
+option java_outer_classname = "SpriteLoop";
+
+// Serialized editor/runtime data for a SpriteLoop component.
+// The editor writes this from .spriteloop resources, Bob compiles it into .spriteloopc, and
+// the runtime resource type loads it before component creation.
+message SpriteLoopDesc
+{
+    // Project path to the .spla package resource that contains manifest.json and part PNGs.
+    optional string package = 1 [(resource)=true];
+    // Animation id used when autoplay starts the component.
+    optional string default_animation = 2 [default = "idle"];
+    // Multiplier applied to delta time before advancing the SpriteLoop player.
+    optional float playback_rate = 3 [default = 1.0];
+    // Component-level looping flag used as the default for component playback.
+    optional bool loop = 4 [default = true];
+    // Initial component visibility.
+    optional bool visible = 5 [default = true];
+    // Material used by the component renderer. Bob rewrites this to the compiled .materialc path.
+    optional string material = 6 [(resource)=true, default="/spriteloop/spriteloop/materials/spriteloop.material"];
+    // Starts the default animation automatically when the component is initialized.
+    optional bool autoplay = 7 [default = true];
+}

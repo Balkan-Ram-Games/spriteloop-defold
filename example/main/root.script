@@ -1,0 +1,70 @@
+local PROXY = "#main_proxy"
+local DEBUG_GUI = "#debug_gui"
+local TOUCH = hash("touch")
+
+local function post_debug(self, state)
+    msg.post(DEBUG_GUI, "proxy_state", {
+        state = state,
+        busy = self.busy,
+        loads = self.loads,
+        unloads = self.unloads,
+    })
+end
+
+local function load_main(self)
+    self.busy = true
+    post_debug(self, "loading")
+    msg.post(PROXY, "load")
+end
+
+local function unload_main(self)
+    self.busy = true
+    post_debug(self, "unloading")
+    msg.post(PROXY, "unload")
+end
+
+function init(self)
+    self.loaded = false
+    self.busy = false
+    self.loads = 0
+    self.unloads = 0
+    msg.post(".", "acquire_input_focus")
+    post_debug(self, "starting")
+    load_main(self)
+end
+
+function on_input(self, action_id, action)
+    if action_id ~= TOUCH or not action.pressed or self.busy then
+        return
+    end
+
+    if self.loaded then
+        unload_main(self)
+        return true
+    else
+        load_main(self)
+        return true
+    end
+end
+
+function on_message(self, message_id, _message, sender)
+    if message_id == hash("proxy_loaded") then
+        self.loaded = true
+        self.busy = false
+        self.loads = self.loads + 1
+        msg.post(sender, "enable")
+        post_debug(self, "loaded")
+        print("Loaded main collection proxy")
+    elseif message_id == hash("proxy_unloaded") then
+        self.loaded = false
+        self.busy = false
+        self.unloads = self.unloads + 1
+        post_debug(self, "unloaded")
+        print("Unloaded main collection proxy")
+    elseif message_id == hash("proxy_load_error") then
+        self.loaded = false
+        self.busy = false
+        post_debug(self, "load error")
+        print("Failed to load main collection proxy")
+    end
+end

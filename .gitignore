@@ -1,0 +1,21 @@
+﻿# Build/cache output
+.artifacts/
+build/
+.internal/
+.editor_settings
+
+# Defold/editor local state
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+
+# Native build byproducts
+*.obj
+*.pdb
+*.ilk
+*.exe
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc

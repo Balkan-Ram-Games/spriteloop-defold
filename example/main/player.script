@@ -1,0 +1,21 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+function init(self)
+    self.speed = 80
+    self.direction = 1
+
+    spriteloop.play_anim("#robot", "idle", { loop = true })
+end
+
+function update(self, dt)
+    local pos = go.get_position()
+    pos.x = pos.x + self.speed * self.direction * dt
+    if pos.x > 760 then
+        pos.x = 760
+        self.direction = -1
+    elseif pos.x < 240 then
+        pos.x = 240
+        self.direction = 1
+    end
+    go.set_position(pos)
+end

@@ -1,0 +1,20 @@
+type: COLLISION_OBJECT_TYPE_DYNAMIC
+mass: 1.0
+friction: 0.1
+restitution: 0.95
+group: "default"
+mask: "default"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_BOX
+    position {
+    }
+    rotation {
+    }
+    index: 0
+    count: 3
+  }
+  data: 96.0
+  data: 128.0
+  data: 10.0
+}

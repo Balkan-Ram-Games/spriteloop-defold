@@ -1,0 +1,29 @@
+script: "/example/main/root_debug.gui_script"
+fonts {
+  name: "system_font"
+  font: "/builtins/fonts/default.font"
+}
+nodes {
+  position {
+    x: 18.0
+    y: 702.0
+  }
+  size {
+    x: 720.0
+    y: 360.0
+  }
+  color {
+    x: 0.92
+    z: 0.88
+  }
+  type: TYPE_TEXT
+  text: "SpriteLoop debug"
+  font: "system_font"
+  id: "debug_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  inherit_alpha: true
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
