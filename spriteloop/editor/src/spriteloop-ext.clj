@@ -125,7 +125,7 @@
     (workspace/load-class! "com.dynamo.spriteloop.proto.SpriteLoop$SpriteLoopDesc")
     (catch Throwable e
       (println "SpriteLoop editor plugin disabled: generated plugin class is unavailable."
-               "Build spriteloop/plugins/share/pluginSpriteLoopExt.jar before enabling the editor resource type."
+               "Build spriteloop/plugins/share/pluginSpla.jar before enabling the editor resource type."
                (.getMessage e))
       nil)))
 

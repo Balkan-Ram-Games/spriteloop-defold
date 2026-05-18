@@ -1,5 +1,5 @@
 [project]
-title = SpriteLoopDefoldAdapter
+title = SpriteLoopDefold
 
 [library]
 include_dirs = spriteloop
