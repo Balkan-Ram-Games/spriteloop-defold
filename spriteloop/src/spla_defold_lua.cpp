@@ -451,6 +451,9 @@ int component_get_info(lua_State* lua_state)
     lua_setfield(lua_state, -2, "animation_count");
     lua_pushinteger(lua_state, static_cast<lua_Integer>(image_resources.size()));
     lua_setfield(lua_state, -2, "image_resource_count");
+    lua_pushinteger(lua_state,
+                    static_cast<lua_Integer>(spla_defold::instance_atlas_texture_bytes(*instance)));
+    lua_setfield(lua_state, -2, "atlas_texture_bytes");
     lua_pushinteger(lua_state, package.canvas_width);
     lua_setfield(lua_state, -2, "canvas_width");
     lua_pushinteger(lua_state, package.canvas_height);
@@ -518,9 +521,9 @@ int component_get_cache_info(lua_State* lua_state)
             continue;
         }
 
-        const std::size_t texture_count = resource->image_resources.size();
+        const std::size_t texture_count = resource->atlas_texture != 0 ? 1 : 0;
         const std::size_t texture_bytes =
-            spla_defold::image_resource_texture_bytes(resource->image_resources);
+            spla_defold::image_resource_texture_bytes(*resource);
         total_ref_count += resource->ref_count;
         total_texture_count += texture_count;
         total_texture_bytes += texture_bytes;
@@ -538,6 +541,10 @@ int component_get_cache_info(lua_State* lua_state)
         lua_setfield(lua_state, -2, "texture_count");
         lua_pushinteger(lua_state, static_cast<lua_Integer>(texture_bytes));
         lua_setfield(lua_state, -2, "texture_bytes");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(resource->atlas_width));
+        lua_setfield(lua_state, -2, "atlas_width");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(resource->atlas_height));
+        lua_setfield(lua_state, -2, "atlas_height");
         lua_rawseti(lua_state, -2, static_cast<int>(i + 1));
     }
     lua_setfield(lua_state, -2, "entries");

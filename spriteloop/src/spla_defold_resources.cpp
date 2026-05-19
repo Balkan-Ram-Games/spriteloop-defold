@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
 // Texture resource helpers for SpriteLoop .spla packages.
@@ -141,6 +142,10 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
 // handles, and error describes the first upload failure.
 bool upload_image_resources(dmGraphics::HContext graphics_context,
                             std::vector<SplaDefoldImageResource>& resources,
+                            dmGraphics::HTexture& atlas_texture,
+                            int& atlas_width,
+                            int& atlas_height,
+                            std::size_t& atlas_texture_bytes,
                             std::string& error)
 {
     if (graphics_context == 0) {
@@ -148,10 +153,11 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
         return false;
     }
 
-    for (SplaDefoldImageResource& resource : resources) {
+    std::vector<spriteloop::SplaRgbaImage> atlas_images;
+    atlas_images.reserve(resources.size());
+    for (const SplaDefoldImageResource& resource : resources) {
         if (resource.width <= 0 || resource.height <= 0 || resource.rgba_pixels.empty()) {
             error = "image resource has no decoded pixels: " + resource.asset_path;
-            destroy_image_resources(graphics_context, resources);
             return false;
         }
 
@@ -159,73 +165,94 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
             resource.height > std::numeric_limits<std::uint16_t>::max()) {
             error = "image resource is too large for Defold texture dimensions: " +
                     resource.asset_path;
-            destroy_image_resources(graphics_context, resources);
             return false;
         }
 
-        dmGraphics::TextureCreationParams creation_params;
-        creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
-        creation_params.m_Width = static_cast<std::uint16_t>(resource.width);
-        creation_params.m_Height = static_cast<std::uint16_t>(resource.height);
-        creation_params.m_OriginalWidth = creation_params.m_Width;
-        creation_params.m_OriginalHeight = creation_params.m_Height;
-        creation_params.m_Depth = 1;
-        creation_params.m_OriginalDepth = 1;
-        creation_params.m_LayerCount = 1;
-        creation_params.m_MipMapCount = 1;
-        creation_params.m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
+        spriteloop::SplaRgbaImage image;
+        image.id = resource.asset_path;
+        image.width = resource.width;
+        image.height = resource.height;
+        image.pixels = resource.rgba_pixels;
+        atlas_images.push_back(std::move(image));
+    }
 
-        resource.texture = dmGraphics::NewTexture(graphics_context, creation_params);
-        if (resource.texture == 0) {
-            error = "failed to create Defold texture for asset '" + resource.asset_path + "'";
-            destroy_image_resources(graphics_context, resources);
-            return false;
-        }
+    spriteloop::SplaAtlasOptions options;
+    options.padding = 1;
+    auto atlas_result = spriteloop::pack_rgba_atlas(atlas_images, options);
+    if (!atlas_result) {
+        error = "failed to pack SpriteLoop atlas: " + atlas_result.error().message;
+        return false;
+    }
 
-        dmGraphics::TextureParams texture_params;
-        texture_params.m_Data = resource.rgba_pixels.data();
-        texture_params.m_DataSize = static_cast<std::uint32_t>(resource.rgba_pixels.size());
-        texture_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-        texture_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        texture_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        texture_params.m_UWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
-        texture_params.m_VWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
-        texture_params.m_Width = creation_params.m_Width;
-        texture_params.m_Height = creation_params.m_Height;
-        texture_params.m_Depth = 1;
-        texture_params.m_LayerCount = 1;
-        texture_params.m_MipMap = 0;
-        texture_params.m_SubUpdate = 0;
+    spriteloop::SplaAtlas atlas = std::move(atlas_result).value();
+    if (atlas.width > std::numeric_limits<std::uint16_t>::max() ||
+        atlas.height > std::numeric_limits<std::uint16_t>::max()) {
+        error = "SpriteLoop atlas is too large for Defold texture dimensions";
+        return false;
+    }
 
-        dmGraphics::SetTexture(graphics_context, resource.texture, texture_params);
-        dmGraphics::SetTextureParams(graphics_context, resource.texture,
-                                     dmGraphics::TEXTURE_FILTER_LINEAR,
-                                     dmGraphics::TEXTURE_FILTER_LINEAR,
-                                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
-                                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, 1.0f);
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+    creation_params.m_Width = static_cast<std::uint16_t>(atlas.width);
+    creation_params.m_Height = static_cast<std::uint16_t>(atlas.height);
+    creation_params.m_OriginalWidth = creation_params.m_Width;
+    creation_params.m_OriginalHeight = creation_params.m_Height;
+    creation_params.m_Depth = 1;
+    creation_params.m_OriginalDepth = 1;
+    creation_params.m_LayerCount = 1;
+    creation_params.m_MipMapCount = 1;
+    creation_params.m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
 
-        resource.rgba_pixels.clear();
-        resource.rgba_pixels.shrink_to_fit();
+    atlas_texture = dmGraphics::NewTexture(graphics_context, creation_params);
+    if (atlas_texture == 0) {
+        error = "failed to create Defold atlas texture";
+        return false;
+    }
+
+    dmGraphics::TextureParams texture_params;
+    texture_params.m_Data = atlas.pixels.data();
+    texture_params.m_DataSize = static_cast<std::uint32_t>(atlas.pixels.size());
+    texture_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    texture_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+    texture_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+    texture_params.m_UWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+    texture_params.m_VWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+    texture_params.m_Width = creation_params.m_Width;
+    texture_params.m_Height = creation_params.m_Height;
+    texture_params.m_Depth = 1;
+    texture_params.m_LayerCount = 1;
+    texture_params.m_MipMap = 0;
+    texture_params.m_SubUpdate = 0;
+
+    dmGraphics::SetTexture(graphics_context, atlas_texture, texture_params);
+    dmGraphics::SetTextureParams(graphics_context, atlas_texture,
+                                 dmGraphics::TEXTURE_FILTER_LINEAR,
+                                 dmGraphics::TEXTURE_FILTER_LINEAR,
+                                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, 1.0f);
+
+    atlas_width = atlas.width;
+    atlas_height = atlas.height;
+    atlas_texture_bytes = atlas.pixels.size();
+    for (std::size_t i = 0; i < resources.size(); ++i) {
+        resources[i].atlas_region = atlas.regions[i];
+        resources[i].rgba_pixels.clear();
+        resources[i].rgba_pixels.shrink_to_fit();
     }
 
     return true;
 }
 
-// Deletes any Defold textures stored in resources.
-// Safe to call with already-cleared resources; CPU-side pixels are not modified here.
-void destroy_image_resources(dmGraphics::HContext graphics_context,
-                             std::vector<SplaDefoldImageResource>& resources)
+// Deletes a Defold atlas texture.
+void destroy_atlas_texture(dmGraphics::HContext graphics_context,
+                           dmGraphics::HTexture& atlas_texture)
 {
-    if (graphics_context == 0) {
+    if (graphics_context == 0 || atlas_texture == 0) {
         return;
     }
 
-    for (SplaDefoldImageResource& resource : resources) {
-        if (resource.texture != 0) {
-            dmGraphics::DeleteTexture(graphics_context, resource.texture);
-            resource.texture = 0;
-        }
-    }
+    dmGraphics::DeleteTexture(graphics_context, atlas_texture);
+    atlas_texture = 0;
 }
 
 } // namespace spla_defold

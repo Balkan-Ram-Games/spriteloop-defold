@@ -57,7 +57,7 @@ void release_shared_package_resource(SplaDefoldSharedPackageResource* resource,
                                      return entry.get() == resource;
                                  });
     if (it != resources.end()) {
-        destroy_image_resources(graphics_context, (*it)->image_resources);
+        destroy_atlas_texture(graphics_context, (*it)->atlas_texture);
         resources.erase(it);
     }
 }
@@ -87,7 +87,8 @@ SplaDefoldInstance* create_instance_from_memory(const char* path,
         return nullptr;
     }
     if (!upload_image_resources(dmGraphics::GetInstalledContext(), instance->image_resources,
-                                error)) {
+                                instance->atlas_texture, instance->atlas_width,
+                                instance->atlas_height, instance->atlas_texture_bytes, error)) {
         return nullptr;
     }
 
@@ -121,7 +122,8 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
         return nullptr;
     }
     if (!upload_image_resources(dmGraphics::GetInstalledContext(), resource->image_resources,
-                                error)) {
+                                resource->atlas_texture, resource->atlas_width,
+                                resource->atlas_height, resource->atlas_texture_bytes, error)) {
         return nullptr;
     }
 
@@ -173,7 +175,7 @@ void destroy_instance(SplaDefoldInstance* instance, dmGraphics::HContext graphic
         release_shared_package_resource(instance->shared_resource, graphics_context);
         instance->shared_resource = nullptr;
     } else {
-        destroy_image_resources(graphics_context, instance->image_resources);
+        destroy_atlas_texture(graphics_context, instance->atlas_texture);
     }
     delete instance;
 }
@@ -182,7 +184,7 @@ void destroy_all_shared_package_resources(dmGraphics::HContext graphics_context)
 {
     for (const std::unique_ptr<SplaDefoldSharedPackageResource>& resource : shared_resources()) {
         if (resource != nullptr) {
-            destroy_image_resources(graphics_context, resource->image_resources);
+            destroy_atlas_texture(graphics_context, resource->atlas_texture);
         }
     }
     shared_resources().clear();
@@ -205,6 +207,18 @@ std::vector<SplaDefoldImageResource>& instance_image_resources(SplaDefoldInstanc
 {
     return instance.shared_resource != nullptr ? instance.shared_resource->image_resources
                                                : instance.image_resources;
+}
+
+dmGraphics::HTexture instance_atlas_texture(const SplaDefoldInstance& instance)
+{
+    return instance.shared_resource != nullptr ? instance.shared_resource->atlas_texture
+                                               : instance.atlas_texture;
+}
+
+std::size_t instance_atlas_texture_bytes(const SplaDefoldInstance& instance)
+{
+    return instance.shared_resource != nullptr ? instance.shared_resource->atlas_texture_bytes
+                                               : instance.atlas_texture_bytes;
 }
 
 // Adds instance to the live registry if it is non-null and not already present.
@@ -261,16 +275,9 @@ const SplaDefoldSharedPackageResource* shared_package_resource_at(std::size_t in
     return index < resources.size() ? resources[index].get() : nullptr;
 }
 
-std::size_t image_resource_texture_bytes(const std::vector<SplaDefoldImageResource>& resources)
+std::size_t image_resource_texture_bytes(const SplaDefoldSharedPackageResource& resource)
 {
-    std::size_t bytes = 0;
-    for (const SplaDefoldImageResource& resource : resources) {
-        if (resource.texture != 0 && resource.width > 0 && resource.height > 0) {
-            bytes += static_cast<std::size_t>(resource.width) *
-                     static_cast<std::size_t>(resource.height) * 4;
-        }
-    }
-    return bytes;
+    return resource.atlas_texture != 0 ? resource.atlas_texture_bytes : 0;
 }
 
 } // namespace spla_defold

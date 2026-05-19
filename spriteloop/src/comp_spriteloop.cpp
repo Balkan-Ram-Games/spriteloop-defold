@@ -155,6 +155,7 @@ SpriteLoopVertex transform_vertex(float source_x,
                                   float source_y,
                                   float texture_width,
                                   float texture_height,
+                                  const spriteloop::SplaAtlasUvRect& uv_rect,
                                   const spriteloop::SplaPart& part,
                                   const spriteloop::SplaTransform& transform,
                                   const SplaDefoldInstance& instance)
@@ -188,8 +189,10 @@ SpriteLoopVertex transform_vertex(float source_x,
     vertex.x = transformed.getX();
     vertex.y = transformed.getY();
     vertex.z = transformed.getZ();
-    vertex.u = source_x / texture_width;
-    vertex.v = source_y / texture_height;
+    const float source_u = source_x / texture_width;
+    const float source_v = source_y / texture_height;
+    vertex.u = uv_rect.u0 + (uv_rect.u1 - uv_rect.u0) * source_u;
+    vertex.v = uv_rect.v0 + (uv_rect.v1 - uv_rect.v0) * source_v;
     vertex.a = std::max(0.0f, std::min(transform.opacity, 1.0f));
     return vertex;
 }
@@ -204,10 +207,11 @@ void build_quad(const SplaDefoldInstance& instance,
 {
     const float width = static_cast<float>(image.width);
     const float height = static_cast<float>(image.height);
-    vertices[0] = transform_vertex(0.0f, 0.0f, width, height, part, transform, instance);
-    vertices[1] = transform_vertex(width, 0.0f, width, height, part, transform, instance);
-    vertices[2] = transform_vertex(width, height, width, height, part, transform, instance);
-    vertices[3] = transform_vertex(0.0f, height, width, height, part, transform, instance);
+    const spriteloop::SplaAtlasUvRect& uv = image.atlas_region.uv;
+    vertices[0] = transform_vertex(0.0f, 0.0f, width, height, uv, part, transform, instance);
+    vertices[1] = transform_vertex(width, 0.0f, width, height, uv, part, transform, instance);
+    vertices[2] = transform_vertex(width, height, width, height, uv, part, transform, instance);
+    vertices[3] = transform_vertex(0.0f, height, width, height, uv, part, transform, instance);
 }
 
 // Returns true when a component has enough state to emit geometry this frame.
@@ -257,13 +261,13 @@ void count_component_geometry(const SplaDefoldComponent* component,
         }
         const std::size_t part_index = static_cast<std::size_t>(frame_part.part_index);
         if (part_index >= image_resources.size() ||
-            image_resources[part_index].texture == 0) {
+            instance_atlas_texture(instance) == 0) {
             continue;
         }
         counts.vertex_count += 4;
         counts.index_count += 6;
-        counts.render_object_count += 1;
     }
+    counts.render_object_count = counts.index_count > 0 ? 1 : 0;
 }
 
 // Fills one Defold render object and submits it to the render context.
@@ -308,6 +312,12 @@ void generate_component_render_objects(SpriteLoopWorld* world,
         instance_image_resources(instance);
     const spriteloop::SplaFrame* frame = instance.player->current_frame();
     dmRender::HMaterial material = component->resource->material->m_Material;
+    dmGraphics::HTexture atlas_texture = instance_atlas_texture(instance);
+    if (atlas_texture == 0) {
+        return;
+    }
+    const uint32_t component_index_start = static_cast<uint32_t>(world->index_data.size());
+    uint32_t component_index_count = 0;
 
     for (const spriteloop::SplaFramePart& frame_part : frame->parts) {
         if (frame_part.part_index < 0 ||
@@ -321,16 +331,11 @@ void generate_component_render_objects(SpriteLoopWorld* world,
         }
 
         const SplaDefoldImageResource& image = image_resources[part_index];
-        if (image.texture == 0) {
-            continue;
-        }
-
         SpriteLoopVertex vertices[4];
         build_quad(instance, package.parts[part_index], frame_part.transform, image,
                    vertices);
 
         const uint32_t base_vertex = static_cast<uint32_t>(world->vertex_data.size());
-        const uint32_t index_start = static_cast<uint32_t>(world->index_data.size());
         world->vertex_data.insert(world->vertex_data.end(), vertices, vertices + 4);
         world->index_data.push_back(base_vertex + 0);
         world->index_data.push_back(base_vertex + 1);
@@ -338,10 +343,13 @@ void generate_component_render_objects(SpriteLoopWorld* world,
         world->index_data.push_back(base_vertex + 0);
         world->index_data.push_back(base_vertex + 2);
         world->index_data.push_back(base_vertex + 3);
+        component_index_count += 6;
+    }
 
+    if (component_index_count > 0) {
         world->render_objects.emplace_back();
-        fill_render_object(world, render_context, world->render_objects.back(), image.texture,
-                           material, index_start, 6);
+        fill_render_object(world, render_context, world->render_objects.back(), atlas_texture,
+                           material, component_index_start, component_index_count);
     }
 }
 

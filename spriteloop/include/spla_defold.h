@@ -2,6 +2,7 @@
 
 #include "spriteloop/spla_package.hpp"
 #include "spriteloop/spla_player.hpp"
+#include "spriteloop/spla_atlas.hpp"
 
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/graphics/graphics.h>
@@ -32,7 +33,7 @@ struct SplaDefoldSharedPackageResource;
 struct SplaPackageBytesResource;
 struct SpriteLoopResource;
 
-// One decoded PNG part from a .spla package plus its Defold texture handle.
+// One decoded PNG part from a .spla package plus its placement inside the shared atlas texture.
 // rgba_pixels is temporary CPU-side upload data and is cleared after upload_image_resources.
 struct SplaDefoldImageResource {
     std::string asset_path;
@@ -40,7 +41,7 @@ struct SplaDefoldImageResource {
     int height = 0;
     std::size_t byte_count = 0;
     std::vector<std::uint8_t> rgba_pixels;
-    dmGraphics::HTexture texture = 0;
+    spriteloop::SplaAtlasRegion atlas_region;
 };
 
 // Runtime playback state for one SpriteLoop package instance.
@@ -53,6 +54,10 @@ struct SplaDefoldInstance {
     SplaDefoldSharedPackageResource* shared_resource = nullptr;
     std::unique_ptr<spriteloop::SplaPlayer> player;
     std::vector<SplaDefoldImageResource> image_resources;
+    dmGraphics::HTexture atlas_texture = 0;
+    int atlas_width = 0;
+    int atlas_height = 0;
+    std::size_t atlas_texture_bytes = 0;
     float x = 0.0f;
     float y = 0.0f;
     float scale_x = 1.0f;
@@ -86,6 +91,10 @@ struct SplaDefoldSharedPackageResource {
     std::size_t byte_count = 0;
     spriteloop::SplaPackage package;
     std::vector<SplaDefoldImageResource> image_resources;
+    dmGraphics::HTexture atlas_texture = 0;
+    int atlas_width = 0;
+    int atlas_height = 0;
+    std::size_t atlas_texture_bytes = 0;
     std::uint32_t ref_count = 0;
 };
 
@@ -134,6 +143,8 @@ const spriteloop::SplaPackage& instance_package(const SplaDefoldInstance& instan
 const std::vector<SplaDefoldImageResource>& instance_image_resources(
     const SplaDefoldInstance& instance);
 std::vector<SplaDefoldImageResource>& instance_image_resources(SplaDefoldInstance& instance);
+dmGraphics::HTexture instance_atlas_texture(const SplaDefoldInstance& instance);
+std::size_t instance_atlas_texture_bytes(const SplaDefoldInstance& instance);
 
 // Extracts and decodes PNG part images from an already parsed SpriteLoop package.
 // resources is replaced with decoded image entries; error explains the first unsupported asset.
@@ -141,15 +152,19 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
                            std::vector<SplaDefoldImageResource>& resources,
                            std::string& error);
 
-// Uploads decoded image resources to Defold textures.
-// On success CPU pixel buffers are released; on failure any partially uploaded textures are freed.
+// Packs decoded image resources into one Defold atlas texture.
+// On success CPU pixel buffers are released and per-part atlas regions are stored.
 bool upload_image_resources(dmGraphics::HContext graphics_context,
                             std::vector<SplaDefoldImageResource>& resources,
+                            dmGraphics::HTexture& atlas_texture,
+                            int& atlas_width,
+                            int& atlas_height,
+                            std::size_t& atlas_texture_bytes,
                             std::string& error);
 
-// Releases all Defold textures stored in resources and clears their native handles.
-void destroy_image_resources(dmGraphics::HContext graphics_context,
-                             std::vector<SplaDefoldImageResource>& resources);
+// Releases one Defold atlas texture and clears its native handle.
+void destroy_atlas_texture(dmGraphics::HContext graphics_context,
+                           dmGraphics::HTexture& atlas_texture);
 
 // Tracks Lua-created and component-created instances so extension shutdown can clean them up.
 void register_instance(SplaDefoldInstance* instance);
@@ -159,6 +174,6 @@ const std::vector<SplaDefoldInstance*>& registered_instances();
 
 std::size_t shared_package_resource_count();
 const SplaDefoldSharedPackageResource* shared_package_resource_at(std::size_t index);
-std::size_t image_resource_texture_bytes(const std::vector<SplaDefoldImageResource>& resources);
+std::size_t image_resource_texture_bytes(const SplaDefoldSharedPackageResource& resource);
 
 } // namespace spla_defold
