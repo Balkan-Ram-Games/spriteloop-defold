@@ -1,5 +1,14 @@
 local spriteloop = require "spriteloop.spriteloop"
 
+local TOGGLE_PROFILER = hash("toggle_profiler")
+local TOGGLE_DEBUG_GUI = hash("toggle_debug_gui")
+
+local VISIBLE_NODES = {
+    "debug_text",
+    "profiler_button",
+    "profiler_button_text",
+}
+
 local function format_bytes(bytes)
     local mb = bytes / (1024 * 1024)
     return string.format("%.2f MB", mb)
@@ -33,24 +42,46 @@ local function cache_text()
 end
 
 local function refresh(self)
+    for _, id in ipairs(VISIBLE_NODES) do
+        gui.set_enabled(gui.get_node(id), self.debug_gui_visible)
+    end
+
+    if not self.debug_gui_visible then
+        return
+    end
+
     local text = string.format(
-        "SpriteLoop debug\nstate: %s%s\nloads: %d  unloads: %d\nclick: toggle proxy\n\n%s",
+        "SpriteLoop debug\nstate: %s%s\nloads: %d  unloads: %d\nprofiler: %s\n\nLeft click: load/unload main collection\nMiddle click: destroy one SpriteLoop robot\nP: toggle profiler\nG: hide/show this GUI\n\n%s",
         self.state,
         self.busy and " (busy)" or "",
         self.loads,
         self.unloads,
+        self.profiler_enabled and "on" or "off",
         cache_text())
     gui.set_text(self.text_node, text)
+
+    local label = self.profiler_enabled and "Profiler: ON (P)" or "Profiler: OFF (P)"
+    gui.set_text(self.profiler_button_text_node, label)
 end
 
 function init(self)
     self.text_node = gui.get_node("debug_text")
+    self.profiler_button_node = gui.get_node("profiler_button")
+    self.profiler_button_text_node = gui.get_node("profiler_button_text")
     self.state = "starting"
     self.busy = false
     self.loads = 0
     self.unloads = 0
     self.elapsed = 0
+    self.profiler_enabled = false
+    self.debug_gui_visible = true
+    profiler.enable_ui(false)
+    msg.post(".", "acquire_input_focus")
     refresh(self)
+end
+
+function final(_self)
+    msg.post(".", "release_input_focus")
 end
 
 function update(self, dt)
@@ -58,6 +89,23 @@ function update(self, dt)
     if self.elapsed >= 0.25 then
         self.elapsed = 0
         refresh(self)
+    end
+end
+
+function on_input(self, action_id, action)
+    if not action.pressed then
+        return
+    end
+
+    if action_id == TOGGLE_PROFILER then
+        self.profiler_enabled = not self.profiler_enabled
+        profiler.enable_ui(self.profiler_enabled)
+        refresh(self)
+        return true
+    elseif action_id == TOGGLE_DEBUG_GUI then
+        self.debug_gui_visible = not self.debug_gui_visible
+        refresh(self)
+        return true
     end
 end
 

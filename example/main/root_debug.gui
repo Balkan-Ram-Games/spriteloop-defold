@@ -25,5 +25,65 @@ nodes {
   pivot: PIVOT_NW
   inherit_alpha: true
 }
+nodes {
+  position {
+    x: 1112.0
+    y: 704.0
+  }
+  rotation {
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  size {
+    x: 176.0
+    y: 34.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.9
+  }
+  type: TYPE_BOX
+  id: "profiler_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1112.0
+    y: 704.0
+  }
+  rotation {
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  size {
+    x: 166.0
+    y: 24.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Profiler: OFF (P)"
+  font: "system_font"
+  id: "profiler_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
 material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_PARENT

@@ -6,3 +6,11 @@ mouse_trigger {
   input: MOUSE_BUTTON_2
   action: "destroy_robot"
 }
+key_trigger {
+  input: KEY_P
+  action: "toggle_profiler"
+}
+key_trigger {
+  input: KEY_G
+  action: "toggle_debug_gui"
+}
