@@ -1,0 +1,184 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local ROBOT_COMPONENT = "robot"
+local FACTORY = "#robot_factory"
+
+local INITIAL_ROBOTS = 100
+local STEP_ROBOTS = 100
+local MAX_ROBOTS = 1000
+local PARTS_PER_ROBOT = 16
+local SAMPLE_INTERVAL = 0.25
+local FPS_SAMPLE_COUNT = 60
+
+local function format_bytes(bytes)
+    local mb = bytes / (1024 * 1024)
+    return string.format("%.2f MB", mb)
+end
+
+local function cache_info()
+    local ok, info = pcall(spriteloop.get_cache_info)
+    if ok and info then
+        return info
+    end
+    return {
+        entry_count = 0,
+        total_ref_count = 0,
+        total_texture_count = 0,
+        total_texture_bytes = 0,
+    }
+end
+
+local function robot_position(index)
+    local columns = 20
+    local spacing_x = 62
+    local spacing_y = 58
+    local start_x = 64
+    local start_y = 86
+    local column = (index - 1) % columns
+    local row = math.floor((index - 1) / columns)
+    local jitter_x = ((index * 37) % 17) - 8
+    local jitter_y = ((index * 53) % 15) - 7
+    return vmath.vector3(start_x + column * spacing_x + jitter_x,
+                         start_y + row * spacing_y + jitter_y,
+                         row * 0.001)
+end
+
+local function robot_url(id)
+    return msg.url(nil, id, ROBOT_COMPONENT)
+end
+
+local function configure_robot(id, index)
+    local component = robot_url(id)
+    spriteloop.play_anim(component, "idle", { loop = true })
+    spriteloop.set_time(component, ((index * 13) % 24) / 24)
+    spriteloop.set_playback_rate(component, 0.92 + ((index * 7) % 17) * 0.01)
+end
+
+local function send_state(self, reason)
+    if not self.debug_gui then
+        return
+    end
+
+    local cache = cache_info()
+    msg.post(self.debug_gui, "benchmark_state", {
+        active = true,
+        reason = reason or "sample",
+        robot_count = #self.robots,
+        max_robots = MAX_ROBOTS,
+        step_robots = STEP_ROBOTS,
+        estimated_parts = #self.robots * PARTS_PER_ROBOT,
+        estimated_quads = #self.robots * PARTS_PER_ROBOT,
+        cache_entries = cache.entry_count or 0,
+        cache_refs = cache.total_ref_count or 0,
+        texture_count = cache.total_texture_count or 0,
+        texture_bytes = cache.total_texture_bytes or 0,
+        texture_bytes_text = format_bytes(cache.total_texture_bytes or 0),
+        fps = self.fps,
+    })
+end
+
+local function spawn_one(self, index)
+    local id = factory.create(FACTORY, robot_position(index))
+    if not id then
+        return false
+    end
+
+    self.robots[#self.robots + 1] = id
+    configure_robot(id, index)
+    return true
+end
+
+local function spawn_to(self, target_count)
+    if self.pending_delete_frames > 0 then
+        send_state(self, "deleting")
+        return
+    end
+
+    target_count = math.min(target_count, MAX_ROBOTS)
+    for i = #self.robots + 1, target_count do
+        if not spawn_one(self, i) then
+            break
+        end
+    end
+    send_state(self, "spawn")
+end
+
+local function clear_robots(self)
+    for _, id in ipairs(self.robots) do
+        go.delete(id)
+    end
+    self.robots = {}
+end
+
+local function reset_benchmark(self)
+    if #self.robots > INITIAL_ROBOTS then
+        for i = #self.robots, INITIAL_ROBOTS + 1, -1 do
+            go.delete(self.robots[i])
+            self.robots[i] = nil
+        end
+        self.pending_delete_frames = 2
+    elseif #self.robots < INITIAL_ROBOTS then
+        self.pending_reset_spawn = true
+    end
+
+    for i, id in ipairs(self.robots) do
+        configure_robot(id, i)
+    end
+
+    send_state(self, "reset")
+end
+
+function init(self)
+    self.robots = {}
+    self.pending_reset_spawn = false
+    self.pending_delete_frames = 0
+    self.debug_gui = nil
+    self.sample_elapsed = 0
+    self.fps_elapsed = 0
+    self.fps_frames = 0
+    self.fps = 0
+    reset_benchmark(self)
+end
+
+function final(self)
+    if self.debug_gui then
+        msg.post(self.debug_gui, "benchmark_state", { active = false })
+    end
+end
+
+function update(self, dt)
+    if self.pending_delete_frames > 0 then
+        self.pending_delete_frames = self.pending_delete_frames - 1
+    end
+
+    if self.pending_reset_spawn then
+        self.pending_reset_spawn = false
+        spawn_to(self, INITIAL_ROBOTS)
+    end
+
+    self.sample_elapsed = self.sample_elapsed + dt
+    self.fps_elapsed = self.fps_elapsed + dt
+    self.fps_frames = self.fps_frames + 1
+
+    if self.fps_frames >= FPS_SAMPLE_COUNT and self.fps_elapsed > 0 then
+        self.fps = self.fps_frames / self.fps_elapsed
+        self.fps_frames = 0
+        self.fps_elapsed = 0
+    end
+
+    if self.sample_elapsed >= SAMPLE_INTERVAL then
+        self.sample_elapsed = 0
+        send_state(self, "sample")
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("benchmark_set_debug_gui") then
+        self.debug_gui = message.debug_gui
+        send_state(self, "sample")
+    elseif message_id == hash("benchmark_add") then
+        spawn_to(self, #self.robots + STEP_ROBOTS)
+    elseif message_id == hash("benchmark_reset") then
+        reset_benchmark(self)
+    end
+end

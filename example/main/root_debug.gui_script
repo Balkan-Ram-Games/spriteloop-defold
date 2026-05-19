@@ -9,6 +9,8 @@ local VISIBLE_NODES = {
     "profiler_button_text",
 }
 
+local FPS_SAMPLE_COUNT = 60
+
 local function format_bytes(bytes)
     local mb = bytes / (1024 * 1024)
     return string.format("%.2f MB", mb)
@@ -41,6 +43,24 @@ local function cache_text()
     return table.concat(lines, "\n")
 end
 
+local function benchmark_text(self)
+    local state = self.benchmark
+    if not state or not state.active then
+        return "benchmark: inactive"
+    end
+
+    return table.concat({
+        string.format("benchmark: %d / %d robots", state.robot_count or 0, state.max_robots or 0),
+        string.format("fps: %.1f", state.fps or 0),
+        string.format("parts/quads: %d", state.estimated_quads or 0),
+        string.format("cache entries: %d refs: %d", state.cache_entries or 0, state.cache_refs or 0),
+        string.format("textures: %d bytes: %s",
+            state.texture_count or 0,
+            state.texture_bytes_text or format_bytes(state.texture_bytes or 0)),
+        string.format("Space: +%d robots  R: reset", state.step_robots or 100),
+    }, "\n")
+end
+
 local function refresh(self)
     for _, id in ipairs(VISIBLE_NODES) do
         gui.set_enabled(gui.get_node(id), self.debug_gui_visible)
@@ -51,13 +71,16 @@ local function refresh(self)
     end
 
     local text = string.format(
-        "SpriteLoop debug\nstate: %s%s\nloads: %d  unloads: %d\nprofiler: %s\n\nLeft click: load/unload main collection\nMiddle click: destroy one SpriteLoop robot\nP: toggle profiler\nG: hide/show this GUI\n\n%s",
+        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\n\n1: demo  2: benchmark\nLeft click: load/unload active scene\nMiddle click: destroy one demo robot\nP: toggle profiler  G: hide/show this GUI\n\n%s\n\n%s",
+        self.scene,
         self.state,
         self.busy and " (busy)" or "",
+        self.fps,
         self.loads,
         self.unloads,
         self.profiler_enabled and "on" or "off",
-        cache_text())
+        cache_text(),
+        benchmark_text(self))
     gui.set_text(self.text_node, text)
 
     local label = self.profiler_enabled and "Profiler: ON (P)" or "Profiler: OFF (P)"
@@ -69,12 +92,17 @@ function init(self)
     self.profiler_button_node = gui.get_node("profiler_button")
     self.profiler_button_text_node = gui.get_node("profiler_button_text")
     self.state = "starting"
+    self.scene = "none"
     self.busy = false
     self.loads = 0
     self.unloads = 0
     self.elapsed = 0
+    self.fps_elapsed = 0
+    self.fps_frames = 0
+    self.fps = 0
     self.profiler_enabled = false
     self.debug_gui_visible = true
+    self.benchmark = { active = false }
     profiler.enable_ui(false)
     msg.post(".", "acquire_input_focus")
     refresh(self)
@@ -86,6 +114,15 @@ end
 
 function update(self, dt)
     self.elapsed = self.elapsed + dt
+    self.fps_elapsed = self.fps_elapsed + dt
+    self.fps_frames = self.fps_frames + 1
+
+    if self.fps_frames >= FPS_SAMPLE_COUNT and self.fps_elapsed > 0 then
+        self.fps = self.fps_frames / self.fps_elapsed
+        self.fps_frames = 0
+        self.fps_elapsed = 0
+    end
+
     if self.elapsed >= 0.25 then
         self.elapsed = 0
         refresh(self)
@@ -112,9 +149,13 @@ end
 function on_message(self, message_id, message)
     if message_id == hash("proxy_state") then
         self.state = message.state or self.state
+        self.scene = message.scene or self.scene
         self.busy = message.busy or false
         self.loads = message.loads or self.loads
         self.unloads = message.unloads or self.unloads
+        refresh(self)
+    elseif message_id == hash("benchmark_state") then
+        self.benchmark = message
         refresh(self)
     end
 end

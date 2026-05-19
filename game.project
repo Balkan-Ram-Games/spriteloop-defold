@@ -16,6 +16,7 @@ width = 1280
 height = 720
 high_dpi = 1
 vsync = 1
+fullscreen = 0
 
 [android]
 input_method = HiddenInputField
@@ -26,3 +27,4 @@ scale = 0.01
 
 [html5]
 scale_mode = stretch
+
