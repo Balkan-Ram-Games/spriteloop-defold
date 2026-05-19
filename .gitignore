@@ -3,6 +3,7 @@
 build/
 .internal/
 .editor_settings
+bundle/
 
 # Defold/editor local state
 *.user

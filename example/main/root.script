@@ -3,6 +3,8 @@ local DEBUG_GUI = "#debug_gui"
 local TOUCH = hash("touch")
 
 local function post_debug(self, state)
+    profiler.enable_ui(true)
+    
     msg.post(DEBUG_GUI, "proxy_state", {
         state = state,
         busy = self.busy,
