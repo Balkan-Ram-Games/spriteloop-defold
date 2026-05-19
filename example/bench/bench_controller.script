@@ -4,8 +4,8 @@ local ROBOT_COMPONENT = "robot"
 local FACTORY = "#robot_factory"
 
 local INITIAL_ROBOTS = 100
-local STEP_ROBOTS = 100
-local MAX_ROBOTS = 1000
+local STEP_ROBOTS = 500
+local MAX_ROBOTS = 5000
 local PARTS_PER_ROBOT = 16
 local SAMPLE_INTERVAL = 0.25
 local FPS_SAMPLE_COUNT = 60

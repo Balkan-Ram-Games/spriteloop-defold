@@ -68,7 +68,6 @@ struct SpriteLoopWorld {
     std::vector<dmRender::RenderObject> render_objects;
     std::vector<SpriteLoopVertex> vertex_data;
     std::vector<uint32_t> index_data;
-    std::vector<uint16_t> packed_index_data;
     dmGraphics::HVertexDeclaration vertex_declaration = 0;
     dmGraphics::HVertexBuffer vertex_buffer = 0;
     dmGraphics::HIndexBuffer index_buffer = 0;
@@ -284,9 +283,9 @@ void fill_render_object(SpriteLoopWorld* world,
     render_object.m_VertexDeclaration = world->vertex_declaration;
     render_object.m_VertexBuffer = world->vertex_buffer;
     render_object.m_IndexBuffer = world->index_buffer;
-    render_object.m_IndexType = dmGraphics::TYPE_UNSIGNED_SHORT;
+    render_object.m_IndexType = dmGraphics::TYPE_UNSIGNED_INT;
     render_object.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-    render_object.m_VertexStart = index_start * sizeof(uint16_t);
+    render_object.m_VertexStart = index_start * sizeof(uint32_t);
     render_object.m_VertexCount = index_count;
     render_object.m_Textures[0] = texture;
     render_object.m_Material = material;
@@ -296,14 +295,13 @@ void fill_render_object(SpriteLoopWorld* world,
     dmRender::AddToRender(render_context, &render_object);
 }
 
-// Emits vertices/indices/render objects for one visible component into the world's transient
-// render buffers.
-void generate_component_render_objects(SpriteLoopWorld* world,
-                                       dmRender::HRenderContext render_context,
-                                       const SplaDefoldComponent* component)
+// Appends vertices/indices for one visible component into the world's transient render buffers.
+// Returns the number of indices appended for this component.
+uint32_t append_component_geometry(SpriteLoopWorld* world,
+                                   const SplaDefoldComponent* component)
 {
     if (!component_should_render(component)) {
-        return;
+        return 0;
     }
 
     const SplaDefoldInstance& instance = *component->instance;
@@ -311,12 +309,10 @@ void generate_component_render_objects(SpriteLoopWorld* world,
     const std::vector<SplaDefoldImageResource>& image_resources =
         instance_image_resources(instance);
     const spriteloop::SplaFrame* frame = instance.player->current_frame();
-    dmRender::HMaterial material = component->resource->material->m_Material;
     dmGraphics::HTexture atlas_texture = instance_atlas_texture(instance);
     if (atlas_texture == 0) {
-        return;
+        return 0;
     }
-    const uint32_t component_index_start = static_cast<uint32_t>(world->index_data.size());
     uint32_t component_index_count = 0;
 
     for (const spriteloop::SplaFramePart& frame_part : frame->parts) {
@@ -346,21 +342,7 @@ void generate_component_render_objects(SpriteLoopWorld* world,
         component_index_count += 6;
     }
 
-    if (component_index_count > 0) {
-        world->render_objects.emplace_back();
-        fill_render_object(world, render_context, world->render_objects.back(), atlas_texture,
-                           material, component_index_start, component_index_count);
-    }
-}
-
-// Converts 32-bit working indices to Defold's 16-bit index buffer format.
-// component_render checks the total vertex count before this runs.
-void pack_index_data(SpriteLoopWorld* world)
-{
-    world->packed_index_data.resize(world->index_data.size());
-    for (std::size_t i = 0; i < world->index_data.size(); ++i) {
-        world->packed_index_data[i] = static_cast<uint16_t>(world->index_data[i]);
-    }
+    return component_index_count;
 }
 
 // Defold component render-list dispatch callback.
@@ -375,28 +357,68 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
         world->render_objects.clear();
         world->vertex_data.clear();
         world->index_data.clear();
-        world->packed_index_data.clear();
         break;
     case dmRender::RENDER_LIST_OPERATION_BATCH:
+    {
+        dmRender::HMaterial current_material = 0;
+        dmGraphics::HTexture current_texture = 0;
+        uint32_t batch_index_start = static_cast<uint32_t>(world->index_data.size());
+        uint32_t batch_index_count = 0;
+
+        auto flush_batch = [&]() {
+            if (batch_index_count == 0 || current_texture == 0 || current_material == 0) {
+                return;
+            }
+
+            world->render_objects.emplace_back();
+            fill_render_object(world, params.m_Context, world->render_objects.back(),
+                               current_texture, current_material, batch_index_start,
+                               batch_index_count);
+            batch_index_start = static_cast<uint32_t>(world->index_data.size());
+            batch_index_count = 0;
+        };
+
         for (uint32_t* i = params.m_Begin; i != params.m_End; ++i) {
             const uint32_t component_index = static_cast<uint32_t>(params.m_Buf[*i].m_UserData);
             if (component_index < world->components.size()) {
-                generate_component_render_objects(world, params.m_Context,
-                                                  world->components[component_index]);
+                const SplaDefoldComponent* component = world->components[component_index];
+                if (!component_should_render(component)) {
+                    continue;
+                }
+
+                dmRender::HMaterial material = component->resource->material->m_Material;
+                dmGraphics::HTexture texture = instance_atlas_texture(*component->instance);
+                if (texture == 0 || material == 0) {
+                    continue;
+                }
+
+                if (batch_index_count > 0 &&
+                    (texture != current_texture || material != current_material)) {
+                    flush_batch();
+                }
+
+                if (batch_index_count == 0) {
+                    current_texture = texture;
+                    current_material = material;
+                    batch_index_start = static_cast<uint32_t>(world->index_data.size());
+                }
+
+                batch_index_count += append_component_geometry(world, component);
             }
         }
+        flush_batch();
         break;
+    }
     case dmRender::RENDER_LIST_OPERATION_END:
         if (!world->vertex_data.empty() && !world->index_data.empty()) {
-            pack_index_data(world);
             dmGraphics::SetVertexBufferData(
                 world->vertex_buffer,
                 static_cast<uint32_t>(world->vertex_data.size() * sizeof(SpriteLoopVertex)),
                 world->vertex_data.data(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
             dmGraphics::SetIndexBufferData(
                 world->index_buffer,
-                static_cast<uint32_t>(world->packed_index_data.size() * sizeof(uint16_t)),
-                world->packed_index_data.data(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                static_cast<uint32_t>(world->index_data.size() * sizeof(uint32_t)),
+                world->index_data.data(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         }
         break;
     }
@@ -687,15 +709,8 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
     if (visible_count == 0) {
         return dmGameObject::UPDATE_RESULT_OK;
     }
-    if (total_vertex_count > 0xffff) {
-        dmLogError("SpriteLoop render skipped: frame needs %u vertices, D7.0 supports 65535",
-                   total_vertex_count);
-        return dmGameObject::UPDATE_RESULT_OK;
-    }
-
     world->vertex_data.reserve(total_vertex_count);
     world->index_data.reserve(total_index_count);
-    world->packed_index_data.reserve(total_index_count);
     world->render_objects.reserve(total_render_object_count);
 
     dmRender::RenderListEntry* render_list =
@@ -711,9 +726,11 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
 
         SplaDefoldComponent* component = world->components[i];
         dmRender::HMaterial material = component->resource->material->m_Material;
+        dmGraphics::HTexture texture = instance_atlas_texture(*component->instance);
         HashState32 state;
         dmHashInit32(&state, false);
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
+        dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         uint32_t batch_key = dmHashFinal32(&state);
 
         write_ptr->m_WorldPosition = component_render_sort_position(component);

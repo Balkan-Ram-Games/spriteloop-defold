@@ -15,7 +15,13 @@ shared_state = 1
 width = 1280
 height = 720
 high_dpi = 1
-vsync = 1
+vsync = 0
+
+[collection]
+max_instances = 6000
+
+[spriteloop]
+max_count = 6000
 fullscreen = 0
 
 [android]
