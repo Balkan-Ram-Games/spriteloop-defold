@@ -1,7 +1,7 @@
 ﻿# Build/cache output
 .artifacts/
-build/
-.internal/
+/.internal
+/build
 .editor_settings
 bundle/
 
