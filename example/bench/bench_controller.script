@@ -207,6 +207,7 @@ local function send_state(self, reason)
         texture_count = cache.total_texture_count or 0,
         texture_bytes = cache.total_texture_bytes or 0,
         texture_bytes_text = format_bytes(cache.total_texture_bytes or 0),
+        render_stats = cache.render_stats or {},
         fps = self.fps,
     })
 end

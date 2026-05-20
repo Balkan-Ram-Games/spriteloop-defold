@@ -29,6 +29,12 @@ std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>>& shared_resources(
     return resources;
 }
 
+SplaDefoldRenderStats& global_render_stats()
+{
+    static SplaDefoldRenderStats stats;
+    return stats;
+}
+
 std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>>::iterator find_shared_resource(
     const std::string& path)
 {
@@ -91,6 +97,7 @@ SplaDefoldInstance* create_instance_from_memory(const char* path,
                                 instance->atlas_height, instance->atlas_texture_bytes, error)) {
         return nullptr;
     }
+    instance->bounds = calculate_package_bounds(instance->package, instance->image_resources);
 
     instance->player.reset(new spriteloop::SplaPlayer(instance->package));
     register_instance(instance.get());
@@ -126,6 +133,7 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
                                 resource->atlas_height, resource->atlas_texture_bytes, error)) {
         return nullptr;
     }
+    resource->bounds = calculate_package_bounds(resource->package, resource->image_resources);
 
     resource->ref_count = 1;
     SplaDefoldSharedPackageResource* raw_resource = resource.get();
@@ -221,6 +229,39 @@ std::size_t instance_atlas_texture_bytes(const SplaDefoldInstance& instance)
                                                : instance.atlas_texture_bytes;
 }
 
+const SplaDefoldBounds& instance_bounds(const SplaDefoldInstance& instance)
+{
+    return instance.shared_resource != nullptr ? instance.shared_resource->bounds
+                                               : instance.bounds;
+}
+
+SplaDefoldBounds calculate_package_bounds(const spriteloop::SplaPackage& package,
+                                          const std::vector<SplaDefoldImageResource>& resources)
+{
+    float max_image_extent = 0.0f;
+    for (const SplaDefoldImageResource& image : resources) {
+        max_image_extent =
+            std::max(max_image_extent,
+                     std::max(static_cast<float>(image.width),
+                              static_cast<float>(image.height)));
+    }
+
+    SplaDefoldBounds bounds;
+    const float half_width = static_cast<float>(package.canvas_width) * 0.5f;
+    const float half_height = static_cast<float>(package.canvas_height) * 0.5f;
+    bounds.min_x = -half_width - max_image_extent;
+    bounds.min_y = -half_height - max_image_extent;
+    bounds.max_x = half_width + max_image_extent;
+    bounds.max_y = half_height + max_image_extent;
+    bounds.center_x = (bounds.min_x + bounds.max_x) * 0.5f;
+    bounds.center_y = (bounds.min_y + bounds.max_y) * 0.5f;
+
+    const float dx = bounds.max_x - bounds.center_x;
+    const float dy = bounds.max_y - bounds.center_y;
+    bounds.radius_sq = dx * dx + dy * dy;
+    return bounds;
+}
+
 // Adds instance to the live registry if it is non-null and not already present.
 void register_instance(SplaDefoldInstance* instance)
 {
@@ -278,6 +319,16 @@ const SplaDefoldSharedPackageResource* shared_package_resource_at(std::size_t in
 std::size_t image_resource_texture_bytes(const SplaDefoldSharedPackageResource& resource)
 {
     return resource.atlas_texture != 0 ? resource.atlas_texture_bytes : 0;
+}
+
+const SplaDefoldRenderStats& render_stats()
+{
+    return global_render_stats();
+}
+
+void set_render_stats(const SplaDefoldRenderStats& stats)
+{
+    global_render_stats() = stats;
 }
 
 } // namespace spla_defold

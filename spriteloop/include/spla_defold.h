@@ -44,6 +44,16 @@ struct SplaDefoldImageResource {
     spriteloop::SplaAtlasRegion atlas_region;
 };
 
+struct SplaDefoldBounds {
+    float min_x = 0.0f;
+    float min_y = 0.0f;
+    float max_x = 0.0f;
+    float max_y = 0.0f;
+    float center_x = 0.0f;
+    float center_y = 0.0f;
+    float radius_sq = 0.0f;
+};
+
 // Runtime playback state for one SpriteLoop package instance.
 // Lua handles and Defold components both own instances. Component-owned instances also mirror
 // their game object and component-local transform so the renderer can emit world-space geometry.
@@ -58,6 +68,7 @@ struct SplaDefoldInstance {
     int atlas_width = 0;
     int atlas_height = 0;
     std::size_t atlas_texture_bytes = 0;
+    SplaDefoldBounds bounds;
     float x = 0.0f;
     float y = 0.0f;
     float scale_x = 1.0f;
@@ -95,7 +106,22 @@ struct SplaDefoldSharedPackageResource {
     int atlas_width = 0;
     int atlas_height = 0;
     std::size_t atlas_texture_bytes = 0;
+    SplaDefoldBounds bounds;
     std::uint32_t ref_count = 0;
+};
+
+struct SplaDefoldRenderStats {
+    std::uint32_t component_count = 0;
+    std::uint32_t render_candidates = 0;
+    std::uint32_t frustum_visible = 0;
+    std::uint32_t frustum_culled = 0;
+    std::uint32_t vertices_generated = 0;
+    std::uint32_t indices_generated = 0;
+    std::uint32_t quads_generated = 0;
+    std::uint32_t render_objects = 0;
+    std::uint32_t batch_flushes = 0;
+    std::uint32_t vertex_cache_hits = 0;
+    std::uint32_t vertex_cache_misses = 0;
 };
 
 // Raw bytes for a built .spla package resource.
@@ -145,6 +171,9 @@ const std::vector<SplaDefoldImageResource>& instance_image_resources(
 std::vector<SplaDefoldImageResource>& instance_image_resources(SplaDefoldInstance& instance);
 dmGraphics::HTexture instance_atlas_texture(const SplaDefoldInstance& instance);
 std::size_t instance_atlas_texture_bytes(const SplaDefoldInstance& instance);
+const SplaDefoldBounds& instance_bounds(const SplaDefoldInstance& instance);
+SplaDefoldBounds calculate_package_bounds(const spriteloop::SplaPackage& package,
+                                          const std::vector<SplaDefoldImageResource>& resources);
 
 // Extracts and decodes PNG part images from an already parsed SpriteLoop package.
 // resources is replaced with decoded image entries; error explains the first unsupported asset.
@@ -175,5 +204,7 @@ const std::vector<SplaDefoldInstance*>& registered_instances();
 std::size_t shared_package_resource_count();
 const SplaDefoldSharedPackageResource* shared_package_resource_at(std::size_t index);
 std::size_t image_resource_texture_bytes(const SplaDefoldSharedPackageResource& resource);
+const SplaDefoldRenderStats& render_stats();
+void set_render_stats(const SplaDefoldRenderStats& stats);
 
 } // namespace spla_defold

@@ -556,6 +556,32 @@ int component_get_cache_info(lua_State* lua_state)
     lua_pushinteger(lua_state, static_cast<lua_Integer>(total_texture_bytes));
     lua_setfield(lua_state, -2, "total_texture_bytes");
 
+    const spla_defold::SplaDefoldRenderStats& stats = spla_defold::render_stats();
+    lua_newtable(lua_state);
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.component_count));
+    lua_setfield(lua_state, -2, "component_count");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.render_candidates));
+    lua_setfield(lua_state, -2, "render_candidates");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.frustum_visible));
+    lua_setfield(lua_state, -2, "frustum_visible");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.frustum_culled));
+    lua_setfield(lua_state, -2, "frustum_culled");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.vertices_generated));
+    lua_setfield(lua_state, -2, "vertices_generated");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.indices_generated));
+    lua_setfield(lua_state, -2, "indices_generated");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.quads_generated));
+    lua_setfield(lua_state, -2, "quads_generated");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.render_objects));
+    lua_setfield(lua_state, -2, "render_objects");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.batch_flushes));
+    lua_setfield(lua_state, -2, "batch_flushes");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.vertex_cache_hits));
+    lua_setfield(lua_state, -2, "vertex_cache_hits");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(stats.vertex_cache_misses));
+    lua_setfield(lua_state, -2, "vertex_cache_misses");
+    lua_setfield(lua_state, -2, "render_stats");
+
     return 1;
 }
 

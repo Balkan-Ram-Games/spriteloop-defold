@@ -23,6 +23,7 @@ max_instances = 6000
 [spriteloop]
 max_count = 6000
 fullscreen = 0
+camera_culling = 1
 
 [android]
 input_method = HiddenInputField
@@ -33,4 +34,3 @@ scale = 0.01
 
 [html5]
 scale_mode = stretch
-

@@ -3,6 +3,7 @@
 
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/intersection.h>
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/gameobject/component.h>
 #include <dmsdk/render/render.h>
@@ -14,6 +15,7 @@
 #include <cstring>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // Production Defold component type for SpriteLoop.
@@ -26,6 +28,7 @@ namespace spla_defold {
 namespace {
 
 constexpr const char* max_count_property = "spriteloop.max_count";
+constexpr const char* culling_property = "spriteloop.camera_culling";
 const dmhash_t position_property = dmHashString64("position");
 const dmhash_t rotation_property = dmHashString64("rotation");
 const dmhash_t scale_property = dmHashString64("scale");
@@ -43,19 +46,13 @@ struct SpriteLoopVertex {
     float a = 1.0f;
 };
 
-// Per-component geometry counts collected before Defold render-list allocation.
-struct SpriteLoopGeometryCounts {
-    uint32_t vertex_count = 0;
-    uint32_t index_count = 0;
-    uint32_t render_object_count = 0;
-};
-
 // Shared component-type state created once when the component type is registered.
 struct SpriteLoopContext {
     dmResource::HFactory factory = 0;
     dmGraphics::HContext graphics_context = 0;
     dmRender::HRenderContext render_context = 0;
     uint32_t max_components_per_world = 1024;
+    bool camera_culling = true;
 };
 
 // Per-collection storage for this component type.
@@ -64,13 +61,23 @@ struct SpriteLoopContext {
 struct SpriteLoopWorld {
     SpriteLoopContext* context = nullptr;
     std::vector<SplaDefoldComponent*> components;
-    std::vector<SpriteLoopGeometryCounts> geometry_counts;
     std::vector<dmRender::RenderObject> render_objects;
     std::vector<SpriteLoopVertex> vertex_data;
     std::vector<uint32_t> index_data;
+    SplaDefoldRenderStats frame_stats;
     dmGraphics::HVertexDeclaration vertex_declaration = 0;
     dmGraphics::HVertexBuffer vertex_buffer = 0;
     dmGraphics::HIndexBuffer index_buffer = 0;
+};
+
+struct ComponentGeometryCache {
+    bool valid = false;
+    int frame_index = -1;
+    dmVMath::Matrix4 world_matrix;
+    dmVMath::Point3 local_position;
+    dmVMath::Quat local_rotation;
+    dmVMath::Vector3 local_scale;
+    std::vector<SpriteLoopVertex> vertices;
 };
 
 constexpr float pi = 3.14159265358979323846f;
@@ -81,6 +88,12 @@ const char* non_empty_or_default(const char* value, const char* fallback)
     return value != nullptr && value[0] != '\0' ? value : fallback;
 }
 
+std::unordered_map<const SplaDefoldComponent*, ComponentGeometryCache>& geometry_cache()
+{
+    static std::unordered_map<const SplaDefoldComponent*, ComponentGeometryCache> cache;
+    return cache;
+}
+
 // Removes a component pointer from a world without deleting the component itself.
 void remove_component(SpriteLoopWorld* world, SplaDefoldComponent* component)
 {
@@ -88,6 +101,7 @@ void remove_component(SpriteLoopWorld* world, SplaDefoldComponent* component)
         return;
     }
 
+    geometry_cache().erase(component);
     world->components.erase(std::remove(world->components.begin(), world->components.end(),
                                         component),
                             world->components.end());
@@ -133,6 +147,12 @@ dmVMath::Vector3 rotate_vector(const dmVMath::Quat& q, const dmVMath::Vector3& v
     return v + ((uv * q.getW()) + uuv) * 2.0f;
 }
 
+template <typename T>
+bool same_value(const T& a, const T& b)
+{
+    return std::memcmp(&a, &b, sizeof(T)) == 0;
+}
+
 // Applies the component-local transform to a centered SpriteLoop point.
 // x and y are local canvas coordinates relative to the component origin.
 dmVMath::Vector4 transform_component_local_point(const SplaDefoldInstance& instance,
@@ -145,6 +165,32 @@ dmVMath::Vector4 transform_component_local_point(const SplaDefoldInstance& insta
     return dmVMath::Vector4(rotated.getX() + instance.local_position.getX(),
                             rotated.getY() + instance.local_position.getY(),
                             rotated.getZ() + instance.local_position.getZ(), 1.0f);
+}
+
+bool component_intersects_frustum(const SplaDefoldComponent* component,
+                                  const dmIntersection::Frustum* frustum)
+{
+    if (component == nullptr || component->instance == nullptr || frustum == nullptr) {
+        return true;
+    }
+
+    const SplaDefoldInstance& instance = *component->instance;
+    const SplaDefoldBounds& bounds = instance_bounds(instance);
+
+    const dmVMath::Matrix4& world = dmGameObject::GetWorldMatrix(instance.game_object);
+    const dmVMath::Vector4 center_local =
+        transform_component_local_point(instance, bounds.center_x, bounds.center_y);
+    const dmVMath::Vector4 center_world = world * center_local;
+
+    const dmVMath::Vector3 world_scale = dmGameObject::GetWorldScale(instance.game_object);
+    const float max_component_scale =
+        std::max(std::abs(instance.local_scale.getX()), std::abs(instance.local_scale.getY()));
+    const float max_world_scale =
+        std::max(std::abs(world_scale.getX()), std::abs(world_scale.getY()));
+    const float radius_scale = max_component_scale * max_world_scale;
+    const float radius_sq = bounds.radius_sq * radius_scale * radius_scale;
+
+    return dmIntersection::TestFrustumSphereSq(*frustum, center_world, radius_sq);
 }
 
 // Transforms one source image pixel coordinate into one world-space render vertex.
@@ -221,6 +267,14 @@ bool component_should_render(const SplaDefoldComponent* component)
            component->instance->game_object != 0 && component->instance->player->current_frame() != nullptr;
 }
 
+bool component_is_render_candidate(const SplaDefoldComponent* component)
+{
+    return component_should_render(component) &&
+           component->resource != nullptr && component->resource->material != nullptr &&
+           component->resource->material->m_Material != 0 &&
+           instance_atlas_texture(*component->instance) != 0;
+}
+
 // Returns the same component-local origin position used by emitted vertices so Defold's render
 // list can sort components that share one parent game object by their component-local Z.
 dmVMath::Point3 component_render_sort_position(const SplaDefoldComponent* component)
@@ -236,37 +290,6 @@ dmVMath::Point3 component_render_sort_position(const SplaDefoldComponent* compon
                                         instance.local_position.getZ(), 1.0f);
     const dmVMath::Vector4 position = world * local_origin;
     return dmVMath::Point3(position.getX(), position.getY(), position.getZ());
-}
-
-// Counts vertices, indices, and render objects needed for one component's current frame.
-// counts is reset before being filled.
-void count_component_geometry(const SplaDefoldComponent* component,
-                              SpriteLoopGeometryCounts& counts)
-{
-    counts = {};
-    if (!component_should_render(component)) {
-        return;
-    }
-
-    const SplaDefoldInstance& instance = *component->instance;
-    const spriteloop::SplaPackage& package = instance_package(instance);
-    const std::vector<SplaDefoldImageResource>& image_resources =
-        instance_image_resources(instance);
-    const spriteloop::SplaFrame* frame = instance.player->current_frame();
-    for (const spriteloop::SplaFramePart& frame_part : frame->parts) {
-        if (frame_part.part_index < 0 ||
-            frame_part.part_index >= static_cast<int>(package.parts.size())) {
-            continue;
-        }
-        const std::size_t part_index = static_cast<std::size_t>(frame_part.part_index);
-        if (part_index >= image_resources.size() ||
-            instance_atlas_texture(instance) == 0) {
-            continue;
-        }
-        counts.vertex_count += 4;
-        counts.index_count += 6;
-    }
-    counts.render_object_count = counts.index_count > 0 ? 1 : 0;
 }
 
 // Fills one Defold render object and submits it to the render context.
@@ -313,26 +336,55 @@ uint32_t append_component_geometry(SpriteLoopWorld* world,
     if (atlas_texture == 0) {
         return 0;
     }
+
+    const dmVMath::Matrix4& world_matrix = dmGameObject::GetWorldMatrix(instance.game_object);
+    const int frame_index = instance.player->current_frame_index();
+    ComponentGeometryCache& cache = geometry_cache()[component];
+    const bool cache_hit =
+        cache.valid && cache.frame_index == frame_index &&
+        same_value(cache.world_matrix, world_matrix) &&
+        same_value(cache.local_position, instance.local_position) &&
+        same_value(cache.local_rotation, instance.local_rotation) &&
+        same_value(cache.local_scale, instance.local_scale);
+
+    if (cache_hit) {
+        ++world->frame_stats.vertex_cache_hits;
+    } else {
+        ++world->frame_stats.vertex_cache_misses;
+        cache.valid = false;
+        cache.frame_index = frame_index;
+        cache.world_matrix = world_matrix;
+        cache.local_position = instance.local_position;
+        cache.local_rotation = instance.local_rotation;
+        cache.local_scale = instance.local_scale;
+        cache.vertices.clear();
+        cache.vertices.reserve(frame->parts.size() * 4);
+
+        for (const spriteloop::SplaFramePart& frame_part : frame->parts) {
+            if (frame_part.part_index < 0 ||
+                frame_part.part_index >= static_cast<int>(package.parts.size())) {
+                continue;
+            }
+
+            const std::size_t part_index = static_cast<std::size_t>(frame_part.part_index);
+            if (part_index >= image_resources.size()) {
+                continue;
+            }
+
+            const SplaDefoldImageResource& image = image_resources[part_index];
+            SpriteLoopVertex vertices[4];
+            build_quad(instance, package.parts[part_index], frame_part.transform, image,
+                       vertices);
+            cache.vertices.insert(cache.vertices.end(), vertices, vertices + 4);
+        }
+        cache.valid = true;
+    }
+
     uint32_t component_index_count = 0;
-
-    for (const spriteloop::SplaFramePart& frame_part : frame->parts) {
-        if (frame_part.part_index < 0 ||
-            frame_part.part_index >= static_cast<int>(package.parts.size())) {
-            continue;
-        }
-
-        const std::size_t part_index = static_cast<std::size_t>(frame_part.part_index);
-        if (part_index >= image_resources.size()) {
-            continue;
-        }
-
-        const SplaDefoldImageResource& image = image_resources[part_index];
-        SpriteLoopVertex vertices[4];
-        build_quad(instance, package.parts[part_index], frame_part.transform, image,
-                   vertices);
-
+    for (std::size_t i = 0; i + 3 < cache.vertices.size(); i += 4) {
         const uint32_t base_vertex = static_cast<uint32_t>(world->vertex_data.size());
-        world->vertex_data.insert(world->vertex_data.end(), vertices, vertices + 4);
+        world->vertex_data.insert(world->vertex_data.end(), cache.vertices.begin() + i,
+                                  cache.vertices.begin() + i + 4);
         world->index_data.push_back(base_vertex + 0);
         world->index_data.push_back(base_vertex + 1);
         world->index_data.push_back(base_vertex + 2);
@@ -374,6 +426,8 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
             fill_render_object(world, params.m_Context, world->render_objects.back(),
                                current_texture, current_material, batch_index_start,
                                batch_index_count);
+            ++world->frame_stats.batch_flushes;
+            ++world->frame_stats.render_objects;
             batch_index_start = static_cast<uint32_t>(world->index_data.size());
             batch_index_count = 0;
         };
@@ -403,7 +457,11 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
                     batch_index_start = static_cast<uint32_t>(world->index_data.size());
                 }
 
-                batch_index_count += append_component_geometry(world, component);
+                const uint32_t appended_indices = append_component_geometry(world, component);
+                batch_index_count += appended_indices;
+                world->frame_stats.indices_generated += appended_indices;
+                world->frame_stats.quads_generated += appended_indices / 6;
+                world->frame_stats.vertices_generated += (appended_indices / 6) * 4;
             }
         }
         flush_batch();
@@ -420,7 +478,38 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
                 static_cast<uint32_t>(world->index_data.size() * sizeof(uint32_t)),
                 world->index_data.data(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         }
+        set_render_stats(world->frame_stats);
         break;
+    }
+}
+
+void render_list_visibility(const dmRender::RenderListVisibilityParams& params)
+{
+    SpriteLoopWorld* world = static_cast<SpriteLoopWorld*>(params.m_UserData);
+    if (world == nullptr || world->context == nullptr ||
+        !world->context->camera_culling || params.m_Frustum == nullptr) {
+        return;
+    }
+
+    world->frame_stats.frustum_visible = 0;
+    world->frame_stats.frustum_culled = 0;
+    for (uint32_t i = 0; i < params.m_NumEntries; ++i) {
+        dmRender::RenderListEntry& entry = params.m_Entries[i];
+        const uint32_t component_index = static_cast<uint32_t>(entry.m_UserData);
+        if (component_index >= world->components.size()) {
+            entry.m_Visibility = dmRender::VISIBILITY_NONE;
+            continue;
+        }
+
+        entry.m_Visibility = component_intersects_frustum(world->components[component_index],
+                                                          params.m_Frustum)
+                                 ? dmRender::VISIBILITY_FULL
+                                 : dmRender::VISIBILITY_NONE;
+        if (entry.m_Visibility == dmRender::VISIBILITY_FULL) {
+            ++world->frame_stats.frustum_visible;
+        } else {
+            ++world->frame_stats.frustum_culled;
+        }
     }
 }
 
@@ -518,8 +607,6 @@ dmGameObject::CreateResult component_new_world(
     world->components.reserve(params.m_MaxComponentInstances == 0xFFFFFFFF
                                   ? world->context->max_components_per_world
                                   : params.m_MaxComponentInstances);
-    world->geometry_counts.reserve(world->components.capacity());
-
     dmGraphics::HVertexStreamDeclaration stream_declaration =
         dmGraphics::NewVertexStreamDeclaration(world->context->graphics_context);
     dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT,
@@ -599,7 +686,6 @@ dmGameObject::CreateResult component_create(const dmGameObject::ComponentCreateP
     }
 
     world->components.push_back(component);
-    world->geometry_counts.resize(world->components.size());
     *params.m_UserData = reinterpret_cast<uintptr_t>(component);
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -628,7 +714,6 @@ dmGameObject::CreateResult component_destroy(const dmGameObject::ComponentDestro
     SplaDefoldComponent* component = component_from_userdata(*params.m_UserData);
     if (component != nullptr) {
         remove_component(world, component);
-        world->geometry_counts.resize(world->components.size());
         destroy_instance(component->instance, dmGraphics::GetInstalledContext());
         component->instance = nullptr;
         delete component;
@@ -688,43 +773,40 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
     dmRender::HRenderContext render_context = context->render_context;
     const uint32_t component_count = static_cast<uint32_t>(world->components.size());
     if (component_count == 0 || render_context == 0) {
+        set_render_stats({});
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    world->geometry_counts.resize(component_count);
+    world->frame_stats = {};
+    world->frame_stats.component_count = component_count;
+
     uint32_t visible_count = 0;
-    uint32_t total_vertex_count = 0;
-    uint32_t total_index_count = 0;
-    uint32_t total_render_object_count = 0;
     for (uint32_t i = 0; i < component_count; ++i) {
-        count_component_geometry(world->components[i], world->geometry_counts[i]);
-        if (world->geometry_counts[i].index_count > 0) {
+        if (component_is_render_candidate(world->components[i])) {
             ++visible_count;
-            total_vertex_count += world->geometry_counts[i].vertex_count;
-            total_index_count += world->geometry_counts[i].index_count;
-            total_render_object_count += world->geometry_counts[i].render_object_count;
         }
     }
+    world->frame_stats.render_candidates = visible_count;
 
     if (visible_count == 0) {
+        set_render_stats(world->frame_stats);
         return dmGameObject::UPDATE_RESULT_OK;
     }
-    world->vertex_data.reserve(total_vertex_count);
-    world->index_data.reserve(total_index_count);
-    world->render_objects.reserve(total_render_object_count);
+    world->render_objects.reserve(1);
 
     dmRender::RenderListEntry* render_list =
         dmRender::RenderListAlloc(render_context, visible_count);
     dmRender::HRenderListDispatch dispatch =
-        dmRender::RenderListMakeDispatch(render_context, &render_list_dispatch, 0, world);
+        dmRender::RenderListMakeDispatch(render_context, &render_list_dispatch,
+                                         &render_list_visibility, world);
     dmRender::RenderListEntry* write_ptr = render_list;
 
     for (uint32_t i = 0; i < component_count; ++i) {
-        if (world->geometry_counts[i].index_count == 0) {
+        SplaDefoldComponent* component = world->components[i];
+        if (!component_is_render_candidate(component)) {
             continue;
         }
 
-        SplaDefoldComponent* component = world->components[i];
         dmRender::HMaterial material = component->resource->material->m_Material;
         dmGraphics::HTexture texture = instance_atlas_texture(*component->instance);
         HashState32 state;
@@ -740,6 +822,7 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
         write_ptr->m_Dispatch = dispatch;
         write_ptr->m_MinorOrder = 0;
         write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+        write_ptr->m_Visibility = dmRender::VISIBILITY_FULL;
         ++write_ptr;
     }
 
@@ -766,6 +849,8 @@ dmGameObject::Result component_type_create(const dmGameObject::ComponentTypeCrea
         ctx->m_Contexts.Get(dmHashString64("render")));
     context->max_components_per_world =
         dmConfigFile::GetInt(ctx->m_Config, max_count_property, 1024);
+    context->camera_culling =
+        dmConfigFile::GetInt(ctx->m_Config, culling_property, 1) != 0;
 
     dmGameObject::ComponentTypeSetPrio(type, 1050);
     dmGameObject::ComponentTypeSetContext(type, context);

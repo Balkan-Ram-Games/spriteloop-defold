@@ -49,6 +49,7 @@ local function benchmark_text(self)
         return "benchmark: inactive"
     end
 
+    local render = state.render_stats or {}
     return table.concat({
         string.format("benchmark: %d / %d robots", state.robot_count or 0, state.max_robots or 0),
         string.format("mode: %d/%d %s", state.mode_index or 1, state.mode_count or 1, state.mode or "unknown"),
@@ -58,6 +59,18 @@ local function benchmark_text(self)
             state.estimated_visible or 0,
             state.estimated_visible_quads or 0),
         string.format("total parts/quads: %d", state.estimated_quads or 0),
+        string.format("render: components=%d candidates=%d frustum=%d/%d",
+            render.component_count or 0,
+            render.render_candidates or 0,
+            render.frustum_visible or 0,
+            render.frustum_culled or 0),
+        string.format("generated: quads=%d vertices=%d batches=%d",
+            render.quads_generated or 0,
+            render.vertices_generated or 0,
+            render.batch_flushes or 0),
+        string.format("vertex cache: hits=%d misses=%d",
+            render.vertex_cache_hits or 0,
+            render.vertex_cache_misses or 0),
         string.format("cache entries: %d refs: %d", state.cache_entries or 0, state.cache_refs or 0),
         string.format("textures: %d bytes: %s",
             state.texture_count or 0,
