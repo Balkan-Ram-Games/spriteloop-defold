@@ -49,6 +49,7 @@ x86_64-win32
 x86_64-linux
 x86_64-osx
 arm64-osx
+wasm-web
 ```
 
 More Defold arc-platforms can be added by committing the matching library under
@@ -57,6 +58,9 @@ target.
 
 Defold/Bob uses `x86_64-macos` as the macOS build platform, but native extension
 libraries still live under `x86_64-osx` and `arm64-osx`. This is expected.
+
+Defold's current WebAssembly HTML5 arc-platform is `wasm-web`; the older
+asm.js-style `js-web` platform is intentionally not shipped by this extension.
 
 ## Validate
 
@@ -71,6 +75,12 @@ For macOS validation, use Bob's macOS platform name:
 
 ```sh
 python3 utils/validate.py --bob path/to/bob.jar --platform x86_64-macos
+```
+
+For HTML5/WebAssembly validation, use Defold's WebAssembly platform name:
+
+```sh
+python3 utils/validate.py --bob path/to/bob.jar --platform wasm-web
 ```
 
 On Windows, the same command works from PowerShell:

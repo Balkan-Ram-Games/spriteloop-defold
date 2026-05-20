@@ -21,6 +21,7 @@ jobs:
           - x86_64-win32
           - x86_64-linux
           - x86_64-macos
+          - wasm-web
 
     steps:
       - uses: actions/checkout@v6

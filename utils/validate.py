@@ -100,6 +100,8 @@ def main() -> int:
         f"--variant={args.variant}",
         f"--build-server={args.build_server}",
     ]
+    if args.platform == "wasm-web":
+        command.append("--architectures=wasm-web")
     if args.defold_sdk:
         command.append(f"--defoldsdk={args.defold_sdk}")
     command.extend(["clean", "build"])

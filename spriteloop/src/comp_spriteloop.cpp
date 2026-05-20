@@ -831,6 +831,28 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
         dmRender::RenderListMakeDispatch(render_context, &render_list_dispatch,
                                          &render_list_visibility, world);
     dmRender::RenderListEntry* write_ptr = render_list;
+    struct RenderBatchOrder {
+        dmRender::HMaterial material = 0;
+        dmGraphics::HTexture texture = 0;
+        uint32_t minor_order = 0;
+    };
+    std::vector<RenderBatchOrder> batch_orders;
+
+    auto minor_order_for_batch = [&batch_orders](dmRender::HMaterial material,
+                                                 dmGraphics::HTexture texture) {
+        for (const RenderBatchOrder& order : batch_orders) {
+            if (order.material == material && order.texture == texture) {
+                return order.minor_order;
+            }
+        }
+
+        RenderBatchOrder order;
+        order.material = material;
+        order.texture = texture;
+        order.minor_order = static_cast<uint32_t>(batch_orders.size());
+        batch_orders.push_back(order);
+        return order.minor_order;
+    };
 
     for (uint32_t i = 0; i < component_count; ++i) {
         SplaDefoldComponent* component = world->components[i];
@@ -851,7 +873,7 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
         write_ptr->m_BatchKey = batch_key;
         write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(material);
         write_ptr->m_Dispatch = dispatch;
-        write_ptr->m_MinorOrder = 0;
+        write_ptr->m_MinorOrder = minor_order_for_batch(material, texture);
         write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
         write_ptr->m_Visibility = dmRender::VISIBILITY_FULL;
         ++write_ptr;

@@ -21,3 +21,6 @@ platforms:
   arm64-osx:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]
+  wasm-web:
+    context:
+      flags: ["-std=c++17", "-Wno-unused-private-field"]
