@@ -51,13 +51,18 @@ local function benchmark_text(self)
 
     return table.concat({
         string.format("benchmark: %d / %d robots", state.robot_count or 0, state.max_robots or 0),
+        string.format("mode: %d/%d %s", state.mode_index or 1, state.mode_count or 1, state.mode or "unknown"),
+        string.format("%s", state.mode_description or ""),
         string.format("fps: %.1f", state.fps or 0),
-        string.format("parts/quads: %d", state.estimated_quads or 0),
+        string.format("visible est: %d robots / %d quads",
+            state.estimated_visible or 0,
+            state.estimated_visible_quads or 0),
+        string.format("total parts/quads: %d", state.estimated_quads or 0),
         string.format("cache entries: %d refs: %d", state.cache_entries or 0, state.cache_refs or 0),
         string.format("textures: %d bytes: %s",
             state.texture_count or 0,
             state.texture_bytes_text or format_bytes(state.texture_bytes or 0)),
-        string.format("Space: +%d robots  R: reset", state.step_robots or 100),
+        string.format("Space: +%d robots  B: mode  R: reset", state.step_robots or 100),
     }, "\n")
 end
 
@@ -71,7 +76,7 @@ local function refresh(self)
     end
 
     local text = string.format(
-        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\n\n1: demo  2: benchmark\nLeft click: load/unload active scene\nMiddle click: destroy one demo robot\nP: toggle profiler  G: hide/show this GUI\n\n%s\n\n%s",
+        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\n\n1: demo  2: benchmark\nLeft click: load/unload active scene\nMiddle click: destroy one demo robot\nP: toggle profiler  G: hide/show this GUI\nBench: Space add  B mode  R reset\n\n%s\n\n%s",
         self.scene,
         self.state,
         self.busy and " (busy)" or "",

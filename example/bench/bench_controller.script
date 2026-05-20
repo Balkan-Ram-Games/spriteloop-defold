@@ -10,6 +10,62 @@ local PARTS_PER_ROBOT = 16
 local SAMPLE_INTERVAL = 0.25
 local FPS_SAMPLE_COUNT = 60
 
+local MODES = {
+    {
+        id = "fill_playing_static",
+        label = "fill playing/static",
+        layout = "fill",
+        moving = false,
+        playback = true,
+        description = "visible fill, animation only",
+    },
+    {
+        id = "fill_playing_moving",
+        label = "fill playing/moving",
+        layout = "fill",
+        moving = true,
+        playback = true,
+        description = "visible fill, moving transforms",
+    },
+    {
+        id = "fill_paused_static",
+        label = "fill paused/static",
+        layout = "fill",
+        moving = false,
+        playback = false,
+        description = "visible fill, no frame or transform churn",
+    },
+    {
+        id = "cull_playing_static",
+        label = "cull playing/static",
+        layout = "cull",
+        moving = false,
+        playback = true,
+        description = "fixed visible set, many offscreen",
+    },
+    {
+        id = "cull_playing_moving",
+        label = "cull playing/moving",
+        layout = "cull",
+        moving = true,
+        playback = true,
+        description = "fixed visible moving set, many offscreen",
+    },
+    {
+        id = "scatter_playing_moving",
+        label = "scatter playing/moving",
+        layout = "scatter",
+        moving = true,
+        playback = true,
+        description = "wide world scatter, mixed visibility",
+    },
+}
+
+local FILL_COLUMNS = 52
+local FILL_ROWS = 24
+local FILL_CAPACITY = FILL_COLUMNS * FILL_ROWS
+local CULL_VISIBLE_CAP = 500
+
 local function format_bytes(bytes)
     local mb = bytes / (1024 * 1024)
     return string.format("%.2f MB", mb)
@@ -28,12 +84,55 @@ local function cache_info()
     }
 end
 
-local function robot_position(index)
-    local columns = 20
-    local spacing_x = 62
-    local spacing_y = 58
-    local start_x = 64
-    local start_y = 86
+local function mode(self)
+    return MODES[self.mode_index] or MODES[1]
+end
+
+local function fill_position(index)
+    local spacing_x = 27
+    local spacing_y = 30
+    local start_x = -50
+    local start_y = 190
+    local cell = (index - 1) % FILL_CAPACITY
+    local page = math.floor((index - 1) / FILL_CAPACITY)
+    local column = cell % FILL_COLUMNS
+    local row = math.floor(cell / FILL_COLUMNS)
+    local jitter_x = ((index * 37) % 9) - 4
+    local jitter_y = ((index * 53) % 7) - 3
+    local layer_offset_x = (page % 5) * 3
+    local layer_offset_y = (page % 7) * 2
+
+    return vmath.vector3(start_x + column * spacing_x + jitter_x + layer_offset_x,
+                         start_y + row * spacing_y + jitter_y + layer_offset_y,
+                         (row + page * FILL_ROWS) * 0.001)
+end
+
+local function cull_position(index)
+    if index > CULL_VISIBLE_CAP then
+        local offscreen_index = index - CULL_VISIBLE_CAP
+        local column = (offscreen_index - 1) % 100
+        local row = math.floor((offscreen_index - 1) / 100)
+        return vmath.vector3(4000 + column * 38, 1800 + row * 36, row * 0.001)
+    end
+
+    local columns = 30
+    local spacing_x = 42
+    local spacing_y = 34
+    local start_x = -8
+    local start_y = 205
+    local column = (index - 1) % columns
+    local row = math.floor((index - 1) / columns)
+    return vmath.vector3(start_x + column * spacing_x,
+                         start_y + row * spacing_y,
+                         row * 0.001)
+end
+
+local function scatter_position(index)
+    local columns = 28
+    local spacing_x = 55
+    local spacing_y = 45
+    local start_x = -180
+    local start_y = -120
     local column = (index - 1) % columns
     local row = math.floor((index - 1) / columns)
     local jitter_x = ((index * 37) % 17) - 8
@@ -43,15 +142,41 @@ local function robot_position(index)
                          row * 0.001)
 end
 
+local function robot_position(self, index)
+    local current_mode = mode(self)
+    if current_mode.layout == "fill" then
+        return fill_position(index)
+    elseif current_mode.layout == "cull" then
+        return cull_position(index)
+    end
+    return scatter_position(index)
+end
+
 local function robot_url(id)
     return msg.url(nil, id, ROBOT_COMPONENT)
 end
 
-local function configure_robot(id, index)
+local function estimated_visible_count(self)
+    local current_mode = mode(self)
+    local count = #self.robots
+    if current_mode.layout == "fill" then
+        return count
+    elseif current_mode.layout == "cull" then
+        return math.min(count, CULL_VISIBLE_CAP)
+    end
+    return math.min(count, 1100)
+end
+
+local function configure_robot(self, id, index)
     local component = robot_url(id)
     spriteloop.play_anim(component, "idle", { loop = true })
     spriteloop.set_time(component, ((index * 13) % 24) / 24)
-    spriteloop.set_playback_rate(component, 0.92 + ((index * 7) % 17) * 0.01)
+    if mode(self).playback then
+        spriteloop.set_playback_rate(component, 0.92 + ((index * 7) % 17) * 0.01)
+    else
+        spriteloop.set_frame(component, (index * 7) % 24)
+        spriteloop.set_playback_rate(component, 0)
+    end
 end
 
 local function send_state(self, reason)
@@ -66,8 +191,17 @@ local function send_state(self, reason)
         robot_count = #self.robots,
         max_robots = MAX_ROBOTS,
         step_robots = STEP_ROBOTS,
+        mode = mode(self).label,
+        mode_id = mode(self).id,
+        mode_description = mode(self).description,
+        mode_index = self.mode_index,
+        mode_count = #MODES,
+        moving = mode(self).moving,
+        playback = mode(self).playback,
+        estimated_visible = estimated_visible_count(self),
         estimated_parts = #self.robots * PARTS_PER_ROBOT,
         estimated_quads = #self.robots * PARTS_PER_ROBOT,
+        estimated_visible_quads = estimated_visible_count(self) * PARTS_PER_ROBOT,
         cache_entries = cache.entry_count or 0,
         cache_refs = cache.total_ref_count or 0,
         texture_count = cache.total_texture_count or 0,
@@ -78,13 +212,15 @@ local function send_state(self, reason)
 end
 
 local function spawn_one(self, index)
-    local id = factory.create(FACTORY, robot_position(index))
+    local position = robot_position(self, index)
+    local id = factory.create(FACTORY, position)
     if not id then
         return false
     end
 
     self.robots[#self.robots + 1] = id
-    configure_robot(id, index)
+    self.base_positions[#self.base_positions + 1] = position
+    configure_robot(self, id, index)
     return true
 end
 
@@ -108,6 +244,25 @@ local function clear_robots(self)
         go.delete(id)
     end
     self.robots = {}
+    self.base_positions = {}
+end
+
+local function apply_layout(self)
+    for i, id in ipairs(self.robots) do
+        local position = robot_position(self, i)
+        self.base_positions[i] = position
+        go.set_position(position, id)
+        configure_robot(self, id, i)
+    end
+end
+
+local function next_mode(self)
+    self.mode_index = self.mode_index + 1
+    if self.mode_index > #MODES then
+        self.mode_index = 1
+    end
+    apply_layout(self)
+    send_state(self, "mode")
 end
 
 local function reset_benchmark(self)
@@ -115,21 +270,21 @@ local function reset_benchmark(self)
         for i = #self.robots, INITIAL_ROBOTS + 1, -1 do
             go.delete(self.robots[i])
             self.robots[i] = nil
+            self.base_positions[i] = nil
         end
         self.pending_delete_frames = 2
     elseif #self.robots < INITIAL_ROBOTS then
         self.pending_reset_spawn = true
     end
 
-    for i, id in ipairs(self.robots) do
-        configure_robot(id, i)
-    end
+    apply_layout(self)
 
     send_state(self, "reset")
 end
 
 function init(self)
     self.robots = {}
+    self.base_positions = {}
     self.pending_reset_spawn = false
     self.pending_delete_frames = 0
     self.debug_gui = nil
@@ -137,6 +292,8 @@ function init(self)
     self.fps_elapsed = 0
     self.fps_frames = 0
     self.fps = 0
+    self.time = 0
+    self.mode_index = 1
     reset_benchmark(self)
 end
 
@@ -144,9 +301,12 @@ function final(self)
     if self.debug_gui then
         msg.post(self.debug_gui, "benchmark_state", { active = false })
     end
+    clear_robots(self)
 end
 
 function update(self, dt)
+    self.time = self.time + dt
+
     if self.pending_delete_frames > 0 then
         self.pending_delete_frames = self.pending_delete_frames - 1
     end
@@ -166,6 +326,16 @@ function update(self, dt)
         self.fps_elapsed = 0
     end
 
+    if mode(self).moving then
+        for i, id in ipairs(self.robots) do
+            local base = self.base_positions[i]
+            local phase = i * 0.73
+            local offset_x = math.sin(self.time * 1.7 + phase) * 12
+            local offset_y = math.abs(math.sin(self.time * 2.3 + phase * 0.61)) * 34
+            go.set_position(vmath.vector3(base.x + offset_x, base.y + offset_y, base.z), id)
+        end
+    end
+
     if self.sample_elapsed >= SAMPLE_INTERVAL then
         self.sample_elapsed = 0
         send_state(self, "sample")
@@ -180,5 +350,7 @@ function on_message(self, message_id, message)
         spawn_to(self, #self.robots + STEP_ROBOTS)
     elseif message_id == hash("benchmark_reset") then
         reset_benchmark(self)
+    elseif message_id == hash("benchmark_next_mode") then
+        next_mode(self)
     end
 end

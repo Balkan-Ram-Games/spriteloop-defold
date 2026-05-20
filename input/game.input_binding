@@ -30,3 +30,7 @@ key_trigger {
   input: KEY_SPACE
   action: "benchmark_add"
 }
+key_trigger {
+  input: KEY_B
+  action: "benchmark_next_mode"
+}
