@@ -54,6 +54,23 @@ struct SplaDefoldBounds {
     float radius_sq = 0.0f;
 };
 
+struct SplaDefoldBakedVertex {
+    float x = 0.0f;
+    float y = 0.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+    float a = 1.0f;
+};
+
+struct SplaDefoldBakedFrame {
+    std::vector<SplaDefoldBakedVertex> vertices;
+};
+
+struct SplaDefoldBakedAnimation {
+    std::string id;
+    std::vector<SplaDefoldBakedFrame> frames;
+};
+
 // Runtime playback state for one SpriteLoop package instance.
 // Lua handles and Defold components both own instances. Component-owned instances also mirror
 // their game object and component-local transform so the renderer can emit world-space geometry.
@@ -69,6 +86,7 @@ struct SplaDefoldInstance {
     int atlas_height = 0;
     std::size_t atlas_texture_bytes = 0;
     SplaDefoldBounds bounds;
+    std::vector<SplaDefoldBakedAnimation> baked_animations;
     float x = 0.0f;
     float y = 0.0f;
     float scale_x = 1.0f;
@@ -107,6 +125,7 @@ struct SplaDefoldSharedPackageResource {
     int atlas_height = 0;
     std::size_t atlas_texture_bytes = 0;
     SplaDefoldBounds bounds;
+    std::vector<SplaDefoldBakedAnimation> baked_animations;
     std::uint32_t ref_count = 0;
 };
 
@@ -172,8 +191,13 @@ std::vector<SplaDefoldImageResource>& instance_image_resources(SplaDefoldInstanc
 dmGraphics::HTexture instance_atlas_texture(const SplaDefoldInstance& instance);
 std::size_t instance_atlas_texture_bytes(const SplaDefoldInstance& instance);
 const SplaDefoldBounds& instance_bounds(const SplaDefoldInstance& instance);
+const std::vector<SplaDefoldBakedAnimation>& instance_baked_animations(
+    const SplaDefoldInstance& instance);
 SplaDefoldBounds calculate_package_bounds(const spriteloop::SplaPackage& package,
                                           const std::vector<SplaDefoldImageResource>& resources);
+std::vector<SplaDefoldBakedAnimation> build_baked_animations(
+    const spriteloop::SplaPackage& package,
+    const std::vector<SplaDefoldImageResource>& resources);
 
 // Extracts and decodes PNG part images from an already parsed SpriteLoop package.
 // resources is replaced with decoded image entries; error explains the first unsupported asset.

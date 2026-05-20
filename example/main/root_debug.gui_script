@@ -53,6 +53,7 @@ local function benchmark_text(self)
     return table.concat({
         string.format("benchmark: %d / %d robots", state.robot_count or 0, state.max_robots or 0),
         string.format("mode: %d/%d %s", state.mode_index or 1, state.mode_count or 1, state.mode or "unknown"),
+        string.format("movement: %s", state.movement or "none"),
         string.format("%s", state.mode_description or ""),
         string.format("fps: %.1f", state.fps or 0),
         string.format("visible est: %d robots / %d quads",

@@ -16,14 +16,13 @@ width = 1280
 height = 720
 high_dpi = 1
 vsync = 0
+fullscreen = 0
 
 [collection]
 max_instances = 6000
 
 [spriteloop]
 max_count = 6000
-fullscreen = 0
-camera_culling = 1
 
 [android]
 input_method = HiddenInputField

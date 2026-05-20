@@ -28,7 +28,6 @@ namespace spla_defold {
 namespace {
 
 constexpr const char* max_count_property = "spriteloop.max_count";
-constexpr const char* culling_property = "spriteloop.camera_culling";
 const dmhash_t position_property = dmHashString64("position");
 const dmhash_t rotation_property = dmHashString64("rotation");
 const dmhash_t scale_property = dmHashString64("scale");
@@ -52,7 +51,6 @@ struct SpriteLoopContext {
     dmGraphics::HContext graphics_context = 0;
     dmRender::HRenderContext render_context = 0;
     uint32_t max_components_per_world = 1024;
-    bool camera_culling = true;
 };
 
 // Per-collection storage for this component type.
@@ -72,6 +70,7 @@ struct SpriteLoopWorld {
 
 struct ComponentGeometryCache {
     bool valid = false;
+    std::string animation_id;
     int frame_index = -1;
     dmVMath::Matrix4 world_matrix;
     dmVMath::Point3 local_position;
@@ -145,6 +144,30 @@ dmVMath::Vector3 rotate_vector(const dmVMath::Quat& q, const dmVMath::Vector3& v
     const dmVMath::Vector3 uv = dmVMath::Cross(quat_vector, v);
     const dmVMath::Vector3 uuv = dmVMath::Cross(quat_vector, uv);
     return v + ((uv * q.getW()) + uuv) * 2.0f;
+}
+
+const SplaDefoldBakedFrame* current_baked_frame(const SplaDefoldInstance& instance)
+{
+    const spriteloop::SplaAnimation* animation = instance.player->current_animation();
+    if (animation == nullptr) {
+        return nullptr;
+    }
+
+    const int frame_index = instance.player->current_frame_index();
+    if (frame_index < 0) {
+        return nullptr;
+    }
+
+    const std::vector<SplaDefoldBakedAnimation>& animations =
+        instance_baked_animations(instance);
+    for (const SplaDefoldBakedAnimation& baked_animation : animations) {
+        if (baked_animation.id == animation->id &&
+            frame_index < static_cast<int>(baked_animation.frames.size())) {
+            return &baked_animation.frames[static_cast<std::size_t>(frame_index)];
+        }
+    }
+
+    return nullptr;
 }
 
 template <typename T>
@@ -259,6 +282,24 @@ void build_quad(const SplaDefoldInstance& instance,
     vertices[3] = transform_vertex(0.0f, height, width, height, uv, part, transform, instance);
 }
 
+SpriteLoopVertex transform_baked_vertex(const SplaDefoldInstance& instance,
+                                        const dmVMath::Matrix4& world_matrix,
+                                        const SplaDefoldBakedVertex& baked)
+{
+    const dmVMath::Vector4 local =
+        transform_component_local_point(instance, baked.x, baked.y);
+    const dmVMath::Vector4 transformed = world_matrix * local;
+
+    SpriteLoopVertex vertex;
+    vertex.x = transformed.getX();
+    vertex.y = transformed.getY();
+    vertex.z = transformed.getZ();
+    vertex.u = baked.u;
+    vertex.v = baked.v;
+    vertex.a = baked.a;
+    return vertex;
+}
+
 // Returns true when a component has enough state to emit geometry this frame.
 bool component_should_render(const SplaDefoldComponent* component)
 {
@@ -328,20 +369,23 @@ uint32_t append_component_geometry(SpriteLoopWorld* world,
     }
 
     const SplaDefoldInstance& instance = *component->instance;
-    const spriteloop::SplaPackage& package = instance_package(instance);
-    const std::vector<SplaDefoldImageResource>& image_resources =
-        instance_image_resources(instance);
-    const spriteloop::SplaFrame* frame = instance.player->current_frame();
     dmGraphics::HTexture atlas_texture = instance_atlas_texture(instance);
     if (atlas_texture == 0) {
         return 0;
     }
 
     const dmVMath::Matrix4& world_matrix = dmGameObject::GetWorldMatrix(instance.game_object);
+    const spriteloop::SplaAnimation* animation = instance.player->current_animation();
     const int frame_index = instance.player->current_frame_index();
+    const SplaDefoldBakedFrame* baked_frame = current_baked_frame(instance);
+    if (animation == nullptr || baked_frame == nullptr) {
+        return 0;
+    }
+
     ComponentGeometryCache& cache = geometry_cache()[component];
     const bool cache_hit =
-        cache.valid && cache.frame_index == frame_index &&
+        cache.valid && cache.animation_id == animation->id &&
+        cache.frame_index == frame_index &&
         same_value(cache.world_matrix, world_matrix) &&
         same_value(cache.local_position, instance.local_position) &&
         same_value(cache.local_rotation, instance.local_rotation) &&
@@ -352,30 +396,18 @@ uint32_t append_component_geometry(SpriteLoopWorld* world,
     } else {
         ++world->frame_stats.vertex_cache_misses;
         cache.valid = false;
+        cache.animation_id = animation->id;
         cache.frame_index = frame_index;
         cache.world_matrix = world_matrix;
         cache.local_position = instance.local_position;
         cache.local_rotation = instance.local_rotation;
         cache.local_scale = instance.local_scale;
         cache.vertices.clear();
-        cache.vertices.reserve(frame->parts.size() * 4);
+        cache.vertices.reserve(baked_frame->vertices.size());
 
-        for (const spriteloop::SplaFramePart& frame_part : frame->parts) {
-            if (frame_part.part_index < 0 ||
-                frame_part.part_index >= static_cast<int>(package.parts.size())) {
-                continue;
-            }
-
-            const std::size_t part_index = static_cast<std::size_t>(frame_part.part_index);
-            if (part_index >= image_resources.size()) {
-                continue;
-            }
-
-            const SplaDefoldImageResource& image = image_resources[part_index];
-            SpriteLoopVertex vertices[4];
-            build_quad(instance, package.parts[part_index], frame_part.transform, image,
-                       vertices);
-            cache.vertices.insert(cache.vertices.end(), vertices, vertices + 4);
+        for (const SplaDefoldBakedVertex& baked_vertex : baked_frame->vertices) {
+            cache.vertices.push_back(
+                transform_baked_vertex(instance, world_matrix, baked_vertex));
         }
         cache.valid = true;
     }
@@ -486,8 +518,7 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
 void render_list_visibility(const dmRender::RenderListVisibilityParams& params)
 {
     SpriteLoopWorld* world = static_cast<SpriteLoopWorld*>(params.m_UserData);
-    if (world == nullptr || world->context == nullptr ||
-        !world->context->camera_culling || params.m_Frustum == nullptr) {
+    if (world == nullptr || world->context == nullptr || params.m_Frustum == nullptr) {
         return;
     }
 
@@ -792,7 +823,7 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
         set_render_stats(world->frame_stats);
         return dmGameObject::UPDATE_RESULT_OK;
     }
-    world->render_objects.reserve(1);
+    world->render_objects.reserve(visible_count);
 
     dmRender::RenderListEntry* render_list =
         dmRender::RenderListAlloc(render_context, visible_count);
@@ -849,8 +880,6 @@ dmGameObject::Result component_type_create(const dmGameObject::ComponentTypeCrea
         ctx->m_Contexts.Get(dmHashString64("render")));
     context->max_components_per_world =
         dmConfigFile::GetInt(ctx->m_Config, max_count_property, 1024);
-    context->camera_culling =
-        dmConfigFile::GetInt(ctx->m_Config, culling_property, 1) != 0;
 
     dmGameObject::ComponentTypeSetPrio(type, 1050);
     dmGameObject::ComponentTypeSetContext(type, context);

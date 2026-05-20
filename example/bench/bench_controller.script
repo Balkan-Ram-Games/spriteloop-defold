@@ -15,7 +15,7 @@ local MODES = {
         id = "fill_playing_static",
         label = "fill playing/static",
         layout = "fill",
-        moving = false,
+        movement = "none",
         playback = true,
         description = "visible fill, animation only",
     },
@@ -23,15 +23,23 @@ local MODES = {
         id = "fill_playing_moving",
         label = "fill playing/moving",
         layout = "fill",
-        moving = true,
+        movement = "script",
         playback = true,
         description = "visible fill, moving transforms",
+    },
+    {
+        id = "fill_playing_animate",
+        label = "fill playing/animate",
+        layout = "fill",
+        movement = "animate",
+        playback = true,
+        description = "visible fill, go.animate transforms",
     },
     {
         id = "fill_paused_static",
         label = "fill paused/static",
         layout = "fill",
-        moving = false,
+        movement = "none",
         playback = false,
         description = "visible fill, no frame or transform churn",
     },
@@ -39,7 +47,7 @@ local MODES = {
         id = "cull_playing_static",
         label = "cull playing/static",
         layout = "cull",
-        moving = false,
+        movement = "none",
         playback = true,
         description = "fixed visible set, many offscreen",
     },
@@ -47,17 +55,41 @@ local MODES = {
         id = "cull_playing_moving",
         label = "cull playing/moving",
         layout = "cull",
-        moving = true,
+        movement = "script",
         playback = true,
         description = "fixed visible moving set, many offscreen",
+    },
+    {
+        id = "cull_playing_animate",
+        label = "cull playing/animate",
+        layout = "cull",
+        movement = "animate",
+        playback = true,
+        description = "fixed visible animated set, many offscreen",
     },
     {
         id = "scatter_playing_moving",
         label = "scatter playing/moving",
         layout = "scatter",
-        moving = true,
+        movement = "script",
         playback = true,
         description = "wide world scatter, mixed visibility",
+    },
+    {
+        id = "scatter_playing_animate",
+        label = "scatter playing/animate",
+        layout = "scatter",
+        movement = "animate",
+        playback = true,
+        description = "wide world go.animate, mixed visibility",
+    },
+    {
+        id = "horde_script",
+        label = "horde center/script",
+        layout = "horde",
+        movement = "horde_script",
+        playback = true,
+        description = "200 center army, offscreen enemies move inward",
     },
 }
 
@@ -65,6 +97,8 @@ local FILL_COLUMNS = 52
 local FILL_ROWS = 24
 local FILL_CAPACITY = FILL_COLUMNS * FILL_ROWS
 local CULL_VISIBLE_CAP = 500
+local HORDE_CENTER_CAP = 200
+local HORDE_CENTER = vmath.vector3(628, 548, 0)
 
 local function format_bytes(bytes)
     local mb = bytes / (1024 * 1024)
@@ -142,12 +176,40 @@ local function scatter_position(index)
                          row * 0.001)
 end
 
+local function horde_position(index)
+    if index <= HORDE_CENTER_CAP then
+        local ring = math.floor((index - 1) / 40)
+        local slot = (index - 1) % 40
+        local angle = (slot / 40) * math.pi * 2 + ring * 0.17
+        local radius = 24 + ring * 18
+        return vmath.vector3(HORDE_CENTER.x + math.cos(angle) * radius,
+                             HORDE_CENTER.y + math.sin(angle) * radius,
+                             index * 0.001)
+    end
+
+    local enemy_index = index - HORDE_CENTER_CAP
+    local side = enemy_index % 4
+    local lane = math.floor((enemy_index - 1) / 4)
+    local spread_x = ((lane * 37) % 1500) - 750
+    local spread_y = ((lane * 53) % 1000) - 500
+    if side == 0 then
+        return vmath.vector3(HORDE_CENTER.x - 1100, HORDE_CENTER.y + spread_y, index * 0.001)
+    elseif side == 1 then
+        return vmath.vector3(HORDE_CENTER.x + 1100, HORDE_CENTER.y + spread_y, index * 0.001)
+    elseif side == 2 then
+        return vmath.vector3(HORDE_CENTER.x + spread_x, HORDE_CENTER.y - 850, index * 0.001)
+    end
+    return vmath.vector3(HORDE_CENTER.x + spread_x, HORDE_CENTER.y + 850, index * 0.001)
+end
+
 local function robot_position(self, index)
     local current_mode = mode(self)
     if current_mode.layout == "fill" then
         return fill_position(index)
     elseif current_mode.layout == "cull" then
         return cull_position(index)
+    elseif current_mode.layout == "horde" then
+        return horde_position(index)
     end
     return scatter_position(index)
 end
@@ -163,12 +225,15 @@ local function estimated_visible_count(self)
         return count
     elseif current_mode.layout == "cull" then
         return math.min(count, CULL_VISIBLE_CAP)
+    elseif current_mode.layout == "horde" then
+        return math.min(count, HORDE_CENTER_CAP + math.floor(math.max(count - HORDE_CENTER_CAP, 0) * 0.25))
     end
     return math.min(count, 1100)
 end
 
 local function configure_robot(self, id, index)
     local component = robot_url(id)
+    go.cancel_animations(id, "position")
     spriteloop.play_anim(component, "idle", { loop = true })
     spriteloop.set_time(component, ((index * 13) % 24) / 24)
     if mode(self).playback then
@@ -177,6 +242,47 @@ local function configure_robot(self, id, index)
         spriteloop.set_frame(component, (index * 7) % 24)
         spriteloop.set_playback_rate(component, 0)
     end
+end
+
+local function animate_robot(self, id, index)
+    local current_mode = mode(self)
+    if current_mode.movement ~= "animate" then
+        return
+    end
+
+    local base = self.base_positions[index]
+    local phase = index * 0.73
+    local offset_x = math.sin(phase) * 12
+    local offset_y = 8 + math.abs(math.sin(phase * 0.61)) * 34
+    local target = vmath.vector3(base.x + offset_x, base.y + offset_y, base.z)
+    local duration = 0.45 + ((index * 11) % 17) * 0.025
+    go.animate(id, "position", go.PLAYBACK_LOOP_PINGPONG, target,
+        go.EASING_INOUTSINE, duration, ((index * 7) % 19) * 0.017)
+end
+
+local function horde_script_position(self, index)
+    local base = self.base_positions[index]
+    if index <= HORDE_CENTER_CAP then
+        local phase = self.time * 1.1 + index * 0.31
+        return vmath.vector3(base.x + math.sin(phase) * 4,
+                             base.y + math.cos(phase * 0.83) * 4,
+                             base.z)
+    end
+
+    local dx = HORDE_CENTER.x - base.x
+    local dy = HORDE_CENTER.y - base.y
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length <= 0.001 then
+        return base
+    end
+
+    local nx = dx / length
+    local ny = dy / length
+    local travel = (self.time * (55 + (index % 37))) % math.max(length - 70, 1)
+    local lateral = math.sin(self.time * 1.7 + index * 0.23) * 22
+    return vmath.vector3(base.x + nx * travel - ny * lateral,
+                         base.y + ny * travel + nx * lateral,
+                         base.z)
 end
 
 local function send_state(self, reason)
@@ -196,7 +302,8 @@ local function send_state(self, reason)
         mode_description = mode(self).description,
         mode_index = self.mode_index,
         mode_count = #MODES,
-        moving = mode(self).moving,
+        moving = mode(self).movement == "script" or mode(self).movement == "horde_script",
+        movement = mode(self).movement or "none",
         playback = mode(self).playback,
         estimated_visible = estimated_visible_count(self),
         estimated_parts = #self.robots * PARTS_PER_ROBOT,
@@ -222,6 +329,7 @@ local function spawn_one(self, index)
     self.robots[#self.robots + 1] = id
     self.base_positions[#self.base_positions + 1] = position
     configure_robot(self, id, index)
+    animate_robot(self, id, index)
     return true
 end
 
@@ -242,6 +350,7 @@ end
 
 local function clear_robots(self)
     for _, id in ipairs(self.robots) do
+        go.cancel_animations(id, "position")
         go.delete(id)
     end
     self.robots = {}
@@ -252,8 +361,10 @@ local function apply_layout(self)
     for i, id in ipairs(self.robots) do
         local position = robot_position(self, i)
         self.base_positions[i] = position
+        go.cancel_animations(id, "position")
         go.set_position(position, id)
         configure_robot(self, id, i)
+        animate_robot(self, id, i)
     end
 end
 
@@ -327,13 +438,17 @@ function update(self, dt)
         self.fps_elapsed = 0
     end
 
-    if mode(self).moving then
+    if mode(self).movement == "script" then
         for i, id in ipairs(self.robots) do
             local base = self.base_positions[i]
             local phase = i * 0.73
             local offset_x = math.sin(self.time * 1.7 + phase) * 12
             local offset_y = math.abs(math.sin(self.time * 2.3 + phase * 0.61)) * 34
             go.set_position(vmath.vector3(base.x + offset_x, base.y + offset_y, base.z), id)
+        end
+    elseif mode(self).movement == "horde_script" then
+        for i, id in ipairs(self.robots) do
+            go.set_position(horde_script_position(self, i), id)
         end
     end
 
