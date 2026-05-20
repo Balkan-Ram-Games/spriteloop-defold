@@ -2,14 +2,64 @@ local spriteloop = require "spriteloop.spriteloop"
 
 local TOGGLE_PROFILER = hash("toggle_profiler")
 local TOGGLE_DEBUG_GUI = hash("toggle_debug_gui")
+local TOUCH = hash("touch")
+local ROOT_CONTROLLER = "/root#controller"
 
-local VISIBLE_NODES = {
+local DEBUG_NODES = {
     "debug_text",
-    "profiler_button",
-    "profiler_button_text",
+    "bench_mode_text",
+}
+
+local BUTTONS = {
+    {
+        id = "profiler",
+        box = "profiler_button",
+        text = "profiler_button_text",
+        action = "toggle_profiler",
+    },
+    {
+        id = "debug",
+        box = "debug_button",
+        text = "debug_button_text",
+        action = "toggle_debug",
+    },
+    {
+        id = "toggle",
+        box = "scene_button",
+        text = "scene_button_text",
+        message = "ui_toggle_scene",
+    },
+    {
+        id = "bench",
+        box = "bench_button",
+        text = "bench_button_text",
+        message = "ui_load_benchmark",
+    },
+    {
+        id = "add",
+        box = "add_button",
+        text = "add_button_text",
+        message = "ui_benchmark_add",
+    },
+    {
+        id = "reset",
+        box = "reset_button",
+        text = "reset_button_text",
+        message = "ui_benchmark_reset",
+    },
+    {
+        id = "mode",
+        box = "mode_button",
+        text = "mode_button_text",
+        message = "ui_benchmark_next_mode",
+    },
 }
 
 local FPS_SAMPLE_COUNT = 60
+local BUTTON_COLOR = vmath.vector4(0.12, 0.16, 0.2, 0.92)
+local BUTTON_DISABLED_COLOR = vmath.vector4(0.22, 0.24, 0.27, 0.7)
+local BUTTON_TEXT_COLOR = vmath.vector4(0.92, 0.96, 1.0, 1.0)
+local BUTTON_TEXT_DISABLED_COLOR = vmath.vector4(0.62, 0.66, 0.7, 1.0)
 
 local function format_bytes(bytes)
     local mb = bytes / (1024 * 1024)
@@ -52,7 +102,6 @@ local function benchmark_text(self)
     local render = state.render_stats or {}
     return table.concat({
         string.format("benchmark: %d / %d robots", state.robot_count or 0, state.max_robots or 0),
-        string.format("mode: %d/%d %s", state.mode_index or 1, state.mode_count or 1, state.mode or "unknown"),
         string.format("movement: %s", state.movement or "none"),
         string.format("%s", state.mode_description or ""),
         string.format("fps: %.1f", state.fps or 0),
@@ -80,17 +129,81 @@ local function benchmark_text(self)
     }, "\n")
 end
 
+local function set_button(self, button, label, enabled)
+    gui.set_text(self.button_text_nodes[button.id], label)
+    gui.set_color(self.button_nodes[button.id], enabled and BUTTON_COLOR or BUTTON_DISABLED_COLOR)
+    gui.set_color(self.button_text_nodes[button.id], enabled and BUTTON_TEXT_COLOR or BUTTON_TEXT_DISABLED_COLOR)
+end
+
+local function is_benchmark_active(self)
+    return self.scene == "benchmark"
+end
+
+local function button_enabled(self, id)
+    if id == "profiler" or id == "debug" then
+        return true
+    end
+
+    if self.busy then
+        return false
+    end
+
+    if id == "add" or id == "reset" or id == "mode" then
+        return is_benchmark_active(self)
+    elseif id == "bench" then
+        return not is_benchmark_active(self)
+    end
+    return true
+end
+
+local function toggle_profiler(self)
+    self.profiler_enabled = not self.profiler_enabled
+    profiler.enable_ui(self.profiler_enabled)
+end
+
+local function toggle_debug_gui(self)
+    self.debug_gui_visible = not self.debug_gui_visible
+end
+
+local function benchmark_mode_text(self)
+    local state = self.benchmark
+    if state and state.active then
+        return string.format("%d/%d %s", state.mode_index or 1, state.mode_count or 1, state.mode or "unknown")
+    end
+    return "inactive"
+end
+
+local function refresh_buttons(self)
+    local labels = {
+        profiler = self.profiler_enabled and "Profiler ON" or "Profiler OFF",
+        debug = self.debug_gui_visible and "Hide UI" or "Show UI",
+        toggle = self.scene ~= "none" and "Unload" or "Load Demo",
+        bench = "Load Bench",
+        add = string.format("+%d Robots", self.benchmark.step_robots or 500),
+        reset = "Reset Robots",
+        mode = "Next Bench",
+    }
+
+    for _, button in ipairs(BUTTONS) do
+        set_button(self, button, labels[button.id], button_enabled(self, button.id))
+    end
+end
+
 local function refresh(self)
-    for _, id in ipairs(VISIBLE_NODES) do
+    for _, id in ipairs(DEBUG_NODES) do
         gui.set_enabled(gui.get_node(id), self.debug_gui_visible)
     end
+
+    refresh_buttons(self)
+
+    gui.set_text(self.bench_mode_text_node, benchmark_mode_text(self))
 
     if not self.debug_gui_visible then
         return
     end
 
     local text = string.format(
-        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\n\n1: demo  2: benchmark\nLeft click: load/unload active scene\nMiddle click: destroy one demo robot\nP: toggle profiler  G: hide/show this GUI\nBench: Space add  B mode  R reset\n\n%s\n\n%s",
+        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\nbench mode:\n\nButtons work on mobile/web.\nKeys: 1 demo  2 benchmark  Space add  B mode  R reset\nMiddle click: destroy one demo robot\nP: toggle profiler  G: hide/show this text\n\n%s\n\n%s",
         self.scene,
         self.state,
         self.busy and " (busy)" or "",
@@ -102,14 +215,17 @@ local function refresh(self)
         benchmark_text(self))
     gui.set_text(self.text_node, text)
 
-    local label = self.profiler_enabled and "Profiler: ON (P)" or "Profiler: OFF (P)"
-    gui.set_text(self.profiler_button_text_node, label)
 end
 
 function init(self)
     self.text_node = gui.get_node("debug_text")
-    self.profiler_button_node = gui.get_node("profiler_button")
-    self.profiler_button_text_node = gui.get_node("profiler_button_text")
+    self.bench_mode_text_node = gui.get_node("bench_mode_text")
+    self.button_nodes = {}
+    self.button_text_nodes = {}
+    for _, button in ipairs(BUTTONS) do
+        self.button_nodes[button.id] = gui.get_node(button.box)
+        self.button_text_nodes[button.id] = gui.get_node(button.text)
+    end
     self.state = "starting"
     self.scene = "none"
     self.busy = false
@@ -153,13 +269,31 @@ function on_input(self, action_id, action)
         return
     end
 
-    if action_id == TOGGLE_PROFILER then
-        self.profiler_enabled = not self.profiler_enabled
-        profiler.enable_ui(self.profiler_enabled)
+    if action_id == TOUCH then
+        for _, button in ipairs(BUTTONS) do
+            local box_node = self.button_nodes[button.id]
+            local text_node = self.button_text_nodes[button.id]
+            if gui.pick_node(box_node, action.x, action.y) or gui.pick_node(text_node, action.x, action.y) then
+                if button_enabled(self, button.id) then
+                    if button.action == "toggle_profiler" then
+                        toggle_profiler(self)
+                        refresh(self)
+                    elseif button.action == "toggle_debug" then
+                        toggle_debug_gui(self)
+                        refresh(self)
+                    else
+                        msg.post(ROOT_CONTROLLER, button.message)
+                    end
+                end
+                return true
+            end
+        end
+    elseif action_id == TOGGLE_PROFILER then
+        toggle_profiler(self)
         refresh(self)
         return true
     elseif action_id == TOGGLE_DEBUG_GUI then
-        self.debug_gui_visible = not self.debug_gui_visible
+        toggle_debug_gui(self)
         refresh(self)
         return true
     end

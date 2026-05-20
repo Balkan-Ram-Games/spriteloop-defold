@@ -27,7 +27,7 @@ nodes {
 }
 nodes {
   position {
-    x: 1112.0
+    x: 1182.0
     y: 704.0
   }
   rotation {
@@ -39,7 +39,7 @@ nodes {
   }
   size {
     x: 176.0
-    y: 34.0
+    y: 50.0
   }
   color {
     x: 0.12
@@ -56,7 +56,7 @@ nodes {
 }
 nodes {
   position {
-    x: 1112.0
+    x: 1182.0
     y: 704.0
   }
   rotation {
@@ -68,7 +68,7 @@ nodes {
   }
   size {
     x: 166.0
-    y: 24.0
+    y: 28.0
   }
   color {
     x: 0.92
@@ -77,9 +77,309 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "Profiler: OFF (P)"
+  text: "Profiler OFF"
   font: "system_font"
   id: "profiler_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 126.0
+    y: 594.0
+  }
+  size {
+    x: 480.0
+    y: 24.0
+  }
+  color {
+    x: 0.25
+    y: 0.65
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "inactive"
+  font: "system_font"
+  id: "bench_mode_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 646.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "debug_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 646.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Hide UI"
+  font: "system_font"
+  id: "debug_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 588.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "scene_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 588.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Unload"
+  font: "system_font"
+  id: "scene_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 530.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "bench_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 530.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Load Bench"
+  font: "system_font"
+  id: "bench_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 472.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "add_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 472.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "+500 Robots"
+  font: "system_font"
+  id: "add_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 414.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "reset_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 414.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Reset Robots"
+  font: "system_font"
+  id: "reset_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 356.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "mode_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 356.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Next Bench"
+  font: "system_font"
+  id: "mode_button_text"
   xanchor: XANCHOR_RIGHT
   yanchor: YANCHOR_TOP
   pivot: PIVOT_CENTER
