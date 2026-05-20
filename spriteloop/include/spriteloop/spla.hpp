@@ -1,6 +1,7 @@
 #pragma once
 
 #include "spriteloop/spla_atlas.hpp"
+#include "spriteloop/spla_baked.hpp"
 #include "spriteloop/spla_loader.hpp"
 #include "spriteloop/spla_package.hpp"
 #include "spriteloop/spla_player.hpp"

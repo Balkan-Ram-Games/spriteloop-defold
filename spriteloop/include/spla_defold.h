@@ -1,5 +1,6 @@
 #pragma once
 
+#include "spriteloop/spla_baked.hpp"
 #include "spriteloop/spla_package.hpp"
 #include "spriteloop/spla_player.hpp"
 #include "spriteloop/spla_atlas.hpp"
@@ -44,32 +45,10 @@ struct SplaDefoldImageResource {
     spriteloop::SplaAtlasRegion atlas_region;
 };
 
-struct SplaDefoldBounds {
-    float min_x = 0.0f;
-    float min_y = 0.0f;
-    float max_x = 0.0f;
-    float max_y = 0.0f;
-    float center_x = 0.0f;
-    float center_y = 0.0f;
-    float radius_sq = 0.0f;
-};
-
-struct SplaDefoldBakedVertex {
-    float x = 0.0f;
-    float y = 0.0f;
-    float u = 0.0f;
-    float v = 0.0f;
-    float a = 1.0f;
-};
-
-struct SplaDefoldBakedFrame {
-    std::vector<SplaDefoldBakedVertex> vertices;
-};
-
-struct SplaDefoldBakedAnimation {
-    std::string id;
-    std::vector<SplaDefoldBakedFrame> frames;
-};
+using SplaDefoldBounds = spriteloop::SplaBounds;
+using SplaDefoldBakedVertex = spriteloop::SplaBakedVertex;
+using SplaDefoldBakedFrame = spriteloop::SplaBakedFrame;
+using SplaDefoldBakedAnimation = spriteloop::SplaBakedAnimation;
 
 // Runtime playback state for one SpriteLoop package instance.
 // Lua handles and Defold components both own instances. Component-owned instances also mirror
@@ -193,11 +172,6 @@ std::size_t instance_atlas_texture_bytes(const SplaDefoldInstance& instance);
 const SplaDefoldBounds& instance_bounds(const SplaDefoldInstance& instance);
 const std::vector<SplaDefoldBakedAnimation>& instance_baked_animations(
     const SplaDefoldInstance& instance);
-SplaDefoldBounds calculate_package_bounds(const spriteloop::SplaPackage& package,
-                                          const std::vector<SplaDefoldImageResource>& resources);
-std::vector<SplaDefoldBakedAnimation> build_baked_animations(
-    const spriteloop::SplaPackage& package,
-    const std::vector<SplaDefoldImageResource>& resources);
 
 // Extracts and decodes PNG part images from an already parsed SpriteLoop package.
 // resources is replaced with decoded image entries; error explains the first unsupported asset.

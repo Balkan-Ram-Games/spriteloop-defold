@@ -3,7 +3,6 @@
 #include "spriteloop/spla.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
@@ -34,6 +33,24 @@ SplaDefoldRenderStats& global_render_stats()
 {
     static SplaDefoldRenderStats stats;
     return stats;
+}
+
+std::vector<spriteloop::SplaBakedImage> baked_images_from_resources(
+    const std::vector<SplaDefoldImageResource>& resources)
+{
+    std::vector<spriteloop::SplaBakedImage> images;
+    images.reserve(resources.size());
+    for (const SplaDefoldImageResource& resource : resources) {
+        spriteloop::SplaBakedImage image;
+        image.width = resource.width;
+        image.height = resource.height;
+        image.u0 = resource.atlas_region.uv.u0;
+        image.v0 = resource.atlas_region.uv.v0;
+        image.u1 = resource.atlas_region.uv.u1;
+        image.v1 = resource.atlas_region.uv.v1;
+        images.push_back(image);
+    }
+    return images;
 }
 
 std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>>::iterator find_shared_resource(
@@ -98,9 +115,11 @@ SplaDefoldInstance* create_instance_from_memory(const char* path,
                                 instance->atlas_height, instance->atlas_texture_bytes, error)) {
         return nullptr;
     }
-    instance->bounds = calculate_package_bounds(instance->package, instance->image_resources);
+    const std::vector<spriteloop::SplaBakedImage> baked_images =
+        baked_images_from_resources(instance->image_resources);
+    instance->bounds = spriteloop::calculate_baked_bounds(instance->package, baked_images);
     instance->baked_animations =
-        build_baked_animations(instance->package, instance->image_resources);
+        spriteloop::build_baked_animations(instance->package, baked_images);
 
     instance->player.reset(new spriteloop::SplaPlayer(instance->package));
     register_instance(instance.get());
@@ -136,9 +155,11 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
                                 resource->atlas_height, resource->atlas_texture_bytes, error)) {
         return nullptr;
     }
-    resource->bounds = calculate_package_bounds(resource->package, resource->image_resources);
+    const std::vector<spriteloop::SplaBakedImage> baked_images =
+        baked_images_from_resources(resource->image_resources);
+    resource->bounds = spriteloop::calculate_baked_bounds(resource->package, baked_images);
     resource->baked_animations =
-        build_baked_animations(resource->package, resource->image_resources);
+        spriteloop::build_baked_animations(resource->package, baked_images);
 
     resource->ref_count = 1;
     SplaDefoldSharedPackageResource* raw_resource = resource.get();
@@ -245,108 +266,6 @@ const std::vector<SplaDefoldBakedAnimation>& instance_baked_animations(
 {
     return instance.shared_resource != nullptr ? instance.shared_resource->baked_animations
                                                : instance.baked_animations;
-}
-
-SplaDefoldBounds calculate_package_bounds(const spriteloop::SplaPackage& package,
-                                          const std::vector<SplaDefoldImageResource>& resources)
-{
-    float max_image_extent = 0.0f;
-    for (const SplaDefoldImageResource& image : resources) {
-        max_image_extent =
-            std::max(max_image_extent,
-                     std::max(static_cast<float>(image.width),
-                              static_cast<float>(image.height)));
-    }
-
-    SplaDefoldBounds bounds;
-    const float half_width = static_cast<float>(package.canvas_width) * 0.5f;
-    const float half_height = static_cast<float>(package.canvas_height) * 0.5f;
-    bounds.min_x = -half_width - max_image_extent;
-    bounds.min_y = -half_height - max_image_extent;
-    bounds.max_x = half_width + max_image_extent;
-    bounds.max_y = half_height + max_image_extent;
-    bounds.center_x = (bounds.min_x + bounds.max_x) * 0.5f;
-    bounds.center_y = (bounds.min_y + bounds.max_y) * 0.5f;
-
-    const float dx = bounds.max_x - bounds.center_x;
-    const float dy = bounds.max_y - bounds.center_y;
-    bounds.radius_sq = dx * dx + dy * dy;
-    return bounds;
-}
-
-std::vector<SplaDefoldBakedAnimation> build_baked_animations(
-    const spriteloop::SplaPackage& package,
-    const std::vector<SplaDefoldImageResource>& resources)
-{
-    std::vector<SplaDefoldBakedAnimation> baked_animations;
-    baked_animations.reserve(package.animations.size());
-    const float canvas_half_width = static_cast<float>(package.canvas_width) * 0.5f;
-    const float canvas_half_height = static_cast<float>(package.canvas_height) * 0.5f;
-
-    for (const spriteloop::SplaAnimation& animation : package.animations) {
-        SplaDefoldBakedAnimation baked_animation;
-        baked_animation.id = animation.id;
-        baked_animation.frames.resize(animation.frames.size());
-
-        for (std::size_t frame_index = 0; frame_index < animation.frames.size();
-             ++frame_index) {
-            const spriteloop::SplaFrame& frame = animation.frames[frame_index];
-            SplaDefoldBakedFrame& baked = baked_animation.frames[frame_index];
-
-            baked.vertices.reserve(frame.parts.size() * 4);
-            for (const spriteloop::SplaFramePart& frame_part : frame.parts) {
-                if (frame_part.part_index < 0 ||
-                    frame_part.part_index >= static_cast<int>(package.parts.size())) {
-                    continue;
-                }
-
-                const std::size_t part_index =
-                    static_cast<std::size_t>(frame_part.part_index);
-                if (part_index >= resources.size()) {
-                    continue;
-                }
-
-                const spriteloop::SplaPart& part = package.parts[part_index];
-                const SplaDefoldImageResource& image = resources[part_index];
-                const spriteloop::SplaTransform& transform = frame_part.transform;
-                const float width = static_cast<float>(image.width);
-                const float height = static_cast<float>(image.height);
-                const float scale_x = transform.scale_x;
-                const float scale_y = transform.scale_y;
-                const float radians = -transform.rotation_degrees * 3.14159265358979323846f / 180.0f;
-                const float cos_r = std::cos(radians);
-                const float sin_r = std::sin(radians);
-                const float opacity = std::max(0.0f, std::min(transform.opacity, 1.0f));
-                const spriteloop::SplaAtlasUvRect& uv = image.atlas_region.uv;
-
-                const float source_x[4] = {0.0f, width, width, 0.0f};
-                const float source_y[4] = {0.0f, 0.0f, height, height};
-                for (int i = 0; i < 4; ++i) {
-                    const float local_x = (source_x[i] - part.pivot.x) * scale_x;
-                    const float local_y = (part.pivot.y - source_y[i]) * scale_y;
-                    const float x = local_x * cos_r - local_y * sin_r;
-                    const float y = local_x * sin_r + local_y * cos_r;
-                    const float spla_x = transform.x + x;
-                    const float spla_y =
-                        (static_cast<float>(package.canvas_height) - transform.y) + y;
-
-                    SplaDefoldBakedVertex vertex;
-                    vertex.x = spla_x - canvas_half_width;
-                    vertex.y = spla_y - canvas_half_height;
-                    const float source_u = source_x[i] / width;
-                    const float source_v = source_y[i] / height;
-                    vertex.u = uv.u0 + (uv.u1 - uv.u0) * source_u;
-                    vertex.v = uv.v0 + (uv.v1 - uv.v0) * source_v;
-                    vertex.a = opacity;
-                    baked.vertices.push_back(vertex);
-                }
-            }
-        }
-
-        baked_animations.push_back(std::move(baked_animation));
-    }
-
-    return baked_animations;
 }
 
 // Adds instance to the live registry if it is non-null and not already present.
