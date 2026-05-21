@@ -9,8 +9,4 @@ embedded_components {
   "autoplay: true\n"
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
   ""
-  scale {
-    x: 0.667
-    y: 0.667
-  }
 }
