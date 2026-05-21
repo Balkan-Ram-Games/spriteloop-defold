@@ -1,0 +1,78 @@
+animations {
+  id: "Idle"
+  images {
+    image: "/example/assets/sequence/robot_idle_0001.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0002.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0003.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0004.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0005.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0006.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0007.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0008.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0009.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0010.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0011.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0012.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0013.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0014.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0015.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0016.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0017.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0018.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0019.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0020.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0021.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0022.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0023.png"
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0024.png"
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 24
+}
+extrude_borders: 2

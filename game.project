@@ -35,3 +35,5 @@ use_fixed_timestep = 1
 [html5]
 scale_mode = stretch
 
+[sprite]
+max_count = 6000

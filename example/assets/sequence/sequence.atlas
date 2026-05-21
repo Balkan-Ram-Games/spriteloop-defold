@@ -1,0 +1,102 @@
+animations {
+  id: "Idle"
+  images {
+    image: "/example/assets/sequence/robot_idle_0001.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0002.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0003.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0004.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0005.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0006.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0007.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0008.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0009.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0010.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0011.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0012.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0013.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0014.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0015.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0016.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0017.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0018.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0019.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0020.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0021.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0022.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0023.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  images {
+    image: "/example/assets/sequence/robot_idle_0024.png"
+    sprite_trim_mode: SPRITE_TRIM_MODE_5
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 24
+}
+extrude_borders: 2

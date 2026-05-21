@@ -11,8 +11,6 @@ local SCENE_NAMES = {
 local DEBUG_GUI = "#debug_gui"
 local BENCH_CONTROLLER = "bench:/controller#controller"
 
-local LOAD_DEMO = hash("load_demo")
-local LOAD_BENCHMARK = hash("load_benchmark")
 local BENCHMARK_RESET = hash("benchmark_reset")
 local BENCHMARK_ADD = hash("benchmark_add")
 local BENCHMARK_NEXT_MODE = hash("benchmark_next_mode")
@@ -114,13 +112,7 @@ function on_input(self, action_id, action)
         return
     end
 
-    if action_id == LOAD_DEMO then
-        switch_scene(self, "demo")
-        return true
-    elseif action_id == LOAD_BENCHMARK then
-        switch_scene(self, "bench")
-        return true
-    elseif action_id == BENCHMARK_RESET then
+    if action_id == BENCHMARK_RESET then
         post_benchmark_if_active(self, "benchmark_reset")
         return true
     elseif action_id == BENCHMARK_ADD then
@@ -167,8 +159,6 @@ function on_message(self, message_id, _message, sender)
         print("Failed to load collection proxy")
     elseif message_id == hash("ui_toggle_scene") then
         toggle_active_scene(self)
-    elseif message_id == hash("ui_load_demo") then
-        switch_scene(self, "demo")
     elseif message_id == hash("ui_load_benchmark") then
         switch_scene(self, "bench")
     elseif message_id == hash("ui_benchmark_add") then

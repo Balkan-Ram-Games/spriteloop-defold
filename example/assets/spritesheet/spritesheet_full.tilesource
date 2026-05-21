@@ -1,0 +1,12 @@
+image: "/example/assets/spritesheet/robot_idle_full.png"
+tile_width: 952
+tile_height: 791
+collision_groups: "default"
+animations {
+  id: "Idle"
+  start_tile: 1
+  end_tile: 24
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 24
+}
+extrude_borders: 2

@@ -1,7 +1,13 @@
 local spriteloop = require "spriteloop.spriteloop"
 
 local ROBOT_COMPONENT = "robot"
-local FACTORY = "#robot_factory"
+local SPRITE_COMPONENT = "sprite"
+local SPRITELOOP_FACTORY = "#robot_factory"
+local SPRITELOOP_50_FACTORY = "#robot_50_factory"
+local SPRITE_TILESOURCE_SMALL_FACTORY = "#sprite_tilesource_small_factory"
+local SPRITE_TILESOURCE_FULL_FACTORY = "#sprite_tilesource_full_factory"
+local SPRITE_ATLAS_FACTORY = "#sprite_atlas_factory"
+local SPRITE_ATLAS_TRIM_FACTORY = "#sprite_atlas_trim_factory"
 
 local INITIAL_ROBOTS = 100
 local STEP_ROBOTS = 500
@@ -91,6 +97,71 @@ local MODES = {
         playback = true,
         description = "200 center army, offscreen enemies move inward",
     },
+    {
+        id = "native_tilesource_small_static",
+        label = "native small/static",
+        layout = "fill",
+        movement = "none",
+        playback = true,
+        renderer = "sprite_tilesource_small",
+        factory = SPRITE_TILESOURCE_SMALL_FACTORY,
+        parts_per_robot = 1,
+        description = "Defold sprite, 1280x960 tilesource",
+    },
+    {
+        id = "native_tilesource_small_moving",
+        label = "native small/moving",
+        layout = "fill",
+        movement = "script",
+        playback = true,
+        renderer = "sprite_tilesource_small",
+        factory = SPRITE_TILESOURCE_SMALL_FACTORY,
+        parts_per_robot = 1,
+        description = "Defold sprite, small tilesource, moving transforms",
+    },
+    {
+        id = "native_tilesource_full_static",
+        label = "native full/static",
+        layout = "fill",
+        movement = "none",
+        playback = true,
+        renderer = "sprite_tilesource_full",
+        factory = SPRITE_TILESOURCE_FULL_FACTORY,
+        parts_per_robot = 1,
+        description = "Defold sprite, 4760x3955 tilesource",
+    },
+    {
+        id = "native_atlas_static",
+        label = "native atlas/static",
+        layout = "fill",
+        movement = "none",
+        playback = true,
+        renderer = "sprite_atlas",
+        factory = SPRITE_ATLAS_FACTORY,
+        parts_per_robot = 1,
+        description = "Defold sprite, sequence atlas",
+    },
+    {
+        id = "native_atlas_trim_static",
+        label = "native trim/static",
+        layout = "fill",
+        movement = "none",
+        playback = true,
+        renderer = "sprite_atlas_trim",
+        factory = SPRITE_ATLAS_TRIM_FACTORY,
+        parts_per_robot = 1,
+        description = "Defold sprite, sequence atlas trim mode",
+    },
+    {
+        id = "spriteloop_50_fill_playing_static",
+        label = "spriteloop 50/static",
+        layout = "fill",
+        movement = "none",
+        playback = true,
+        renderer = "spriteloop_50",
+        factory = SPRITELOOP_50_FACTORY,
+        description = "SpriteLoop smaller source asset, visible fill",
+    },
 }
 
 local FILL_COLUMNS = 52
@@ -120,6 +191,19 @@ end
 
 local function mode(self)
     return MODES[self.mode_index] or MODES[1]
+end
+
+local function is_spriteloop_mode(self)
+    local renderer = mode(self).renderer or "spriteloop"
+    return string.sub(renderer, 1, 10) == "spriteloop"
+end
+
+local function factory_url(self)
+    return mode(self).factory or SPRITELOOP_FACTORY
+end
+
+local function parts_per_robot(self)
+    return mode(self).parts_per_robot or PARTS_PER_ROBOT
 end
 
 local function fill_position(index)
@@ -218,6 +302,10 @@ local function robot_url(id)
     return msg.url(nil, id, ROBOT_COMPONENT)
 end
 
+local function sprite_url(id)
+    return msg.url(nil, id, SPRITE_COMPONENT)
+end
+
 local function estimated_visible_count(self)
     local current_mode = mode(self)
     local count = #self.robots
@@ -232,15 +320,24 @@ local function estimated_visible_count(self)
 end
 
 local function configure_robot(self, id, index)
-    local component = robot_url(id)
     go.cancel_animations(id, "position")
-    spriteloop.play_anim(component, "idle", { loop = true })
-    spriteloop.set_time(component, ((index * 13) % 24) / 24)
-    if mode(self).playback then
-        spriteloop.set_playback_rate(component, 0.92 + ((index * 7) % 17) * 0.01)
+
+    if is_spriteloop_mode(self) then
+        local component = robot_url(id)
+        spriteloop.play_anim(component, "idle", { loop = true })
+        spriteloop.set_time(component, ((index * 13) % 24) / 24)
+        if mode(self).playback then
+            spriteloop.set_playback_rate(component, 0.92 + ((index * 7) % 17) * 0.01)
+        else
+            spriteloop.set_frame(component, (index * 7) % 24)
+            spriteloop.set_playback_rate(component, 0)
+        end
     else
-        spriteloop.set_frame(component, (index * 7) % 24)
-        spriteloop.set_playback_rate(component, 0)
+        local options = {
+            offset = ((index * 13) % 24) / 24,
+            playback_rate = mode(self).playback and (0.92 + ((index * 7) % 17) * 0.01) or 0,
+        }
+        sprite.play_flipbook(sprite_url(id), "Idle", nil, options)
     end
 end
 
@@ -305,23 +402,23 @@ local function send_state(self, reason)
         moving = mode(self).movement == "script" or mode(self).movement == "horde_script",
         movement = mode(self).movement or "none",
         playback = mode(self).playback,
+        renderer = mode(self).renderer or "spriteloop",
         estimated_visible = estimated_visible_count(self),
-        estimated_parts = #self.robots * PARTS_PER_ROBOT,
-        estimated_quads = #self.robots * PARTS_PER_ROBOT,
-        estimated_visible_quads = estimated_visible_count(self) * PARTS_PER_ROBOT,
+        estimated_parts = #self.robots * parts_per_robot(self),
+        estimated_quads = #self.robots * parts_per_robot(self),
+        estimated_visible_quads = estimated_visible_count(self) * parts_per_robot(self),
         cache_entries = cache.entry_count or 0,
         cache_refs = cache.total_ref_count or 0,
         texture_count = cache.total_texture_count or 0,
         texture_bytes = cache.total_texture_bytes or 0,
         texture_bytes_text = format_bytes(cache.total_texture_bytes or 0),
-        render_stats = cache.render_stats or {},
         fps = self.fps,
     })
 end
 
 local function spawn_one(self, index)
     local position = robot_position(self, index)
-    local id = factory.create(FACTORY, position)
+    local id = factory.create(factory_url(self), position)
     if not id then
         return false
     end
@@ -369,11 +466,19 @@ local function apply_layout(self)
 end
 
 local function next_mode(self)
+    local previous_factory = factory_url(self)
+    local target_count = math.max(#self.robots, INITIAL_ROBOTS)
     self.mode_index = self.mode_index + 1
     if self.mode_index > #MODES then
         self.mode_index = 1
     end
-    apply_layout(self)
+    if factory_url(self) ~= previous_factory then
+        clear_robots(self)
+        self.pending_delete_frames = 2
+        self.pending_spawn_target = target_count
+    else
+        apply_layout(self)
+    end
     send_state(self, "mode")
 end
 
@@ -387,6 +492,7 @@ local function reset_benchmark(self)
         self.pending_delete_frames = 2
     elseif #self.robots < INITIAL_ROBOTS then
         self.pending_reset_spawn = true
+        self.pending_spawn_target = INITIAL_ROBOTS
     end
 
     apply_layout(self)
@@ -398,6 +504,7 @@ function init(self)
     self.robots = {}
     self.base_positions = {}
     self.pending_reset_spawn = false
+    self.pending_spawn_target = INITIAL_ROBOTS
     self.pending_delete_frames = 0
     self.debug_gui = nil
     self.sample_elapsed = 0
@@ -423,9 +530,11 @@ function update(self, dt)
         self.pending_delete_frames = self.pending_delete_frames - 1
     end
 
-    if self.pending_reset_spawn then
+    if self.pending_delete_frames <= 0 and (self.pending_reset_spawn or self.pending_spawn_target) then
+        local spawn_target = self.pending_spawn_target or INITIAL_ROBOTS
         self.pending_reset_spawn = false
-        spawn_to(self, INITIAL_ROBOTS)
+        self.pending_spawn_target = nil
+        spawn_to(self, spawn_target)
     end
 
     self.sample_elapsed = self.sample_elapsed + dt

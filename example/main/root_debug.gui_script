@@ -93,34 +93,104 @@ local function cache_text()
     return table.concat(lines, "\n")
 end
 
+local function render_stats(state)
+    local ok, info = pcall(spriteloop.get_cache_info)
+    if ok and info and info.render_stats then
+        return info.render_stats
+    end
+    state = state or {}
+    return state.render_stats or {}
+end
+
+local function console_stats_line(state)
+    local render = render_stats(state)
+    return string.format(
+        "SPRITELOOP_BENCH mode=%s renderer=%s fps=%.1f robots=%d entries=%d quads=%d copies=%d cache=%d/%d slots=%d dirty=%d slotcopies=%d layout=%d reused=%d rejected=%d reasons=%d/%d/%d/%d/%d uploads=%d/%d/%d fullv=%d bytes=%s",
+        tostring(state.mode or "unknown"),
+        tostring(state.renderer or "spriteloop"),
+        state.fps or 0,
+        state.robot_count or 0,
+        render.render_entries_submitted or 0,
+        render.quads_generated or 0,
+        render.vertex_bulk_copies or 0,
+        render.vertex_cache_hits or 0,
+        render.vertex_cache_misses or 0,
+        render.slot_count or 0,
+        render.dirty_slots or 0,
+        render.slot_vertex_copies or 0,
+        render.slot_layout_rebuilds or 0,
+        render.geometry_reused or 0,
+        render.reuse_rejected or 0,
+        render.reuse_reject_invalid_previous or 0,
+        render.reuse_reject_split_batch or 0,
+        render.reuse_reject_signature_size or 0,
+        render.reuse_reject_signature_entry or 0,
+        render.reuse_reject_cache_miss or 0,
+        render.vertex_uploads or 0,
+        render.index_uploads or 0,
+        render.buffer_uploads or 0,
+        render.full_vertex_uploads or 0,
+        format_bytes(render.bytes_uploaded or 0))
+end
+
 local function benchmark_text(self)
     local state = self.benchmark
     if not state or not state.active then
         return "benchmark: inactive"
     end
 
-    local render = state.render_stats or {}
+    local render = render_stats(state)
     return table.concat({
         string.format("benchmark: %d / %d robots", state.robot_count or 0, state.max_robots or 0),
-        string.format("movement: %s", state.movement or "none"),
-        string.format("%s", state.mode_description or ""),
-        string.format("fps: %.1f", state.fps or 0),
+        string.format("%s  %s  fps %.1f",
+            state.renderer or "spriteloop",
+            state.movement or "none",
+            state.fps or 0),
+        state.mode_description or "",
         string.format("visible est: %d robots / %d quads",
             state.estimated_visible or 0,
             state.estimated_visible_quads or 0),
-        string.format("total parts/quads: %d", state.estimated_quads or 0),
-        string.format("render: components=%d candidates=%d frustum=%d/%d",
+        string.format("render: components=%d candidates=%d visible/culled=%d/%d",
             render.component_count or 0,
             render.render_candidates or 0,
             render.frustum_visible or 0,
             render.frustum_culled or 0),
-        string.format("generated: quads=%d vertices=%d batches=%d",
+        string.format("generated: quads=%d vertices=%d batches=%d entries=%d",
             render.quads_generated or 0,
             render.vertices_generated or 0,
-            render.batch_flushes or 0),
+            render.batch_flushes or 0,
+            render.render_entries_submitted or 0),
+        string.format("indices=%d render objects=%d playback=%d",
+            render.indices_generated or 0,
+            render.render_objects or 0,
+            render.playback_updates or 0),
         string.format("vertex cache: hits=%d misses=%d",
             render.vertex_cache_hits or 0,
             render.vertex_cache_misses or 0),
+        string.format("geometry: reused=%d rejected=%d copies=%d slots=%d dirty=%d",
+            render.geometry_reused or 0,
+            render.reuse_rejected or 0,
+            render.vertex_bulk_copies or 0,
+            render.slot_count or 0,
+            render.dirty_slots or 0),
+        string.format("slot copies=%d layouts=%d index patterns=%d index layouts=%d",
+            render.slot_vertex_copies or 0,
+            render.slot_layout_rebuilds or 0,
+            render.index_pattern_rebuilds or 0,
+            render.index_layout_uploads or 0),
+        string.format("reject invalid/split/size/entry/miss: %d/%d/%d/%d/%d",
+            render.reuse_reject_invalid_previous or 0,
+            render.reuse_reject_split_batch or 0,
+            render.reuse_reject_signature_size or 0,
+            render.reuse_reject_signature_entry or 0,
+            render.reuse_reject_cache_miss or 0),
+        string.format("uploads: vertex=%d index=%d total=%d bytes=%s",
+            render.vertex_uploads or 0,
+            render.index_uploads or 0,
+            render.buffer_uploads or 0,
+            format_bytes(render.bytes_uploaded or 0)),
+        string.format("full vertex uploads: %d",
+            render.full_vertex_uploads or 0),
         string.format("cache entries: %d refs: %d", state.cache_entries or 0, state.cache_refs or 0),
         string.format("textures: %d bytes: %s",
             state.texture_count or 0,
@@ -156,6 +226,10 @@ local function button_enabled(self, id)
     return true
 end
 
+local function button_visible(self, id)
+    return self.debug_gui_visible or id == "profiler" or id == "debug"
+end
+
 local function toggle_profiler(self)
     self.profiler_enabled = not self.profiler_enabled
     profiler.enable_ui(self.profiler_enabled)
@@ -185,6 +259,9 @@ local function refresh_buttons(self)
     }
 
     for _, button in ipairs(BUTTONS) do
+        local visible = button_visible(self, button.id)
+        gui.set_enabled(self.button_nodes[button.id], visible)
+        gui.set_enabled(self.button_text_nodes[button.id], visible)
         set_button(self, button, labels[button.id], button_enabled(self, button.id))
     end
 end
@@ -203,7 +280,7 @@ local function refresh(self)
     end
 
     local text = string.format(
-        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\nbench mode:\n\nButtons work on mobile/web.\nKeys: 1 demo  2 benchmark  Space add  B mode  R reset\nMiddle click: destroy one demo robot\nP: toggle profiler  G: hide/show this text\n\n%s\n\n%s",
+        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\nbench mode:\n\nButtons work on mobile/web.\nKeys: Space add  B mode  R reset\nMiddle click: destroy one demo robot\nP: toggle profiler  G: hide/show this text\n\n%s\n\n%s",
         self.scene,
         self.state,
         self.busy and " (busy)" or "",
@@ -238,6 +315,7 @@ function init(self)
     self.profiler_enabled = false
     self.debug_gui_visible = true
     self.benchmark = { active = false }
+    self.console_stats_sample = 0
     profiler.enable_ui(false)
     msg.post(".", "acquire_input_focus")
     refresh(self)
@@ -271,21 +349,23 @@ function on_input(self, action_id, action)
 
     if action_id == TOUCH then
         for _, button in ipairs(BUTTONS) do
-            local box_node = self.button_nodes[button.id]
-            local text_node = self.button_text_nodes[button.id]
-            if gui.pick_node(box_node, action.x, action.y) or gui.pick_node(text_node, action.x, action.y) then
-                if button_enabled(self, button.id) then
-                    if button.action == "toggle_profiler" then
-                        toggle_profiler(self)
-                        refresh(self)
-                    elseif button.action == "toggle_debug" then
-                        toggle_debug_gui(self)
-                        refresh(self)
-                    else
-                        msg.post(ROOT_CONTROLLER, button.message)
+            if button_visible(self, button.id) then
+                local box_node = self.button_nodes[button.id]
+                local text_node = self.button_text_nodes[button.id]
+                if gui.pick_node(box_node, action.x, action.y) or gui.pick_node(text_node, action.x, action.y) then
+                    if button_enabled(self, button.id) then
+                        if button.action == "toggle_profiler" then
+                            toggle_profiler(self)
+                            refresh(self)
+                        elseif button.action == "toggle_debug" then
+                            toggle_debug_gui(self)
+                            refresh(self)
+                        else
+                            msg.post(ROOT_CONTROLLER, button.message)
+                        end
                     end
+                    return true
                 end
-                return true
             end
         end
     elseif action_id == TOGGLE_PROFILER then
@@ -309,6 +389,12 @@ function on_message(self, message_id, message)
         refresh(self)
     elseif message_id == hash("benchmark_state") then
         self.benchmark = message
+        if message.active then
+            self.console_stats_sample = (self.console_stats_sample or 0) + 1
+            if message.reason ~= "sample" or self.console_stats_sample % 4 == 0 then
+                print(console_stats_line(message))
+            end
+        end
         refresh(self)
     end
 end

@@ -120,6 +120,27 @@ struct SplaDefoldRenderStats {
     std::uint32_t batch_flushes = 0;
     std::uint32_t vertex_cache_hits = 0;
     std::uint32_t vertex_cache_misses = 0;
+    std::uint32_t geometry_reused = 0;
+    std::uint32_t vertex_bulk_copies = 0;
+    std::uint32_t index_pattern_rebuilds = 0;
+    std::uint32_t index_uploads = 0;
+    std::uint32_t vertex_uploads = 0;
+    std::uint32_t slot_count = 0;
+    std::uint32_t dirty_slots = 0;
+    std::uint32_t slot_vertex_copies = 0;
+    std::uint32_t full_vertex_uploads = 0;
+    std::uint32_t slot_layout_rebuilds = 0;
+    std::uint32_t index_layout_uploads = 0;
+    std::uint32_t reuse_rejected = 0;
+    std::uint32_t reuse_reject_invalid_previous = 0;
+    std::uint32_t reuse_reject_split_batch = 0;
+    std::uint32_t reuse_reject_signature_size = 0;
+    std::uint32_t reuse_reject_signature_entry = 0;
+    std::uint32_t reuse_reject_cache_miss = 0;
+    std::uint32_t playback_updates = 0;
+    std::uint32_t render_entries_submitted = 0;
+    std::uint32_t buffer_uploads = 0;
+    std::uint64_t bytes_uploaded = 0;
 };
 
 // Raw bytes for a built .spla package resource.

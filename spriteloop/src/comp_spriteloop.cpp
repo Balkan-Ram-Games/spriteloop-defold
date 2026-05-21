@@ -10,7 +10,6 @@
 #include <dmsdk/resource/resource.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
@@ -53,6 +52,31 @@ struct SpriteLoopContext {
     uint32_t max_components_per_world = 1024;
 };
 
+struct RenderSignatureEntry {
+    const SplaDefoldComponent* component = nullptr;
+    dmRender::HMaterial material = 0;
+    dmGraphics::HTexture texture = 0;
+    const spriteloop::SplaAnimation* animation = nullptr;
+    int frame_index = -1;
+    uint32_t vertex_count = 0;
+    uint32_t index_count = 0;
+};
+
+struct RenderBatchRange {
+    dmRender::HMaterial material = 0;
+    dmGraphics::HTexture texture = 0;
+    uint32_t index_start = 0;
+    uint32_t index_count = 0;
+};
+
+struct RenderSlot {
+    RenderSignatureEntry signature;
+    uint32_t vertex_start = 0;
+    uint32_t vertex_count = 0;
+    uint32_t index_start = 0;
+    uint32_t index_count = 0;
+};
+
 // Per-collection storage for this component type.
 // Defold creates one such world for each runtime collection context that can contain SpriteLoop
 // components; it stores the live components and transient render buffers for that context.
@@ -61,16 +85,31 @@ struct SpriteLoopWorld {
     std::vector<SplaDefoldComponent*> components;
     std::vector<dmRender::RenderObject> render_objects;
     std::vector<SpriteLoopVertex> vertex_data;
-    std::vector<uint32_t> index_data;
+    std::vector<uint32_t> quad_index_pattern;
+    std::vector<RenderSignatureEntry> previous_signature;
+    std::vector<RenderSignatureEntry> current_signature;
+    std::vector<RenderBatchRange> previous_batch_ranges;
+    std::vector<RenderBatchRange> current_batch_ranges;
+    std::vector<RenderSlot> render_slots;
+    std::unordered_map<const SplaDefoldComponent*, uint32_t> slot_lookup;
+    std::vector<uint32_t> current_slot_indices;
     SplaDefoldRenderStats frame_stats;
+    SplaDefoldRenderStats update_stats;
     dmGraphics::HVertexDeclaration vertex_declaration = 0;
     dmGraphics::HVertexBuffer vertex_buffer = 0;
     dmGraphics::HIndexBuffer index_buffer = 0;
+    uint32_t current_quad_count = 0;
+    uint32_t current_index_count = 0;
+    bool previous_buffers_valid = false;
+    bool reuse_frame_candidate = false;
+    bool reuse_frame_used = false;
+    bool reuse_reject_recorded = false;
+    bool current_dispatch_had_batch = false;
 };
 
 struct ComponentGeometryCache {
     bool valid = false;
-    std::string animation_id;
+    const spriteloop::SplaAnimation* animation = nullptr;
     int frame_index = -1;
     dmVMath::Matrix4 world_matrix;
     dmVMath::Point3 local_position;
@@ -79,7 +118,27 @@ struct ComponentGeometryCache {
     std::vector<SpriteLoopVertex> vertices;
 };
 
-constexpr float pi = 3.14159265358979323846f;
+struct PreparedComponentGeometry {
+    const SplaDefoldComponent* component = nullptr;
+    dmRender::HMaterial material = 0;
+    dmGraphics::HTexture texture = 0;
+    const spriteloop::SplaAnimation* animation = nullptr;
+    int frame_index = -1;
+    uint32_t vertex_count = 0;
+    uint32_t index_count = 0;
+    bool valid = false;
+    bool cache_hit = false;
+};
+
+uint32_t render_batch_key(dmRender::HMaterial material,
+                          dmGraphics::HTexture texture)
+{
+    HashState32 state;
+    dmHashInit32(&state, false);
+    dmHashUpdateBuffer32(&state, &material, sizeof(material));
+    dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
+    return dmHashFinal32(&state);
+}
 
 // Returns value when it is a non-empty string, otherwise fallback.
 const char* non_empty_or_default(const char* value, const char* fallback)
@@ -93,6 +152,20 @@ std::unordered_map<const SplaDefoldComponent*, ComponentGeometryCache>& geometry
     return cache;
 }
 
+void invalidate_uploaded_geometry(SpriteLoopWorld* world)
+{
+    if (world == nullptr) {
+        return;
+    }
+
+    world->previous_buffers_valid = false;
+    world->previous_signature.clear();
+    world->previous_batch_ranges.clear();
+    world->render_slots.clear();
+    world->current_slot_indices.clear();
+    world->slot_lookup.clear();
+}
+
 // Removes a component pointer from a world without deleting the component itself.
 void remove_component(SpriteLoopWorld* world, SplaDefoldComponent* component)
 {
@@ -101,6 +174,7 @@ void remove_component(SpriteLoopWorld* world, SplaDefoldComponent* component)
     }
 
     geometry_cache().erase(component);
+    invalidate_uploaded_geometry(world);
     world->components.erase(std::remove(world->components.begin(), world->components.end(),
                                         component),
                             world->components.end());
@@ -129,12 +203,6 @@ dmVMath::Quat property_var_to_quat(const dmGameObject::PropertyVar& property)
 {
     return dmVMath::Quat(property.m_V4[0], property.m_V4[1], property.m_V4[2],
                          property.m_V4[3]);
-}
-
-// Converts degrees to radians for SpriteLoop manifest rotation values.
-float degrees_to_radians(float degrees)
-{
-    return degrees * pi / 180.0f;
 }
 
 // Rotates v by quaternion q without relying on engine helper overloads.
@@ -170,10 +238,45 @@ const SplaDefoldBakedFrame* current_baked_frame(const SplaDefoldInstance& instan
     return nullptr;
 }
 
-template <typename T>
-bool same_value(const T& a, const T& b)
+bool near_equal(float a, float b)
 {
-    return std::memcmp(&a, &b, sizeof(T)) == 0;
+    return std::abs(a - b) <= 0.00001f;
+}
+
+bool same_vector4(const dmVMath::Vector4& a, const dmVMath::Vector4& b)
+{
+    return near_equal(a.getX(), b.getX()) && near_equal(a.getY(), b.getY()) &&
+           near_equal(a.getZ(), b.getZ()) && near_equal(a.getW(), b.getW());
+}
+
+bool same_point3(const dmVMath::Point3& a, const dmVMath::Point3& b)
+{
+    return near_equal(a.getX(), b.getX()) && near_equal(a.getY(), b.getY()) &&
+           near_equal(a.getZ(), b.getZ());
+}
+
+bool same_vector3(const dmVMath::Vector3& a, const dmVMath::Vector3& b)
+{
+    return near_equal(a.getX(), b.getX()) && near_equal(a.getY(), b.getY()) &&
+           near_equal(a.getZ(), b.getZ());
+}
+
+bool same_quat(const dmVMath::Quat& a, const dmVMath::Quat& b)
+{
+    return near_equal(a.getX(), b.getX()) && near_equal(a.getY(), b.getY()) &&
+           near_equal(a.getZ(), b.getZ()) && near_equal(a.getW(), b.getW());
+}
+
+bool same_matrix4(const dmVMath::Matrix4& a, const dmVMath::Matrix4& b)
+{
+    return same_vector4(a * dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f),
+                        b * dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f)) &&
+           same_vector4(a * dmVMath::Vector4(0.0f, 1.0f, 0.0f, 0.0f),
+                        b * dmVMath::Vector4(0.0f, 1.0f, 0.0f, 0.0f)) &&
+           same_vector4(a * dmVMath::Vector4(0.0f, 0.0f, 1.0f, 0.0f),
+                        b * dmVMath::Vector4(0.0f, 0.0f, 1.0f, 0.0f)) &&
+           same_vector4(a * dmVMath::Vector4(0.0f, 0.0f, 0.0f, 1.0f),
+                        b * dmVMath::Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 }
 
 // Applies the component-local transform to a centered SpriteLoop point.
@@ -214,72 +317,6 @@ bool component_intersects_frustum(const SplaDefoldComponent* component,
     const float radius_sq = bounds.radius_sq * radius_scale * radius_scale;
 
     return dmIntersection::TestFrustumSphereSq(*frustum, center_world, radius_sq);
-}
-
-// Transforms one source image pixel coordinate into one world-space render vertex.
-// source_x/source_y are part image coordinates, texture_width/height normalize UVs, part supplies
-// the pivot, transform supplies the frame transform, and instance supplies component state.
-SpriteLoopVertex transform_vertex(float source_x,
-                                  float source_y,
-                                  float texture_width,
-                                  float texture_height,
-                                  const spriteloop::SplaAtlasUvRect& uv_rect,
-                                  const spriteloop::SplaPart& part,
-                                  const spriteloop::SplaTransform& transform,
-                                  const SplaDefoldInstance& instance)
-{
-    const spriteloop::SplaPackage& package = instance_package(instance);
-    const float scale_x = transform.scale_x * instance.scale_x;
-    const float scale_y = transform.scale_y * instance.scale_y;
-    const float local_x = (source_x - part.pivot.x) * scale_x;
-    const float local_y = (part.pivot.y - source_y) * scale_y;
-    const float radians = degrees_to_radians(-transform.rotation_degrees);
-    const float cos_r = std::cos(radians);
-    const float sin_r = std::sin(radians);
-    const float x = local_x * cos_r - local_y * sin_r;
-    const float y = local_x * sin_r + local_y * cos_r;
-    const float local_spla_x = transform.x * instance.scale_x + x;
-    const float local_spla_y =
-        (static_cast<float>(package.canvas_height) - transform.y) *
-            instance.scale_y +
-        y;
-
-    const dmVMath::Matrix4& world = dmGameObject::GetWorldMatrix(instance.game_object);
-    const float centered_x =
-        local_spla_x - static_cast<float>(package.canvas_width) * 0.5f;
-    const float centered_y =
-        local_spla_y - static_cast<float>(package.canvas_height) * 0.5f;
-    const dmVMath::Vector4 local =
-        transform_component_local_point(instance, centered_x, centered_y);
-    const dmVMath::Vector4 transformed = world * local;
-
-    SpriteLoopVertex vertex;
-    vertex.x = transformed.getX();
-    vertex.y = transformed.getY();
-    vertex.z = transformed.getZ();
-    const float source_u = source_x / texture_width;
-    const float source_v = source_y / texture_height;
-    vertex.u = uv_rect.u0 + (uv_rect.u1 - uv_rect.u0) * source_u;
-    vertex.v = uv_rect.v0 + (uv_rect.v1 - uv_rect.v0) * source_v;
-    vertex.a = std::max(0.0f, std::min(transform.opacity, 1.0f));
-    return vertex;
-}
-
-// Builds the four vertices for one image part quad.
-// vertices receives corners in top-left, top-right, bottom-right, bottom-left order.
-void build_quad(const SplaDefoldInstance& instance,
-                const spriteloop::SplaPart& part,
-                const spriteloop::SplaTransform& transform,
-                const SplaDefoldImageResource& image,
-                SpriteLoopVertex (&vertices)[4])
-{
-    const float width = static_cast<float>(image.width);
-    const float height = static_cast<float>(image.height);
-    const spriteloop::SplaAtlasUvRect& uv = image.atlas_region.uv;
-    vertices[0] = transform_vertex(0.0f, 0.0f, width, height, uv, part, transform, instance);
-    vertices[1] = transform_vertex(width, 0.0f, width, height, uv, part, transform, instance);
-    vertices[2] = transform_vertex(width, height, width, height, uv, part, transform, instance);
-    vertices[3] = transform_vertex(0.0f, height, width, height, uv, part, transform, instance);
 }
 
 SpriteLoopVertex transform_baked_vertex(const SplaDefoldInstance& instance,
@@ -359,19 +396,84 @@ void fill_render_object(SpriteLoopWorld* world,
     dmRender::AddToRender(render_context, &render_object);
 }
 
-// Appends vertices/indices for one visible component into the world's transient render buffers.
-// Returns the number of indices appended for this component.
-uint32_t append_component_geometry(SpriteLoopWorld* world,
-                                   const SplaDefoldComponent* component)
+bool same_signature_entry(const RenderSignatureEntry& a,
+                          const RenderSignatureEntry& b)
 {
+    return a.component == b.component && a.material == b.material && a.texture == b.texture &&
+           a.animation == b.animation && a.frame_index == b.frame_index &&
+           a.vertex_count == b.vertex_count && a.index_count == b.index_count;
+}
+
+bool same_layout_entry(const RenderSignatureEntry& a,
+                       const RenderSignatureEntry& b)
+{
+    return a.component == b.component && a.material == b.material && a.texture == b.texture &&
+           a.vertex_count == b.vertex_count && a.index_count == b.index_count;
+}
+
+void reject_reuse(SpriteLoopWorld* world, uint32_t SplaDefoldRenderStats::*reason)
+{
+    if (world == nullptr || world->reuse_reject_recorded) {
+        return;
+    }
+
+    ++world->frame_stats.reuse_rejected;
+    ++(world->frame_stats.*reason);
+    world->reuse_reject_recorded = true;
+}
+
+void ensure_quad_index_pattern(SpriteLoopWorld* world, uint32_t quad_count)
+{
+    if (world == nullptr) {
+        return;
+    }
+
+    const uint32_t old_quad_count =
+        static_cast<uint32_t>(world->quad_index_pattern.size() / 6);
+    if (old_quad_count >= quad_count) {
+        return;
+    }
+
+    world->quad_index_pattern.resize(static_cast<std::size_t>(quad_count) * 6);
+    for (uint32_t quad = old_quad_count; quad < quad_count; ++quad) {
+        const uint32_t base_vertex = quad * 4;
+        const uint32_t base_index = quad * 6;
+        world->quad_index_pattern[base_index + 0] = base_vertex + 0;
+        world->quad_index_pattern[base_index + 1] = base_vertex + 1;
+        world->quad_index_pattern[base_index + 2] = base_vertex + 2;
+        world->quad_index_pattern[base_index + 3] = base_vertex + 0;
+        world->quad_index_pattern[base_index + 4] = base_vertex + 2;
+        world->quad_index_pattern[base_index + 5] = base_vertex + 3;
+    }
+    ++world->frame_stats.index_pattern_rebuilds;
+}
+
+RenderSignatureEntry signature_entry_from_prepared(
+    const PreparedComponentGeometry& prepared)
+{
+    RenderSignatureEntry entry;
+    entry.component = prepared.component;
+    entry.material = prepared.material;
+    entry.texture = prepared.texture;
+    entry.animation = prepared.animation;
+    entry.frame_index = prepared.frame_index;
+    entry.vertex_count = prepared.vertex_count;
+    entry.index_count = prepared.index_count;
+    return entry;
+}
+
+PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
+                                                     const SplaDefoldComponent* component)
+{
+    PreparedComponentGeometry prepared;
     if (!component_should_render(component)) {
-        return 0;
+        return prepared;
     }
 
     const SplaDefoldInstance& instance = *component->instance;
     dmGraphics::HTexture atlas_texture = instance_atlas_texture(instance);
     if (atlas_texture == 0) {
-        return 0;
+        return prepared;
     }
 
     const dmVMath::Matrix4& world_matrix = dmGameObject::GetWorldMatrix(instance.game_object);
@@ -379,24 +481,25 @@ uint32_t append_component_geometry(SpriteLoopWorld* world,
     const int frame_index = instance.player->current_frame_index();
     const SplaDefoldBakedFrame* baked_frame = current_baked_frame(instance);
     if (animation == nullptr || baked_frame == nullptr) {
-        return 0;
+        return prepared;
     }
 
     ComponentGeometryCache& cache = geometry_cache()[component];
     const bool cache_hit =
-        cache.valid && cache.animation_id == animation->id &&
+        cache.valid && cache.animation == animation &&
         cache.frame_index == frame_index &&
-        same_value(cache.world_matrix, world_matrix) &&
-        same_value(cache.local_position, instance.local_position) &&
-        same_value(cache.local_rotation, instance.local_rotation) &&
-        same_value(cache.local_scale, instance.local_scale);
+        same_matrix4(cache.world_matrix, world_matrix) &&
+        same_point3(cache.local_position, instance.local_position) &&
+        same_quat(cache.local_rotation, instance.local_rotation) &&
+        same_vector3(cache.local_scale, instance.local_scale);
 
     if (cache_hit) {
         ++world->frame_stats.vertex_cache_hits;
+        prepared.cache_hit = true;
     } else {
         ++world->frame_stats.vertex_cache_misses;
         cache.valid = false;
-        cache.animation_id = animation->id;
+        cache.animation = animation;
         cache.frame_index = frame_index;
         cache.world_matrix = world_matrix;
         cache.local_position = instance.local_position;
@@ -412,21 +515,166 @@ uint32_t append_component_geometry(SpriteLoopWorld* world,
         cache.valid = true;
     }
 
-    uint32_t component_index_count = 0;
-    for (std::size_t i = 0; i + 3 < cache.vertices.size(); i += 4) {
-        const uint32_t base_vertex = static_cast<uint32_t>(world->vertex_data.size());
-        world->vertex_data.insert(world->vertex_data.end(), cache.vertices.begin() + i,
-                                  cache.vertices.begin() + i + 4);
-        world->index_data.push_back(base_vertex + 0);
-        world->index_data.push_back(base_vertex + 1);
-        world->index_data.push_back(base_vertex + 2);
-        world->index_data.push_back(base_vertex + 0);
-        world->index_data.push_back(base_vertex + 2);
-        world->index_data.push_back(base_vertex + 3);
-        component_index_count += 6;
+    const uint32_t vertex_count = static_cast<uint32_t>((cache.vertices.size() / 4) * 4);
+    prepared.component = component;
+    prepared.material = component->resource->material->m_Material;
+    prepared.texture = atlas_texture;
+    prepared.animation = animation;
+    prepared.frame_index = frame_index;
+    prepared.vertex_count = vertex_count;
+    prepared.index_count = (vertex_count / 4) * 6;
+    prepared.valid = prepared.vertex_count > 0;
+    return prepared;
+}
+
+bool copy_prepared_vertices_to_slot(SpriteLoopWorld* world,
+                                    const PreparedComponentGeometry& prepared,
+                                    RenderSlot& slot)
+{
+    if (world == nullptr || !prepared.valid) {
+        return false;
     }
 
-    return component_index_count;
+    const auto found = geometry_cache().find(prepared.component);
+    if (found == geometry_cache().end() || !found->second.valid) {
+        return false;
+    }
+
+    const ComponentGeometryCache& cache = found->second;
+    const std::size_t vertex_count =
+        std::min<std::size_t>(prepared.vertex_count, cache.vertices.size());
+    const std::size_t vertex_start = slot.vertex_start;
+    if (vertex_count == 0 ||
+        vertex_start + vertex_count > world->vertex_data.size()) {
+        return false;
+    }
+
+    std::copy(cache.vertices.begin(), cache.vertices.begin() + vertex_count,
+              world->vertex_data.begin() + vertex_start);
+    ++world->frame_stats.slot_vertex_copies;
+    ++world->frame_stats.vertex_bulk_copies;
+    ++world->frame_stats.dirty_slots;
+    return true;
+}
+
+void rebuild_slot_layout(SpriteLoopWorld* world,
+                         const std::vector<PreparedComponentGeometry>& prepared_entries)
+{
+    world->render_slots.clear();
+    world->slot_lookup.clear();
+    world->vertex_data.clear();
+    world->current_quad_count = 0;
+    world->current_index_count = 0;
+    ++world->frame_stats.slot_layout_rebuilds;
+}
+
+void append_slot_layout_batch(SpriteLoopWorld* world,
+                              const std::vector<PreparedComponentGeometry>& prepared_entries)
+{
+    world->current_slot_indices.clear();
+    world->current_slot_indices.reserve(prepared_entries.size());
+
+    uint32_t vertex_cursor = static_cast<uint32_t>(world->vertex_data.size());
+    uint32_t index_cursor = world->render_slots.empty()
+                                ? 0
+                                : world->render_slots.back().index_start +
+                                      world->render_slots.back().index_count;
+    for (const PreparedComponentGeometry& prepared : prepared_entries) {
+        RenderSlot slot;
+        slot.signature = signature_entry_from_prepared(prepared);
+        slot.vertex_start = vertex_cursor;
+        slot.vertex_count = prepared.vertex_count;
+        slot.index_start = index_cursor;
+        slot.index_count = prepared.index_count;
+        const uint32_t slot_index = static_cast<uint32_t>(world->render_slots.size());
+        world->render_slots.push_back(slot);
+        world->slot_lookup[prepared.component] = slot_index;
+        world->current_slot_indices.push_back(slot_index);
+        vertex_cursor += prepared.vertex_count;
+        index_cursor += prepared.index_count;
+    }
+
+    world->vertex_data.resize(vertex_cursor);
+    world->current_quad_count = vertex_cursor / 4;
+    world->current_index_count = index_cursor;
+}
+
+bool resolve_existing_slots(SpriteLoopWorld* world,
+                            const std::vector<PreparedComponentGeometry>& prepared_entries)
+{
+    world->current_slot_indices.clear();
+    world->current_slot_indices.reserve(prepared_entries.size());
+    for (const PreparedComponentGeometry& prepared : prepared_entries) {
+        const auto found = world->slot_lookup.find(prepared.component);
+        if (found == world->slot_lookup.end() ||
+            found->second >= world->render_slots.size()) {
+            return false;
+        }
+
+        const RenderSlot& slot = world->render_slots[found->second];
+        const RenderSignatureEntry current = signature_entry_from_prepared(prepared);
+        if (!same_layout_entry(slot.signature, current)) {
+            return false;
+        }
+        world->current_slot_indices.push_back(found->second);
+    }
+    return true;
+}
+
+void build_slot_render_objects(SpriteLoopWorld* world,
+                               dmRender::HRenderContext render_context,
+                               const std::vector<PreparedComponentGeometry>& prepared_entries)
+{
+    dmRender::HMaterial current_material = 0;
+    dmGraphics::HTexture current_texture = 0;
+    uint32_t batch_index_start = 0;
+    uint32_t batch_index_count = 0;
+
+    auto flush_batch = [&]() {
+        if (batch_index_count == 0 || current_texture == 0 || current_material == 0) {
+            return;
+        }
+
+        world->render_objects.emplace_back();
+        fill_render_object(world, render_context, world->render_objects.back(),
+                           current_texture, current_material, batch_index_start,
+                           batch_index_count);
+        RenderBatchRange range;
+        range.material = current_material;
+        range.texture = current_texture;
+        range.index_start = batch_index_start;
+        range.index_count = batch_index_count;
+        world->current_batch_ranges.push_back(range);
+        ++world->frame_stats.batch_flushes;
+        ++world->frame_stats.render_objects;
+        batch_index_count = 0;
+    };
+
+    for (std::size_t i = 0; i < prepared_entries.size(); ++i) {
+        const PreparedComponentGeometry& prepared = prepared_entries[i];
+        if (!prepared.valid || i >= world->current_slot_indices.size()) {
+            continue;
+        }
+
+        const RenderSlot& slot = world->render_slots[world->current_slot_indices[i]];
+        const bool can_extend =
+            batch_index_count > 0 &&
+            prepared.texture == current_texture &&
+            prepared.material == current_material &&
+            slot.index_start == batch_index_start + batch_index_count;
+        if (batch_index_count > 0 && !can_extend) {
+            flush_batch();
+        }
+
+        if (batch_index_count == 0) {
+            current_texture = prepared.texture;
+            current_material = prepared.material;
+            batch_index_start = slot.index_start;
+        }
+
+        batch_index_count += slot.index_count;
+    }
+    flush_batch();
 }
 
 // Defold component render-list dispatch callback.
@@ -439,77 +687,203 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
     switch (params.m_Operation) {
     case dmRender::RENDER_LIST_OPERATION_BEGIN:
         world->render_objects.clear();
-        world->vertex_data.clear();
-        world->index_data.clear();
+        world->current_signature.clear();
+        world->current_batch_ranges.clear();
+        world->current_slot_indices.clear();
+        world->current_quad_count = 0;
+        world->current_index_count = 0;
+        world->reuse_frame_used = false;
+        world->reuse_reject_recorded = false;
+        world->current_dispatch_had_batch = false;
+        world->reuse_frame_candidate = world->previous_buffers_valid;
+        if (!world->previous_buffers_valid) {
+            rebuild_slot_layout(world, {});
+            world->frame_stats.slot_layout_rebuilds = 0;
+        }
         break;
     case dmRender::RENDER_LIST_OPERATION_BATCH:
     {
-        dmRender::HMaterial current_material = 0;
-        dmGraphics::HTexture current_texture = 0;
-        uint32_t batch_index_start = static_cast<uint32_t>(world->index_data.size());
-        uint32_t batch_index_count = 0;
+        const std::size_t batch_entry_count =
+            static_cast<std::size_t>(params.m_End - params.m_Begin);
+        if (batch_entry_count > 0) {
+            world->current_dispatch_had_batch = true;
+        }
+        std::vector<PreparedComponentGeometry> prepared_entries;
+        prepared_entries.reserve(batch_entry_count);
 
-        auto flush_batch = [&]() {
-            if (batch_index_count == 0 || current_texture == 0 || current_material == 0) {
-                return;
-            }
-
-            world->render_objects.emplace_back();
-            fill_render_object(world, params.m_Context, world->render_objects.back(),
-                               current_texture, current_material, batch_index_start,
-                               batch_index_count);
-            ++world->frame_stats.batch_flushes;
-            ++world->frame_stats.render_objects;
-            batch_index_start = static_cast<uint32_t>(world->index_data.size());
-            batch_index_count = 0;
-        };
+        bool can_reuse_complete_batch = false;
+        if (batch_entry_count > 0 && !world->reuse_frame_candidate) {
+            reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_invalid_previous);
+        }
+        if (world->reuse_frame_candidate && !world->current_signature.empty()) {
+            can_reuse_complete_batch = false;
+            reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_split_batch);
+        }
+        if (world->reuse_frame_candidate &&
+            batch_entry_count != world->previous_signature.size()) {
+            can_reuse_complete_batch = false;
+            reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_signature_size);
+        }
 
         for (uint32_t* i = params.m_Begin; i != params.m_End; ++i) {
-            const uint32_t component_index = static_cast<uint32_t>(params.m_Buf[*i].m_UserData);
-            if (component_index < world->components.size()) {
-                const SplaDefoldComponent* component = world->components[component_index];
-                if (!component_should_render(component)) {
-                    continue;
-                }
+            const uint32_t component_index =
+                static_cast<uint32_t>(params.m_Buf[*i].m_UserData);
+            if (component_index >= world->components.size()) {
+                can_reuse_complete_batch = false;
+                reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_signature_entry);
+                continue;
+            }
 
-                dmRender::HMaterial material = component->resource->material->m_Material;
-                dmGraphics::HTexture texture = instance_atlas_texture(*component->instance);
-                if (texture == 0 || material == 0) {
-                    continue;
-                }
+            const SplaDefoldComponent* component = world->components[component_index];
+            if (!component_should_render(component)) {
+                can_reuse_complete_batch = false;
+                reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_signature_entry);
+                continue;
+            }
 
-                if (batch_index_count > 0 &&
-                    (texture != current_texture || material != current_material)) {
-                    flush_batch();
-                }
+            dmRender::HMaterial material = component->resource->material->m_Material;
+            dmGraphics::HTexture texture = instance_atlas_texture(*component->instance);
+            if (texture == 0 || material == 0) {
+                can_reuse_complete_batch = false;
+                reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_signature_entry);
+                continue;
+            }
 
-                if (batch_index_count == 0) {
-                    current_texture = texture;
-                    current_material = material;
-                    batch_index_start = static_cast<uint32_t>(world->index_data.size());
-                }
+            PreparedComponentGeometry prepared =
+                prepare_component_geometry(world, component);
+            prepared.material = material;
+            prepared.texture = texture;
+            if (!prepared.valid) {
+                can_reuse_complete_batch = false;
+                reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_cache_miss);
+                continue;
+            }
 
-                const uint32_t appended_indices = append_component_geometry(world, component);
-                batch_index_count += appended_indices;
-                world->frame_stats.indices_generated += appended_indices;
-                world->frame_stats.quads_generated += appended_indices / 6;
-                world->frame_stats.vertices_generated += (appended_indices / 6) * 4;
+            prepared_entries.push_back(prepared);
+            world->current_signature.push_back(signature_entry_from_prepared(prepared));
+            const std::size_t signature_index = world->current_signature.size() - 1;
+            if (signature_index >= world->previous_signature.size() ||
+                !same_signature_entry(world->current_signature[signature_index],
+                                      world->previous_signature[signature_index])) {
+                can_reuse_complete_batch = false;
+                if (!prepared.cache_hit) {
+                    reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_cache_miss);
+                } else {
+                    reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_signature_entry);
+                }
             }
         }
-        flush_batch();
+
+        if (can_reuse_complete_batch) {
+            world->current_batch_ranges = world->previous_batch_ranges;
+            for (const RenderBatchRange& range : world->previous_batch_ranges) {
+                world->render_objects.emplace_back();
+                fill_render_object(world, params.m_Context, world->render_objects.back(),
+                                   range.texture, range.material, range.index_start,
+                                   range.index_count);
+                ++world->frame_stats.batch_flushes;
+                ++world->frame_stats.render_objects;
+            }
+            ++world->frame_stats.geometry_reused;
+            world->reuse_frame_used = true;
+            break;
+        }
+
+        world->reuse_frame_candidate = false;
+
+        const bool layout_matches_previous =
+            world->previous_buffers_valid &&
+            resolve_existing_slots(world, prepared_entries);
+        if (!layout_matches_previous) {
+            if (world->current_signature.size() == prepared_entries.size()) {
+                rebuild_slot_layout(world, {});
+            } else if (world->frame_stats.slot_layout_rebuilds == 0) {
+                ++world->frame_stats.slot_layout_rebuilds;
+            }
+            append_slot_layout_batch(world, prepared_entries);
+        }
+
+        for (std::size_t i = 0; i < prepared_entries.size(); ++i) {
+            const PreparedComponentGeometry& prepared = prepared_entries[i];
+            if (!prepared.valid || i >= world->current_slot_indices.size()) {
+                continue;
+            }
+
+            RenderSlot& slot = world->render_slots[world->current_slot_indices[i]];
+            const RenderSignatureEntry current = signature_entry_from_prepared(prepared);
+            const bool needs_copy =
+                !layout_matches_previous ||
+                !same_signature_entry(current, slot.signature) ||
+                !prepared.cache_hit;
+            if (needs_copy && copy_prepared_vertices_to_slot(world, prepared, slot)) {
+                slot.signature = current;
+            }
+
+            world->frame_stats.indices_generated += slot.index_count;
+            world->frame_stats.quads_generated += slot.index_count / 6;
+            world->frame_stats.vertices_generated += slot.vertex_count;
+        }
+        world->current_quad_count =
+            static_cast<uint32_t>(world->vertex_data.size() / 4);
+        world->current_index_count =
+            world->render_slots.empty()
+                ? 0
+                : world->render_slots.back().index_start +
+                      world->render_slots.back().index_count;
+        build_slot_render_objects(world, params.m_Context, prepared_entries);
         break;
     }
     case dmRender::RENDER_LIST_OPERATION_END:
-        if (!world->vertex_data.empty() && !world->index_data.empty()) {
-            dmGraphics::SetVertexBufferData(
-                world->vertex_buffer,
-                static_cast<uint32_t>(world->vertex_data.size() * sizeof(SpriteLoopVertex)),
-                world->vertex_data.data(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-            dmGraphics::SetIndexBufferData(
-                world->index_buffer,
-                static_cast<uint32_t>(world->index_data.size() * sizeof(uint32_t)),
-                world->index_data.data(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        if (world->reuse_frame_used) {
+            world->previous_signature = world->current_signature;
+            world->previous_batch_ranges = world->current_batch_ranges;
+            world->frame_stats.slot_count =
+                static_cast<uint32_t>(world->render_slots.size());
+            set_render_stats(world->frame_stats);
+            break;
         }
+
+        if (!world->vertex_data.empty() && world->current_index_count > 0) {
+            const bool has_dirty_slots = world->frame_stats.dirty_slots > 0;
+            const bool layout_rebuilt = world->frame_stats.slot_layout_rebuilds > 0;
+            if (!has_dirty_slots && world->previous_buffers_valid) {
+                ++world->frame_stats.geometry_reused;
+                world->previous_signature = world->current_signature;
+                world->previous_batch_ranges = world->current_batch_ranges;
+            } else {
+                ensure_quad_index_pattern(world, world->current_quad_count);
+                const uint32_t vertex_bytes =
+                    static_cast<uint32_t>(world->vertex_data.size() * sizeof(SpriteLoopVertex));
+                const uint32_t index_bytes =
+                    static_cast<uint32_t>(world->current_index_count * sizeof(uint32_t));
+                const bool upload_index_buffer =
+                    layout_rebuilt || !world->previous_buffers_valid;
+                dmGraphics::SetVertexBufferData(
+                    world->vertex_buffer, vertex_bytes, world->vertex_data.data(),
+                    dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                ++world->frame_stats.vertex_uploads;
+                ++world->frame_stats.full_vertex_uploads;
+                world->frame_stats.bytes_uploaded += vertex_bytes;
+                if (upload_index_buffer) {
+                    dmGraphics::SetIndexBufferData(
+                        world->index_buffer, index_bytes, world->quad_index_pattern.data(),
+                        dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                    ++world->frame_stats.index_uploads;
+                    if (layout_rebuilt) {
+                        ++world->frame_stats.index_layout_uploads;
+                    }
+                    world->frame_stats.bytes_uploaded += index_bytes;
+                }
+                ++world->frame_stats.buffer_uploads;
+                world->previous_buffers_valid = true;
+                world->previous_signature = world->current_signature;
+                world->previous_batch_ranges = world->current_batch_ranges;
+            }
+        } else if (world->current_dispatch_had_batch) {
+            invalidate_uploaded_geometry(world);
+        }
+        world->frame_stats.slot_count =
+            static_cast<uint32_t>(world->render_slots.size());
         set_render_stats(world->frame_stats);
         break;
     }
@@ -532,10 +906,10 @@ void render_list_visibility(const dmRender::RenderListVisibilityParams& params)
             continue;
         }
 
-        entry.m_Visibility = component_intersects_frustum(world->components[component_index],
-                                                          params.m_Frustum)
-                                 ? dmRender::VISIBILITY_FULL
-                                 : dmRender::VISIBILITY_NONE;
+        entry.m_Visibility =
+            component_intersects_frustum(world->components[component_index], params.m_Frustum)
+                ? dmRender::VISIBILITY_FULL
+                : dmRender::VISIBILITY_NONE;
         if (entry.m_Visibility == dmRender::VISIBILITY_FULL) {
             ++world->frame_stats.frustum_visible;
         } else {
@@ -783,11 +1157,13 @@ dmGameObject::UpdateResult component_update(
     dmGameObject::ComponentsUpdateResult& result)
 {
     SpriteLoopWorld* world = static_cast<SpriteLoopWorld*>(params.m_World);
+    world->update_stats = {};
     const float dt = params.m_UpdateContext != nullptr ? params.m_UpdateContext->m_DT : 0.0f;
     for (SplaDefoldComponent* component : world->components) {
         if (component != nullptr && component->instance != nullptr &&
             component->instance->player != nullptr) {
             component->instance->player->update(dt * component->playback_rate);
+            ++world->update_stats.playback_updates;
             component->instance->visible = component->visible;
         }
     }
@@ -804,11 +1180,11 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
     dmRender::HRenderContext render_context = context->render_context;
     const uint32_t component_count = static_cast<uint32_t>(world->components.size());
     if (component_count == 0 || render_context == 0) {
-        set_render_stats({});
+        set_render_stats(world->update_stats);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    world->frame_stats = {};
+    world->frame_stats = world->update_stats;
     world->frame_stats.component_count = component_count;
 
     uint32_t visible_count = 0;
@@ -823,14 +1199,7 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
         set_render_stats(world->frame_stats);
         return dmGameObject::UPDATE_RESULT_OK;
     }
-    world->render_objects.reserve(visible_count);
 
-    dmRender::RenderListEntry* render_list =
-        dmRender::RenderListAlloc(render_context, visible_count);
-    dmRender::HRenderListDispatch dispatch =
-        dmRender::RenderListMakeDispatch(render_context, &render_list_dispatch,
-                                         &render_list_visibility, world);
-    dmRender::RenderListEntry* write_ptr = render_list;
     struct RenderBatchOrder {
         dmRender::HMaterial material = 0;
         dmGraphics::HTexture texture = 0;
@@ -854,6 +1223,14 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
         return order.minor_order;
     };
 
+    world->render_objects.reserve(visible_count);
+
+    dmRender::RenderListEntry* render_list =
+        dmRender::RenderListAlloc(render_context, visible_count);
+    dmRender::HRenderListDispatch dispatch =
+        dmRender::RenderListMakeDispatch(render_context, &render_list_dispatch,
+                                         &render_list_visibility, world);
+    dmRender::RenderListEntry* write_ptr = render_list;
     for (uint32_t i = 0; i < component_count; ++i) {
         SplaDefoldComponent* component = world->components[i];
         if (!component_is_render_candidate(component)) {
@@ -862,21 +1239,16 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
 
         dmRender::HMaterial material = component->resource->material->m_Material;
         dmGraphics::HTexture texture = instance_atlas_texture(*component->instance);
-        HashState32 state;
-        dmHashInit32(&state, false);
-        dmHashUpdateBuffer32(&state, &material, sizeof(material));
-        dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
-        uint32_t batch_key = dmHashFinal32(&state);
-
         write_ptr->m_WorldPosition = component_render_sort_position(component);
         write_ptr->m_UserData = i;
-        write_ptr->m_BatchKey = batch_key;
+        write_ptr->m_BatchKey = render_batch_key(material, texture);
         write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(material);
         write_ptr->m_Dispatch = dispatch;
         write_ptr->m_MinorOrder = minor_order_for_batch(material, texture);
         write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
         write_ptr->m_Visibility = dmRender::VISIBILITY_FULL;
         ++write_ptr;
+        ++world->frame_stats.render_entries_submitted;
     }
 
     dmRender::RenderListSubmit(render_context, render_list, write_ptr);
@@ -902,7 +1274,6 @@ dmGameObject::Result component_type_create(const dmGameObject::ComponentTypeCrea
         ctx->m_Contexts.Get(dmHashString64("render")));
     context->max_components_per_world =
         dmConfigFile::GetInt(ctx->m_Config, max_count_property, 1024);
-
     dmGameObject::ComponentTypeSetPrio(type, 1050);
     dmGameObject::ComponentTypeSetContext(type, context);
     dmGameObject::ComponentTypeSetHasUserData(type, true);

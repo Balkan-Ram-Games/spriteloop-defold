@@ -15,14 +15,6 @@ key_trigger {
   action: "toggle_debug_gui"
 }
 key_trigger {
-  input: KEY_1
-  action: "load_demo"
-}
-key_trigger {
-  input: KEY_2
-  action: "load_benchmark"
-}
-key_trigger {
   input: KEY_R
   action: "benchmark_reset"
 }

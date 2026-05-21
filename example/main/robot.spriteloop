@@ -1,7 +1,2 @@
 package: "/example/assets/robot_idle.spla"
-default_animation: "idle"
-playback_rate: 1.0
-loop: true
-visible: true
-autoplay: true
 material: "/spriteloop/spriteloop/materials/spriteloop.material"
