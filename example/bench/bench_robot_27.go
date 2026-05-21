@@ -1,7 +1,7 @@
 embedded_components {
   id: "robot"
   type: "spriteloop"
-  data: "package: \"/example/assets/robot_idle_50.spla\"\n"
+  data: "package: \"/example/assets/robot_idle_27.spla\"\n"
   "default_animation: \"idle\"\n"
   "playback_rate: 1.0\n"
   "loop: true\n"
@@ -10,7 +10,7 @@ embedded_components {
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
   ""
   scale {
-    x: 0.36
-    y: 0.36
+    x: 0.667
+    y: 0.667
   }
 }

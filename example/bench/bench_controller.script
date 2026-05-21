@@ -4,6 +4,7 @@ local ROBOT_COMPONENT = "robot"
 local SPRITE_COMPONENT = "sprite"
 local SPRITELOOP_FACTORY = "#robot_factory"
 local SPRITELOOP_50_FACTORY = "#robot_50_factory"
+local SPRITELOOP_27_FACTORY = "#robot_27_factory"
 local SPRITE_TILESOURCE_SMALL_FACTORY = "#sprite_tilesource_small_factory"
 local SPRITE_TILESOURCE_FULL_FACTORY = "#sprite_tilesource_full_factory"
 local SPRITE_ATLAS_FACTORY = "#sprite_atlas_factory"
@@ -161,6 +162,16 @@ local MODES = {
         renderer = "spriteloop_50",
         factory = SPRITELOOP_50_FACTORY,
         description = "SpriteLoop smaller source asset, visible fill",
+    },
+    {
+        id = "spriteloop_27_fill_playing_static",
+        label = "spriteloop 27/static",
+        layout = "fill",
+        movement = "none",
+        playback = true,
+        renderer = "spriteloop_27",
+        factory = SPRITELOOP_27_FACTORY,
+        description = "SpriteLoop 27% source asset, visible fill",
     },
 }
 
