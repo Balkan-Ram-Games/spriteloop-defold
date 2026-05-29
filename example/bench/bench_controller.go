@@ -21,6 +21,12 @@ embedded_components {
   ""
 }
 embedded_components {
+  id: "windmill_factory"
+  type: "factory"
+  data: "prototype: \"/example/bench/bench_windmill.go\"\n"
+  ""
+}
+embedded_components {
   id: "sprite_tilesource_small_factory"
   type: "factory"
   data: "prototype: \"/example/bench/sprite/robot_sprite_tilesource_small.go\"\n"

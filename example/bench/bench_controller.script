@@ -1,10 +1,11 @@
 local spriteloop = require "spriteloop.spriteloop"
 
-local ROBOT_COMPONENT = "robot"
+local SPRITELOOP_COMPONENT = "robot"
 local SPRITE_COMPONENT = "sprite"
 local SPRITELOOP_FACTORY = "#robot_factory"
 local SPRITELOOP_50_FACTORY = "#robot_50_factory"
 local SPRITELOOP_27_FACTORY = "#robot_27_factory"
+local SPRITELOOP_WINDMILL_FACTORY = "#windmill_factory"
 local SPRITE_TILESOURCE_SMALL_FACTORY = "#sprite_tilesource_small_factory"
 local SPRITE_TILESOURCE_FULL_FACTORY = "#sprite_tilesource_full_factory"
 local SPRITE_ATLAS_FACTORY = "#sprite_atlas_factory"
@@ -173,6 +174,19 @@ local MODES = {
         factory = SPRITELOOP_27_FACTORY,
         description = "SpriteLoop 27% source asset, visible fill",
     },
+    {
+        id = "spriteloop_windmill_skew_static",
+        label = "spriteloop windmill/skew",
+        layout = "fill",
+        movement = "none",
+        playback = true,
+        renderer = "spriteloop_windmill",
+        factory = SPRITELOOP_WINDMILL_FACTORY,
+        component = "animation",
+        parts_per_robot = 2,
+        frame_count = 51,
+        description = "SpriteLoop skew package, parent-baked perspective blades",
+    },
 }
 
 local FILL_COLUMNS = 52
@@ -181,6 +195,7 @@ local FILL_CAPACITY = FILL_COLUMNS * FILL_ROWS
 local CULL_VISIBLE_CAP = 500
 local HORDE_CENTER_CAP = 200
 local HORDE_CENTER = vmath.vector3(628, 548, 0)
+local SINGLE_CENTER = vmath.vector3(640, 360, 0)
 
 local function format_bytes(bytes)
     local mb = bytes / (1024 * 1024)
@@ -213,8 +228,16 @@ local function factory_url(self)
     return mode(self).factory or SPRITELOOP_FACTORY
 end
 
+local function spriteloop_component(self)
+    return mode(self).component or SPRITELOOP_COMPONENT
+end
+
 local function parts_per_robot(self)
     return mode(self).parts_per_robot or PARTS_PER_ROBOT
+end
+
+local function frame_count(self)
+    return mode(self).frame_count or 24
 end
 
 local function fill_position(index)
@@ -298,6 +321,10 @@ local function horde_position(index)
 end
 
 local function robot_position(self, index)
+    if self.single_centered then
+        return SINGLE_CENTER
+    end
+
     local current_mode = mode(self)
     if current_mode.layout == "fill" then
         return fill_position(index)
@@ -309,8 +336,8 @@ local function robot_position(self, index)
     return scatter_position(index)
 end
 
-local function robot_url(id)
-    return msg.url(nil, id, ROBOT_COMPONENT)
+local function robot_url(self, id)
+    return msg.url(nil, id, spriteloop_component(self))
 end
 
 local function sprite_url(id)
@@ -334,13 +361,14 @@ local function configure_robot(self, id, index)
     go.cancel_animations(id, "position")
 
     if is_spriteloop_mode(self) then
-        local component = robot_url(id)
+        local component = robot_url(self, id)
         spriteloop.play_anim(component, "idle", { loop = true })
-        spriteloop.set_time(component, ((index * 13) % 24) / 24)
+        local frames = frame_count(self)
+        spriteloop.set_time(component, ((index * 13) % frames) / frames)
         if mode(self).playback then
             spriteloop.set_playback_rate(component, 0.92 + ((index * 7) % 17) * 0.01)
         else
-            spriteloop.set_frame(component, (index * 7) % 24)
+            spriteloop.set_frame(component, (index * 7) % frames)
             spriteloop.set_playback_rate(component, 0)
         end
     else
@@ -478,7 +506,7 @@ end
 
 local function next_mode(self)
     local previous_factory = factory_url(self)
-    local target_count = math.max(#self.robots, INITIAL_ROBOTS)
+    local target_count = self.single_centered and 1 or math.max(#self.robots, INITIAL_ROBOTS)
     self.mode_index = self.mode_index + 1
     if self.mode_index > #MODES then
         self.mode_index = 1
@@ -493,7 +521,26 @@ local function next_mode(self)
     send_state(self, "mode")
 end
 
+local function previous_mode(self)
+    local previous_factory = factory_url(self)
+    local target_count = self.single_centered and 1 or math.max(#self.robots, INITIAL_ROBOTS)
+    self.mode_index = self.mode_index - 1
+    if self.mode_index < 1 then
+        self.mode_index = #MODES
+    end
+    if factory_url(self) ~= previous_factory then
+        clear_robots(self)
+        self.pending_delete_frames = 2
+        self.pending_spawn_target = target_count
+    else
+        apply_layout(self)
+    end
+    send_state(self, "mode")
+end
+
 local function reset_benchmark(self)
+    self.single_centered = false
+
     if #self.robots > INITIAL_ROBOTS then
         for i = #self.robots, INITIAL_ROBOTS + 1, -1 do
             go.delete(self.robots[i])
@@ -511,6 +558,14 @@ local function reset_benchmark(self)
     send_state(self, "reset")
 end
 
+local function one_centered_benchmark(self)
+    self.single_centered = true
+    clear_robots(self)
+    self.pending_delete_frames = 2
+    self.pending_spawn_target = 1
+    send_state(self, "center")
+end
+
 function init(self)
     self.robots = {}
     self.base_positions = {}
@@ -524,6 +579,7 @@ function init(self)
     self.fps = 0
     self.time = 0
     self.mode_index = 1
+    self.single_centered = false
     reset_benchmark(self)
 end
 
@@ -583,10 +639,15 @@ function on_message(self, message_id, message)
         self.debug_gui = message.debug_gui
         send_state(self, "sample")
     elseif message_id == hash("benchmark_add") then
+        self.single_centered = false
         spawn_to(self, #self.robots + STEP_ROBOTS)
     elseif message_id == hash("benchmark_reset") then
         reset_benchmark(self)
+    elseif message_id == hash("benchmark_one_centered") then
+        one_centered_benchmark(self)
     elseif message_id == hash("benchmark_next_mode") then
         next_mode(self)
+    elseif message_id == hash("benchmark_previous_mode") then
+        previous_mode(self)
     end
 end

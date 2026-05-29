@@ -48,10 +48,22 @@ local BUTTONS = {
         message = "ui_benchmark_reset",
     },
     {
+        id = "center",
+        box = "center_button",
+        text = "center_button_text",
+        message = "ui_benchmark_one_centered",
+    },
+    {
         id = "mode",
         box = "mode_button",
         text = "mode_button_text",
         message = "ui_benchmark_next_mode",
+    },
+    {
+        id = "previous_mode",
+        box = "previous_mode_button",
+        text = "previous_mode_button_text",
+        message = "ui_benchmark_previous_mode",
     },
 }
 
@@ -105,7 +117,7 @@ end
 local function console_stats_line(state)
     local render = render_stats(state)
     return string.format(
-        "SPRITELOOP_BENCH mode=%s renderer=%s fps=%.1f robots=%d entries=%d quads=%d copies=%d cache=%d/%d slots=%d dirty=%d slotcopies=%d layout=%d reused=%d rejected=%d reasons=%d/%d/%d/%d/%d uploads=%d/%d/%d fullv=%d bytes=%s",
+        "SPRITELOOP_BENCH mode=%s renderer=%s fps=%.1f instances=%d entries=%d quads=%d copies=%d cache=%d/%d slots=%d dirty=%d slotcopies=%d layout=%d reused=%d rejected=%d reasons=%d/%d/%d/%d/%d uploads=%d/%d/%d fullv=%d bytes=%s",
         tostring(state.mode or "unknown"),
         tostring(state.renderer or "spriteloop"),
         state.fps or 0,
@@ -141,13 +153,13 @@ local function benchmark_text(self)
 
     local render = render_stats(state)
     return table.concat({
-        string.format("benchmark: %d / %d robots", state.robot_count or 0, state.max_robots or 0),
+        string.format("benchmark: %d / %d instances", state.robot_count or 0, state.max_robots or 0),
         string.format("%s  %s  fps %.1f",
             state.renderer or "spriteloop",
             state.movement or "none",
             state.fps or 0),
         state.mode_description or "",
-        string.format("visible est: %d robots / %d quads",
+        string.format("visible est: %d instances / %d quads",
             state.estimated_visible or 0,
             state.estimated_visible_quads or 0),
         string.format("render: components=%d candidates=%d visible/culled=%d/%d",
@@ -195,7 +207,7 @@ local function benchmark_text(self)
         string.format("textures: %d bytes: %s",
             state.texture_count or 0,
             state.texture_bytes_text or format_bytes(state.texture_bytes or 0)),
-        string.format("Space: +%d robots  B: mode  R: reset", state.step_robots or 100),
+        string.format("Space: +%d instances  B: mode  R: reset", state.step_robots or 100),
     }, "\n")
 end
 
@@ -218,7 +230,7 @@ local function button_enabled(self, id)
         return false
     end
 
-    if id == "add" or id == "reset" or id == "mode" then
+    if id == "add" or id == "reset" or id == "center" or id == "mode" or id == "previous_mode" then
         return is_benchmark_active(self)
     elseif id == "bench" then
         return not is_benchmark_active(self)
@@ -253,9 +265,11 @@ local function refresh_buttons(self)
         debug = self.debug_gui_visible and "Hide UI" or "Show UI",
         toggle = self.scene ~= "none" and "Unload" or "Load Demo",
         bench = "Load Bench",
-        add = string.format("+%d Robots", self.benchmark.step_robots or 500),
-        reset = "Reset Robots",
+        add = string.format("+%d Instances", self.benchmark.step_robots or 500),
+        reset = "Reset Instances",
+        center = "One Center",
         mode = "Next Bench",
+        previous_mode = "Prev Bench",
     }
 
     for _, button in ipairs(BUTTONS) do
@@ -280,7 +294,7 @@ local function refresh(self)
     end
 
     local text = string.format(
-        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\nbench mode:\n\nButtons work on mobile/web.\nKeys: Space add  B mode  R reset\nMiddle click: destroy one demo robot\nP: toggle profiler  G: hide/show this text\n\n%s\n\n%s",
+        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\nbench mode:\n\nButtons work on mobile/web.\nKeys: Space add  B mode  R reset\nMiddle click: destroy one demo instance\nP: toggle profiler  G: hide/show this text\n\n%s\n\n%s",
         self.scene,
         self.state,
         self.busy and " (busy)" or "",

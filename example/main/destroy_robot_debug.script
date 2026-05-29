@@ -26,7 +26,7 @@ function on_input(self, action_id, action)
 
     local robot = ROBOTS[self.next_robot]
     if not robot then
-        print("SpriteLoop debug destroy: no robots left")
+        print("SpriteLoop debug destroy: no demo instances left")
         return true
     end
 

@@ -37,3 +37,9 @@ scale_mode = stretch
 
 [sprite]
 max_count = 6000
+
+[render]
+clear_color_red = 0.3
+clear_color_green = 0.3
+clear_color_blue = 0.3
+

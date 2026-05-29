@@ -14,6 +14,7 @@ local BENCH_CONTROLLER = "bench:/controller#controller"
 local BENCHMARK_RESET = hash("benchmark_reset")
 local BENCHMARK_ADD = hash("benchmark_add")
 local BENCHMARK_NEXT_MODE = hash("benchmark_next_mode")
+local BENCHMARK_PREVIOUS_MODE = hash("benchmark_previous_mode")
 
 local function scene_label(scene)
     return SCENE_NAMES[scene] or "none"
@@ -121,6 +122,9 @@ function on_input(self, action_id, action)
     elseif action_id == BENCHMARK_NEXT_MODE then
         post_benchmark_if_active(self, "benchmark_next_mode")
         return true
+    elseif action_id == BENCHMARK_PREVIOUS_MODE then
+        post_benchmark_if_active(self, "benchmark_previous_mode")
+        return true
     end
 end
 
@@ -165,7 +169,11 @@ function on_message(self, message_id, _message, sender)
         post_benchmark_if_active(self, "benchmark_add")
     elseif message_id == hash("ui_benchmark_reset") then
         post_benchmark_if_active(self, "benchmark_reset")
+    elseif message_id == hash("ui_benchmark_one_centered") then
+        post_benchmark_if_active(self, "benchmark_one_centered")
     elseif message_id == hash("ui_benchmark_next_mode") then
         post_benchmark_if_active(self, "benchmark_next_mode")
+    elseif message_id == hash("ui_benchmark_previous_mode") then
+        post_benchmark_if_active(self, "benchmark_previous_mode")
     end
 end

@@ -285,7 +285,7 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "+500 Robots"
+  text: "+500 Instances"
   font: "system_font"
   id: "add_button_text"
   xanchor: XANCHOR_RIGHT
@@ -331,7 +331,7 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "Reset Robots"
+  text: "Reset Instances"
   font: "system_font"
   id: "reset_button_text"
   xanchor: XANCHOR_RIGHT
@@ -355,7 +355,7 @@ nodes {
     w: 0.92
   }
   type: TYPE_BOX
-  id: "mode_button"
+  id: "center_button"
   xanchor: XANCHOR_RIGHT
   yanchor: YANCHOR_TOP
   pivot: PIVOT_CENTER
@@ -377,9 +377,101 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
+  text: "One Center"
+  font: "system_font"
+  id: "center_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 298.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "mode_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 298.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
   text: "Next Bench"
   font: "system_font"
   id: "mode_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 240.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "previous_mode_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 240.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Prev Bench"
+  font: "system_font"
+  id: "previous_mode_button_text"
   xanchor: XANCHOR_RIGHT
   yanchor: YANCHOR_TOP
   pivot: PIVOT_CENTER
