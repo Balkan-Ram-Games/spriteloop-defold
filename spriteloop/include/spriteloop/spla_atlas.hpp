@@ -34,6 +34,7 @@ struct SplaAtlasRegion {
     SplaAtlasRect content_rect;
     SplaAtlasRect padded_rect;
     SplaAtlasUvRect uv;
+    bool rotated = false;
 };
 
 struct SplaAtlas {
@@ -49,6 +50,7 @@ struct SplaAtlas {
 
 struct SplaAtlasOptions {
     int padding = 1;
+    bool allow_rotation = true;
 };
 
 SplaResult<SplaAtlas> pack_rgba_atlas(const std::vector<SplaRgbaImage>& images,

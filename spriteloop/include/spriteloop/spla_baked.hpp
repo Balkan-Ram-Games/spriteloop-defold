@@ -26,6 +26,7 @@ struct SplaBakedImage {
     float v0 = 0.0f;
     float u1 = 1.0f;
     float v1 = 1.0f;
+    bool rotated = false;
 };
 
 struct SplaBakedVertex {

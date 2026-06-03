@@ -48,6 +48,7 @@ std::vector<spriteloop::SplaBakedImage> baked_images_from_resources(
         image.v0 = resource.atlas_region.uv.v0;
         image.u1 = resource.atlas_region.uv.u1;
         image.v1 = resource.atlas_region.uv.v1;
+        image.rotated = resource.atlas_region.rotated;
         images.push_back(image);
     }
     return images;

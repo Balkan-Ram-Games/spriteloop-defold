@@ -132,6 +132,7 @@ def main() -> int:
         target_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(plugin_jar, current_jar)
         print(f"Updated {current_jar}")
+        shutil.rmtree(build_root / "plugins", ignore_errors=True)
     except Exception:
         if had_existing_jar and backup_jar.exists() and not current_jar.exists():
             target_dir.mkdir(parents=True, exist_ok=True)
