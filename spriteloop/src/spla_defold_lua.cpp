@@ -63,6 +63,41 @@ void destroy_instance_storage(lua_State* lua_state, int index)
     }
 }
 
+void push_package_skin_tables(lua_State* lua_state, const spriteloop::SplaPackage& package)
+{
+    lua_newtable(lua_state);
+    for (std::size_t i = 0; i < package.skins.size(); ++i) {
+        const spriteloop::SplaSkin& skin = package.skins[i];
+        lua_newtable(lua_state);
+        lua_pushstring(lua_state, skin.id.c_str());
+        lua_setfield(lua_state, -2, "id");
+        lua_pushstring(lua_state, skin.name.c_str());
+        lua_setfield(lua_state, -2, "name");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(skin.parts.size()));
+        lua_setfield(lua_state, -2, "override_count");
+        lua_rawseti(lua_state, -2, static_cast<int>(i + 1));
+    }
+    lua_setfield(lua_state, -2, "skins");
+
+    lua_newtable(lua_state);
+    for (std::size_t i = 0; i < package.variants.size(); ++i) {
+        const spriteloop::SplaVariant& variant = package.variants[i];
+        lua_newtable(lua_state);
+        lua_pushstring(lua_state, variant.id.c_str());
+        lua_setfield(lua_state, -2, "id");
+        lua_pushstring(lua_state, variant.name.c_str());
+        lua_setfield(lua_state, -2, "name");
+        if (variant.part_index >= 0 &&
+            variant.part_index < static_cast<int>(package.parts.size())) {
+            lua_pushstring(lua_state,
+                           package.parts[static_cast<std::size_t>(variant.part_index)].id.c_str());
+            lua_setfield(lua_state, -2, "part_id");
+        }
+        lua_rawseti(lua_state, -2, static_cast<int>(i + 1));
+    }
+    lua_setfield(lua_state, -2, "variants");
+}
+
 // Lua: spla_native.version() -> string.
 int version(lua_State* lua_state)
 {
@@ -207,6 +242,44 @@ int set_visible(lua_State* lua_state)
     return 0;
 }
 
+int set_skin(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
+    const char* skin_id = luaL_checkstring(lua_state, 2);
+    lua_pushboolean(lua_state, spla_defold::set_instance_skin(*instance, skin_id) ? 1 : 0);
+    return 1;
+}
+
+int set_variant(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
+    const char* part_id = luaL_checkstring(lua_state, 2);
+    const char* variant_id = luaL_checkstring(lua_state, 3);
+    lua_pushboolean(lua_state,
+                    spla_defold::set_instance_variant(*instance, part_id, variant_id) ? 1 : 0);
+    return 1;
+}
+
+int clear_variant(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
+    const char* part_id = luaL_checkstring(lua_state, 2);
+    lua_pushboolean(lua_state,
+                    spla_defold::clear_instance_variant(*instance, part_id) ? 1 : 0);
+    return 1;
+}
+
+int clear_variants(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 0);
+    spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
+    spla_defold::clear_instance_variants(*instance);
+    return 0;
+}
+
 // Lua: spla_native.get_info(handle) -> table.
 // Returns package, playback, transform, and image-resource details for diagnostics.
 int get_info(lua_State* lua_state)
@@ -229,6 +302,13 @@ int get_info(lua_State* lua_state)
     lua_setfield(lua_state, -2, "animation_count");
     lua_pushinteger(lua_state, static_cast<lua_Integer>(instance->package.assets.size()));
     lua_setfield(lua_state, -2, "asset_count");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(instance->package.variants.size()));
+    lua_setfield(lua_state, -2, "variant_count");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(instance->package.skins.size()));
+    lua_setfield(lua_state, -2, "skin_count");
+    lua_pushinteger(lua_state, instance->skin_state.skin_index);
+    lua_setfield(lua_state, -2, "skin_index");
+    push_package_skin_tables(lua_state, instance->package);
     lua_pushinteger(lua_state, static_cast<lua_Integer>(instance->image_resources.size()));
     lua_setfield(lua_state, -2, "image_resource_count");
     lua_pushinteger(lua_state, instance->package.canvas_width);
@@ -290,6 +370,10 @@ const luaL_reg module_methods[] = {
     {"set_position", set_position},
     {"set_scale", set_scale},
     {"set_visible", set_visible},
+    {"set_skin", set_skin},
+    {"set_variant", set_variant},
+    {"clear_variant", clear_variant},
+    {"clear_variants", clear_variants},
     {"get_info", get_info},
     {0, 0},
 };
@@ -403,6 +487,48 @@ int component_set_visible(lua_State* lua_state)
     return 0;
 }
 
+int component_set_skin(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    const char* skin_id = luaL_checkstring(lua_state, 2);
+    lua_pushboolean(lua_state,
+                    spla_defold::set_instance_skin(*component->instance, skin_id) ? 1 : 0);
+    return 1;
+}
+
+int component_set_variant(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    const char* part_id = luaL_checkstring(lua_state, 2);
+    const char* variant_id = luaL_checkstring(lua_state, 3);
+    lua_pushboolean(lua_state,
+                    spla_defold::set_instance_variant(*component->instance, part_id,
+                                                       variant_id)
+                        ? 1
+                        : 0);
+    return 1;
+}
+
+int component_clear_variant(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    const char* part_id = luaL_checkstring(lua_state, 2);
+    lua_pushboolean(lua_state,
+                    spla_defold::clear_instance_variant(*component->instance, part_id) ? 1 : 0);
+    return 1;
+}
+
+int component_clear_variants(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 0);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    spla_defold::clear_instance_variants(*component->instance);
+    return 0;
+}
+
 // Lua: spriteloop_native.debug_destroy_component(url) -> boolean.
 // Releases one component runtime instance while leaving the Defold component shell in place.
 int component_debug_destroy_component(lua_State* lua_state)
@@ -449,6 +575,13 @@ int component_get_info(lua_State* lua_state)
     lua_setfield(lua_state, -2, "part_count");
     lua_pushinteger(lua_state, static_cast<lua_Integer>(package.animations.size()));
     lua_setfield(lua_state, -2, "animation_count");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(package.variants.size()));
+    lua_setfield(lua_state, -2, "variant_count");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(package.skins.size()));
+    lua_setfield(lua_state, -2, "skin_count");
+    lua_pushinteger(lua_state, instance->skin_state.skin_index);
+    lua_setfield(lua_state, -2, "skin_index");
+    push_package_skin_tables(lua_state, package);
     lua_pushinteger(lua_state, static_cast<lua_Integer>(image_resources.size()));
     lua_setfield(lua_state, -2, "image_resource_count");
     lua_pushinteger(lua_state,
@@ -635,6 +768,10 @@ const luaL_reg component_module_methods[] = {
     {"set_frame", component_set_frame},
     {"set_playback_rate", component_set_playback_rate},
     {"set_visible", component_set_visible},
+    {"set_skin", component_set_skin},
+    {"set_variant", component_set_variant},
+    {"clear_variant", component_clear_variant},
+    {"clear_variants", component_clear_variants},
     {"debug_destroy_component", component_debug_destroy_component},
     {"get_info", component_get_info},
     {"get_cache_info", component_get_cache_info},

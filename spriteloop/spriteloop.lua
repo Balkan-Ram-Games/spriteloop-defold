@@ -46,6 +46,26 @@ function M.set_visible(url, visible)
     return call("set_visible", url, visible)
 end
 
+-- Sets the active runtime skin by id.
+function M.set_skin(url, skin_id)
+    return call("set_skin", url, skin_id)
+end
+
+-- Overrides one part to render a specific variant id.
+function M.set_variant(url, part_id, variant_id)
+    return call("set_variant", url, part_id, variant_id)
+end
+
+-- Clears one part variant override.
+function M.clear_variant(url, part_id)
+    return call("clear_variant", url, part_id)
+end
+
+-- Clears all part variant overrides.
+function M.clear_variants(url)
+    return call("clear_variants", url)
+end
+
 -- Debug helper: releases one SpriteLoop component runtime instance.
 -- This is intended for lifecycle/cache diagnostics, not normal gameplay.
 function M.debug_destroy_component(url)

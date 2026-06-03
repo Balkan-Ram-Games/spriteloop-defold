@@ -66,6 +66,58 @@
     - name: visible
       type: boolean
       desc: Visibility state.
+  - name: set_skin
+    type: function
+    desc: Sets the active runtime skin.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: skin_id
+      type: string
+      desc: Skin id.
+    returns:
+    - name: changed
+      type: boolean
+      desc: True when the skin id exists.
+  - name: set_variant
+    type: function
+    desc: Overrides one part variant.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: part_id
+      type: string
+      desc: Part id.
+    - name: variant_id
+      type: string
+      desc: Variant id.
+    returns:
+    - name: changed
+      type: boolean
+      desc: True when the part and variant ids match.
+  - name: clear_variant
+    type: function
+    desc: Clears one part variant override.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: part_id
+      type: string
+      desc: Part id.
+    returns:
+    - name: changed
+      type: boolean
+      desc: True when the part id exists.
+  - name: clear_variants
+    type: function
+    desc: Clears all part variant overrides.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
   - name: debug_destroy_component
     type: function
     desc: Debug helper that releases one SpriteLoop component runtime instance.

@@ -30,6 +30,32 @@ struct SplaPart {
     int height = 0;
     SplaVec2 pivot;
     int draw_order = 0;
+    bool visible = true;
+};
+
+struct SplaVariant {
+    std::string id;
+    std::string name;
+    int part_index = -1;
+    std::string asset_path;
+    int width = 0;
+    int height = 0;
+    float offset_x = 0.0f;
+    float offset_y = 0.0f;
+};
+
+struct SplaSkinPartOverride {
+    int part_index = -1;
+    int variant_index = -1;
+    bool has_variant = false;
+    bool visible = true;
+    bool has_visible = false;
+};
+
+struct SplaSkin {
+    std::string id;
+    std::string name;
+    std::vector<SplaSkinPartOverride> parts;
 };
 
 struct SplaFramePart {
@@ -61,6 +87,8 @@ struct SplaPackage {
     int canvas_width = 0;
     int canvas_height = 0;
     std::vector<SplaPart> parts;
+    std::vector<SplaVariant> variants;
+    std::vector<SplaSkin> skins;
     std::vector<SplaAnimation> animations;
     std::vector<SplaAsset> assets;
 };

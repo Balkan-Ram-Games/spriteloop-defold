@@ -1,0 +1,79 @@
+local TOUCH = hash("touch")
+local CONTROLLER = "/skin_demo#controller"
+
+local BUTTONS = {
+    { box = "random_skin_button", text = "random_skin_button_text", message = "random_skin" },
+    { box = "next_skin_button", text = "next_skin_button_text", message = "next_skin" },
+    { box = "random_variant_button", text = "random_variant_button_text", message = "random_variant" },
+    { box = "random_parts_button", text = "random_parts_button_text", message = "random_parts" },
+    { box = "random_robots_button", text = "random_robots_button_text", message = "random_robots" },
+    { box = "clear_one_button", text = "clear_one_button_text", message = "clear_variant" },
+    { box = "clear_all_button", text = "clear_all_button_text", message = "clear_variants" },
+    { box = "add_robots_button", text = "add_robots_button_text", message = "add_robots" },
+    { box = "reset_robots_button", text = "reset_robots_button_text", message = "reset_robots" },
+}
+
+local BUTTON_COLOR = vmath.vector4(0.12, 0.16, 0.2, 0.92)
+local BUTTON_HOVER_COLOR = vmath.vector4(0.18, 0.25, 0.32, 0.95)
+local TEXT_COLOR = vmath.vector4(0.92, 0.96, 1.0, 1.0)
+
+local function refresh(self)
+    local state = self.state or {}
+    local lines = {
+        "SpriteLoop Skin API",
+        string.format("skins: %d  variants: %d  active skin index: %d",
+            state.skin_count or 0,
+            state.variant_count or 0,
+            state.active_skin_index or -1),
+        string.format("robots: %d", state.robot_count or 1),
+        string.format("skin: %s (%s)", state.skin or "none", state.skin_id or "none"),
+        string.format("variant override: %s (%s)", state.variant or "none", state.variant_id or "none"),
+        string.format("variant part: %s", state.variant_part or "none"),
+        string.format("last call: %s", state.result or "ready"),
+    }
+    gui.set_text(self.status_node, table.concat(lines, "\n"))
+end
+
+function init(self)
+    self.status_node = gui.get_node("status_text")
+    self.button_nodes = {}
+    self.button_text_nodes = {}
+    for _, button in ipairs(BUTTONS) do
+        self.button_nodes[button.box] = gui.get_node(button.box)
+        self.button_text_nodes[button.text] = gui.get_node(button.text)
+        gui.set_color(self.button_nodes[button.box], BUTTON_COLOR)
+        gui.set_color(self.button_text_nodes[button.text], TEXT_COLOR)
+    end
+    self.state = { result = "waiting for controller" }
+    msg.post(".", "acquire_input_focus")
+    msg.post(CONTROLLER, "refresh_skin_demo")
+    refresh(self)
+end
+
+function final(_self)
+    msg.post(".", "release_input_focus")
+end
+
+function on_input(self, action_id, action)
+    if action_id ~= TOUCH then
+        return
+    end
+
+    for _, button in ipairs(BUTTONS) do
+        local box = self.button_nodes[button.box]
+        local text = self.button_text_nodes[button.text]
+        local picked = gui.pick_node(box, action.x, action.y) or gui.pick_node(text, action.x, action.y)
+        gui.set_color(box, picked and BUTTON_HOVER_COLOR or BUTTON_COLOR)
+        if picked and action.pressed then
+            msg.post(CONTROLLER, button.message)
+            return true
+        end
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("skin_demo_state") then
+        self.state = message
+        refresh(self)
+    end
+end

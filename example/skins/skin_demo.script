@@ -1,0 +1,395 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local ROBOT = "#robot"
+local ROBOT_FACTORY = "#robot_factory"
+local GUI = "/skin_ui#skins_gui"
+local SPAWN_BATCH = 500
+local MAX_ROBOTS = 5000
+local BULK_ROBOTS_PER_FRAME = 250
+local FILL_COLUMNS = 52
+local FILL_ROWS = 24
+local FILL_CAPACITY = FILL_COLUMNS * FILL_ROWS
+
+local function component_url(id)
+    return msg.url(nil, id, "robot")
+end
+
+local function robot_position(index)
+    local spacing_x = 27
+    local spacing_y = 30
+    local start_x = -50
+    local start_y = 120
+    local cell = (index - 1) % FILL_CAPACITY
+    local page = math.floor((index - 1) / FILL_CAPACITY)
+    local column = cell % FILL_COLUMNS
+    local row = math.floor(cell / FILL_COLUMNS)
+    local jitter_x = ((index * 37) % 9) - 4
+    local jitter_y = ((index * 53) % 7) - 3
+    local layer_offset_x = (page % 5) * 3
+    local layer_offset_y = (page % 7) * 2
+
+    return vmath.vector3(start_x + column * spacing_x + jitter_x + layer_offset_x,
+                         start_y + row * spacing_y + jitter_y + layer_offset_y,
+                         (row + page * FILL_ROWS) * 0.001)
+end
+
+local function each_robot(self, callback)
+    callback(ROBOT)
+    for _, robot in ipairs(self.robots or {}) do
+        callback(robot.component)
+    end
+end
+
+local function robot_component_at(self, index)
+    if index == 1 then
+        return ROBOT
+    end
+    local robot = self.robots[index - 1]
+    return robot and robot.component or nil
+end
+
+local function name_or_id(entry)
+    return entry and (entry.name or entry.id) or "none"
+end
+
+local function refresh_info(self)
+    local ok, info = pcall(spriteloop.get_info, ROBOT)
+    if ok and info then
+        self.info = info
+        self.skins = info.skins or {}
+        self.variants = info.variants or {}
+    else
+        self.info = nil
+        self.skins = {}
+        self.variants = {}
+        self.last_result = "get_info failed: " .. tostring(info)
+    end
+end
+
+local function post_state(self)
+    local current_skin = self.skins[self.skin_index]
+    local current_variant = self.variants[self.variant_index]
+    local info = self.info or {}
+    msg.post(GUI, "skin_demo_state", {
+        skin = name_or_id(current_skin),
+        skin_id = current_skin and current_skin.id or "none",
+        variant = name_or_id(current_variant),
+        variant_id = current_variant and current_variant.id or "none",
+        variant_part = current_variant and current_variant.part_id or "none",
+        skin_count = #self.skins,
+        variant_count = #self.variants,
+        robot_count = 1 + #(self.robots or {}),
+        active_skin_index = info.skin_index or -1,
+        result = self.last_result or "ready",
+    })
+end
+
+local function cancel_bulk_job(self)
+    self.bulk_job = nil
+end
+
+local function choose_skin(self, index)
+    if #self.skins == 0 then
+        self.last_result = "package has no runtime skins"
+        post_state(self)
+        return
+    end
+
+    cancel_bulk_job(self)
+    self.skin_index = ((index - 1) % #self.skins) + 1
+    local skin = self.skins[self.skin_index]
+    local ok = true
+    each_robot(self, function(component)
+        ok = spriteloop.set_skin(component, skin.id) and ok
+    end)
+    self.last_result = string.format("set_skin(%s) -> %s", skin.id, tostring(ok))
+    refresh_info(self)
+    post_state(self)
+end
+
+local function random_skin(self)
+    if #self.skins == 0 then
+        self.last_result = "package has no runtime skins"
+        post_state(self)
+        return
+    end
+
+    choose_skin(self, math.random(1, #self.skins))
+end
+
+local function next_skin(self)
+    choose_skin(self, (self.skin_index or 0) + 1)
+end
+
+local function random_variant(self)
+    if #self.variants == 0 then
+        self.last_result = "package has no runtime variants"
+        post_state(self)
+        return
+    end
+
+    self.variant_index = math.random(1, #self.variants)
+    local variant = self.variants[self.variant_index]
+    if not variant.part_id then
+        self.last_result = "selected variant has no part_id"
+        post_state(self)
+        return
+    end
+
+    cancel_bulk_job(self)
+    local ok = true
+    each_robot(self, function(component)
+        ok = spriteloop.set_variant(component, variant.part_id, variant.id) and ok
+    end)
+    self.active_variants[variant.part_id] = variant.id
+    self.last_result = string.format("set_variant(%s, %s) -> %s",
+        tostring(variant.part_id), variant.id, tostring(ok))
+    refresh_info(self)
+    post_state(self)
+end
+
+local function random_parts(self)
+    if #self.variants == 0 then
+        self.last_result = "package has no runtime variants"
+        post_state(self)
+        return
+    end
+
+    local variants_by_part = {}
+    for _, variant in ipairs(self.variants) do
+        local part_id = variant.part_id
+        if part_id then
+            variants_by_part[part_id] = variants_by_part[part_id] or {}
+            table.insert(variants_by_part[part_id], variant)
+        end
+    end
+
+    local overrides = {}
+    for part_id, variants in pairs(variants_by_part) do
+        local variant_index = math.random(0, #variants)
+        local variant = variants[variant_index]
+        overrides[#overrides + 1] = { part_id = part_id, variant_id = variant and variant.id or nil }
+        self.active_variants[part_id] = variant and variant.id or nil
+    end
+
+    cancel_bulk_job(self)
+    self.bulk_job = {
+        action = "random_parts",
+        next_index = 1,
+        robot_count = 1 + #self.robots,
+        overrides = overrides,
+        ok = true,
+    }
+
+    self.last_result = string.format("randomizing %d part overrides for %d robots...",
+        #overrides, self.bulk_job.robot_count)
+    refresh_info(self)
+    post_state(self)
+end
+
+local function random_robots(self)
+    if #self.variants == 0 then
+        self.last_result = "package has no runtime variants"
+        post_state(self)
+        return
+    end
+
+    local variants_by_part = {}
+    local part_count = 0
+    for _, variant in ipairs(self.variants) do
+        local part_id = variant.part_id
+        if part_id then
+            if not variants_by_part[part_id] then
+                variants_by_part[part_id] = {}
+                part_count = part_count + 1
+            end
+            table.insert(variants_by_part[part_id], variant)
+        end
+    end
+
+    cancel_bulk_job(self)
+    self.active_variants = {}
+    self.bulk_job = {
+        action = "random_robots",
+        next_index = 1,
+        robot_count = 1 + #self.robots,
+        variants_by_part = variants_by_part,
+        part_count = part_count,
+        ok = true,
+    }
+
+    self.last_result = string.format("randomizing %d parts per robot for %d robots...",
+        part_count, self.bulk_job.robot_count)
+    refresh_info(self)
+    post_state(self)
+end
+
+local function clear_one(self)
+    local variant = self.variants[self.variant_index or 1]
+    if not variant or not variant.part_id then
+        self.last_result = "no selected variant to clear"
+        post_state(self)
+        return
+    end
+
+    cancel_bulk_job(self)
+    local ok = true
+    each_robot(self, function(component)
+        ok = spriteloop.clear_variant(component, variant.part_id) and ok
+    end)
+    self.active_variants[variant.part_id] = nil
+    self.last_result = string.format("clear_variant(%s) -> %s",
+        tostring(variant.part_id), tostring(ok))
+    refresh_info(self)
+    post_state(self)
+end
+
+local function clear_all(self)
+    cancel_bulk_job(self)
+    each_robot(self, function(component)
+        spriteloop.clear_variants(component)
+    end)
+    self.active_variants = {}
+    self.last_result = "clear_variants()"
+    refresh_info(self)
+    post_state(self)
+end
+
+local function apply_current_state(self, component)
+    spriteloop.play_anim(component, "idle", { loop = true })
+    local skin = self.skins[self.skin_index or 1]
+    if skin then
+        spriteloop.set_skin(component, skin.id)
+    end
+    for part_id, variant_id in pairs(self.active_variants) do
+        spriteloop.set_variant(component, part_id, variant_id)
+    end
+end
+
+local function add_robots(self)
+    cancel_bulk_job(self)
+    local start_count = #self.robots
+    local target_count = math.min(start_count + SPAWN_BATCH, MAX_ROBOTS)
+    for index = start_count + 1, target_count do
+        local id = factory.create(ROBOT_FACTORY, robot_position(index))
+        local component = component_url(id)
+        table.insert(self.robots, { id = id, component = component })
+        apply_current_state(self, component)
+    end
+    self.last_result = string.format("robots: %d -> %d", 1 + start_count, 1 + #self.robots)
+    post_state(self)
+end
+
+local function reset_robots(self)
+    cancel_bulk_job(self)
+    for _, robot in ipairs(self.robots or {}) do
+        go.delete(robot.id)
+    end
+    self.robots = {}
+    self.last_result = "reset spawned robots"
+    post_state(self)
+end
+
+local function update_bulk_job(self)
+    local job = self.bulk_job
+    if not job then
+        return
+    end
+
+    local last_index = math.min(job.next_index + BULK_ROBOTS_PER_FRAME - 1, job.robot_count)
+    for index = job.next_index, last_index do
+        local component = robot_component_at(self, index)
+        if component then
+            if job.action == "random_robots" then
+                for part_id, variants in pairs(job.variants_by_part) do
+                    local variant_index = math.random(0, #variants)
+                    local variant = variants[variant_index]
+                    if variant then
+                        job.ok = spriteloop.set_variant(component, part_id, variant.id) and job.ok
+                    else
+                        job.ok = spriteloop.clear_variant(component, part_id) and job.ok
+                    end
+                end
+            else
+                for _, override in ipairs(job.overrides) do
+                    if override.variant_id then
+                        job.ok = spriteloop.set_variant(component, override.part_id, override.variant_id) and job.ok
+                    else
+                        job.ok = spriteloop.clear_variant(component, override.part_id) and job.ok
+                    end
+                end
+            end
+        end
+    end
+
+    job.next_index = last_index + 1
+    if job.next_index <= job.robot_count then
+        local label = job.action == "random_robots" and "random robots" or "random parts"
+        self.last_result = string.format("%s: %d/%d robots", label, last_index, job.robot_count)
+        post_state(self)
+        return
+    end
+
+    if job.action == "random_robots" then
+        self.last_result = string.format("randomized %d parts per robot for %d robots -> %s",
+            job.part_count, job.robot_count, tostring(job.ok))
+    else
+        self.last_result = string.format("randomized %d part overrides for %d robots -> %s",
+            #job.overrides, job.robot_count, tostring(job.ok))
+    end
+    self.bulk_job = nil
+    refresh_info(self)
+    post_state(self)
+end
+
+function init(self)
+    math.randomseed(os.time())
+    self.robots = {}
+    self.active_variants = {}
+    self.skin_index = 1
+    self.variant_index = 1
+    self.last_result = "loading skin package"
+    spriteloop.play_anim(ROBOT, "idle", { loop = true })
+    refresh_info(self)
+    if #self.skins > 0 then
+        choose_skin(self, 1)
+    else
+        post_state(self)
+    end
+end
+
+function on_message(self, message_id)
+    if message_id == hash("random_skin") then
+        random_skin(self)
+    elseif message_id == hash("next_skin") then
+        next_skin(self)
+    elseif message_id == hash("random_variant") then
+        random_variant(self)
+    elseif message_id == hash("random_parts") then
+        random_parts(self)
+    elseif message_id == hash("random_robots") then
+        random_robots(self)
+    elseif message_id == hash("clear_variant") then
+        clear_one(self)
+    elseif message_id == hash("clear_variants") then
+        clear_all(self)
+    elseif message_id == hash("add_robots") then
+        add_robots(self)
+    elseif message_id == hash("reset_robots") then
+        reset_robots(self)
+    elseif message_id == hash("refresh_skin_demo") then
+        refresh_info(self)
+        post_state(self)
+    end
+end
+
+function update(self, _dt)
+    update_bulk_job(self)
+end
+
+function final(self)
+    cancel_bulk_job(self)
+    for _, robot in ipairs(self.robots or {}) do
+        go.delete(robot.id)
+    end
+end

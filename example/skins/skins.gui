@@ -1,4 +1,4 @@
-script: "/example/main/root_debug.gui_script"
+script: "/example/skins/skins.gui_script"
 fonts {
   name: "system_font"
   font: "/builtins/fonts/default.font"
@@ -6,69 +6,11 @@ fonts {
 nodes {
   position {
     x: 18.0
-    y: 702.0
+    y: 18.0
   }
   size {
-    x: 820.0
-    y: 540.0
-  }
-  color {
-    x: 0.92
-    z: 0.88
-  }
-  type: TYPE_TEXT
-  text: "SpriteLoop debug"
-  font: "system_font"
-  id: "debug_text"
-  xanchor: XANCHOR_LEFT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_NW
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 704.0
-  }
-  rotation {
-  }
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.9
-  }
-  type: TYPE_BOX
-  id: "profiler_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 704.0
-  }
-  rotation {
-  }
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
+    x: 450.0
+    y: 170.0
   }
   color {
     x: 0.92
@@ -77,46 +19,68 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "Profiler OFF"
+  text: "SpriteLoop Skin API"
   font: "system_font"
-  id: "profiler_button_text"
+  id: "status_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_SW
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 582.0
+    y: 124.0
+  }
+  size {
+    x: 176.0
+    y: 48.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "random_skin_button"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
 nodes {
   position {
-    x: 126.0
-    y: 594.0
+    x: 582.0
+    y: 124.0
   }
   size {
-    x: 480.0
+    x: 166.0
     y: 24.0
   }
   color {
-    x: 0.25
-    y: 0.65
+    x: 0.92
+    y: 0.96
     z: 1.0
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "inactive"
+  text: "Random Skin"
   font: "system_font"
-  id: "bench_mode_text"
-  xanchor: XANCHOR_LEFT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_NW
+  id: "random_skin_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
   inherit_alpha: true
 }
 nodes {
   position {
-    x: 1182.0
-    y: 646.0
+    x: 782.0
+    y: 124.0
   }
   size {
     x: 176.0
-    y: 50.0
+    y: 48.0
   }
   color {
     x: 0.12
@@ -125,20 +89,20 @@ nodes {
     w: 0.92
   }
   type: TYPE_BOX
-  id: "debug_button"
+  id: "next_skin_button"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
 nodes {
   position {
-    x: 1182.0
-    y: 646.0
+    x: 782.0
+    y: 124.0
   }
   size {
     x: 166.0
-    y: 28.0
+    y: 24.0
   }
   color {
     x: 0.92
@@ -147,22 +111,22 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "Hide UI"
+  text: "Next Skin"
   font: "system_font"
-  id: "debug_button_text"
+  id: "next_skin_button_text"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
 nodes {
   position {
-    x: 1182.0
-    y: 588.0
+    x: 982.0
+    y: 124.0
   }
   size {
     x: 176.0
-    y: 50.0
+    y: 48.0
   }
   color {
     x: 0.12
@@ -171,20 +135,20 @@ nodes {
     w: 0.92
   }
   type: TYPE_BOX
-  id: "scene_button"
+  id: "random_variant_button"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
 nodes {
   position {
-    x: 1182.0
-    y: 588.0
+    x: 982.0
+    y: 124.0
   }
   size {
     x: 166.0
-    y: 28.0
+    y: 24.0
   }
   color {
     x: 0.92
@@ -193,22 +157,22 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "Unload"
+  text: "Random Variant"
   font: "system_font"
-  id: "scene_button_text"
+  id: "random_variant_button_text"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
 nodes {
   position {
     x: 1182.0
-    y: 530.0
+    y: 124.0
   }
   size {
     x: 176.0
-    y: 50.0
+    y: 48.0
   }
   color {
     x: 0.12
@@ -217,20 +181,20 @@ nodes {
     w: 0.92
   }
   type: TYPE_BOX
-  id: "bench_button"
+  id: "random_parts_button"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
 nodes {
   position {
     x: 1182.0
-    y: 530.0
+    y: 124.0
   }
   size {
     x: 166.0
-    y: 28.0
+    y: 24.0
   }
   color {
     x: 0.92
@@ -239,241 +203,11 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "Load Bench"
+  text: "Random Parts"
   font: "system_font"
-  id: "bench_button_text"
+  id: "random_parts_button_text"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 472.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "skins_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 472.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Load Skins"
-  font: "system_font"
-  id: "skins_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 414.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "add_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 414.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "+500 Instances"
-  font: "system_font"
-  id: "add_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 356.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "reset_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 356.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Reset Instances"
-  font: "system_font"
-  id: "reset_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 298.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "center_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 298.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "One Center"
-  font: "system_font"
-  id: "center_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 240.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "mode_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 240.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Next Bench"
-  font: "system_font"
-  id: "mode_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
@@ -484,7 +218,7 @@ nodes {
   }
   size {
     x: 176.0
-    y: 50.0
+    y: 48.0
   }
   color {
     x: 0.12
@@ -493,9 +227,9 @@ nodes {
     w: 0.92
   }
   type: TYPE_BOX
-  id: "previous_mode_button"
+  id: "random_robots_button"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
@@ -506,7 +240,7 @@ nodes {
   }
   size {
     x: 166.0
-    y: 28.0
+    y: 24.0
   }
   color {
     x: 0.92
@@ -515,11 +249,195 @@ nodes {
     w: 1.0
   }
   type: TYPE_TEXT
-  text: "Prev Bench"
+  text: "Random Robots"
   font: "system_font"
-  id: "previous_mode_button_text"
+  id: "random_robots_button_text"
   xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 582.0
+    y: 66.0
+  }
+  size {
+    x: 176.0
+    y: 48.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "clear_one_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 582.0
+    y: 66.0
+  }
+  size {
+    x: 166.0
+    y: 24.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Clear Variant"
+  font: "system_font"
+  id: "clear_one_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 782.0
+    y: 66.0
+  }
+  size {
+    x: 176.0
+    y: 48.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "clear_all_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 782.0
+    y: 66.0
+  }
+  size {
+    x: 166.0
+    y: 24.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Clear All"
+  font: "system_font"
+  id: "clear_all_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 982.0
+    y: 66.0
+  }
+  size {
+    x: 176.0
+    y: 48.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "add_robots_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 982.0
+    y: 66.0
+  }
+  size {
+    x: 166.0
+    y: 24.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "+500 / 5K"
+  font: "system_font"
+  id: "add_robots_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 66.0
+  }
+  size {
+    x: 176.0
+    y: 48.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "reset_robots_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 66.0
+  }
+  size {
+    x: 166.0
+    y: 24.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Reset Robots"
+  font: "system_font"
+  id: "reset_robots_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }

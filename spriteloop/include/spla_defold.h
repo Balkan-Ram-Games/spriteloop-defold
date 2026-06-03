@@ -67,6 +67,9 @@ struct SplaDefoldInstance {
     std::size_t atlas_texture_bytes = 0;
     SplaDefoldBounds bounds;
     std::vector<SplaDefoldBakedAnimation> baked_animations;
+    spriteloop::SplaPartImageMap image_map;
+    spriteloop::SplaSkinState skin_state;
+    std::uint32_t skin_revision = 0;
     float x = 0.0f;
     float y = 0.0f;
     float scale_x = 1.0f;
@@ -106,6 +109,7 @@ struct SplaDefoldSharedPackageResource {
     std::size_t atlas_texture_bytes = 0;
     SplaDefoldBounds bounds;
     std::vector<SplaDefoldBakedAnimation> baked_animations;
+    spriteloop::SplaPartImageMap image_map;
     std::uint32_t ref_count = 0;
 };
 
@@ -194,6 +198,13 @@ std::size_t instance_atlas_texture_bytes(const SplaDefoldInstance& instance);
 const SplaDefoldBounds& instance_bounds(const SplaDefoldInstance& instance);
 const std::vector<SplaDefoldBakedAnimation>& instance_baked_animations(
     const SplaDefoldInstance& instance);
+bool rebuild_instance_skin(SplaDefoldInstance& instance);
+bool set_instance_skin(SplaDefoldInstance& instance, const std::string& skin_id);
+bool set_instance_variant(SplaDefoldInstance& instance,
+                          const std::string& part_id,
+                          const std::string& variant_id);
+bool clear_instance_variant(SplaDefoldInstance& instance, const std::string& part_id);
+void clear_instance_variants(SplaDefoldInstance& instance);
 
 // Extracts and decodes PNG part images from an already parsed SpriteLoop package.
 // resources is replaced with decoded image entries; error explains the first unsupported asset.

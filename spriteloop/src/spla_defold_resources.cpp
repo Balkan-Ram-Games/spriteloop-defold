@@ -81,7 +81,7 @@ const spriteloop::SplaAsset* find_asset(const spriteloop::SplaPackage& package,
 
 } // namespace
 
-// Builds CPU-side image resources for every part in a parsed package.
+// Builds CPU-side image resources for every unique part or variant image in a parsed package.
 // package supplies manifest data and embedded assets; resources is replaced with decoded RGBA
 // data; error describes the first missing or invalid asset.
 bool build_image_resources(const spriteloop::SplaPackage& package,
@@ -89,21 +89,22 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
                            std::string& error)
 {
     resources.clear();
-    resources.resize(package.parts.size());
     const spriteloop::SplaPartImageMap image_map =
         spriteloop::build_part_image_map_by_asset(package);
+    const std::vector<std::string>& asset_paths = image_map.source_asset_paths;
 
-    if (image_map.atlas_region_indices_by_part.size() != package.parts.size()) {
-        error = "failed to build image map for package parts";
+    if (asset_paths.empty()) {
+        error = "failed to build image map for package assets";
         resources.clear();
         return false;
     }
 
-    for (std::size_t part_index = 0; part_index < package.parts.size(); ++part_index) {
-        const spriteloop::SplaPart& part = package.parts[part_index];
-        const spriteloop::SplaAsset* asset = find_asset(package, part.asset_path);
+    resources.resize(asset_paths.size());
+    for (std::size_t asset_index = 0; asset_index < asset_paths.size(); ++asset_index) {
+        const std::string& asset_path = asset_paths[asset_index];
+        const spriteloop::SplaAsset* asset = find_asset(package, asset_path);
         if (asset == nullptr) {
-            error = "missing embedded asset for part '" + part.id + "': " + part.asset_path;
+            error = "missing embedded asset: " + asset_path;
             resources.clear();
             return false;
         }
@@ -111,26 +112,7 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
         SplaDefoldImageResource resource;
         resource.asset_path = asset->path;
         resource.byte_count = asset->bytes.size();
-        resource.atlas_region_index = image_map.atlas_region_indices_by_part[part_index];
-        resources[part_index] = resource;
-    }
-
-    for (const std::size_t source_part_index : image_map.source_part_indices) {
-        if (source_part_index >= package.parts.size()) {
-            error = "image map references missing source part";
-            resources.clear();
-            return false;
-        }
-
-        const spriteloop::SplaPart& part = package.parts[source_part_index];
-        const spriteloop::SplaAsset* asset = find_asset(package, part.asset_path);
-        if (asset == nullptr) {
-            error = "missing embedded asset for part '" + part.id + "': " + part.asset_path;
-            resources.clear();
-            return false;
-        }
-
-        SplaDefoldImageResource& resource = resources[source_part_index];
+        resource.atlas_region_index = asset_index;
         if (!read_png_size(*asset, resource.width, resource.height, error)) {
             resources.clear();
             return false;
@@ -158,21 +140,7 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
             static_cast<std::size_t>(decoded_width) * static_cast<std::size_t>(decoded_height);
         resource.rgba_pixels.assign(pixels, pixels + pixel_count * 4);
         stbi_image_free(pixels);
-    }
-
-    for (std::size_t part_index = 0; part_index < resources.size(); ++part_index) {
-        const std::size_t atlas_region_index = resources[part_index].atlas_region_index;
-        if (atlas_region_index >= image_map.source_part_indices.size()) {
-            error = "image resource has invalid atlas region index: " +
-                    resources[part_index].asset_path;
-            resources.clear();
-            return false;
-        }
-
-        const SplaDefoldImageResource& source =
-            resources[image_map.source_part_indices[atlas_region_index]];
-        resources[part_index].width = source.width;
-        resources[part_index].height = source.height;
+        resources[asset_index] = std::move(resource);
     }
 
     return true;

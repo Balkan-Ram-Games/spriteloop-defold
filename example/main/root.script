@@ -1,11 +1,13 @@
 local PROXIES = {
     demo = "#main_proxy",
     bench = "#bench_proxy",
+    skins = "#skins_proxy",
 }
 
 local SCENE_NAMES = {
     demo = "demo",
     bench = "benchmark",
+    skins = "skins",
 }
 
 local DEBUG_GUI = "#debug_gui"
@@ -165,6 +167,8 @@ function on_message(self, message_id, _message, sender)
         toggle_active_scene(self)
     elseif message_id == hash("ui_load_benchmark") then
         switch_scene(self, "bench")
+    elseif message_id == hash("ui_load_skins") then
+        switch_scene(self, "skins")
     elseif message_id == hash("ui_benchmark_add") then
         post_benchmark_if_active(self, "benchmark_add")
     elseif message_id == hash("ui_benchmark_reset") then

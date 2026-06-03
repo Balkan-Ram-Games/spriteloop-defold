@@ -36,6 +36,12 @@ local BUTTONS = {
         message = "ui_load_benchmark",
     },
     {
+        id = "skins",
+        box = "skins_button",
+        text = "skins_button_text",
+        message = "ui_load_skins",
+    },
+    {
         id = "add",
         box = "add_button",
         text = "add_button_text",
@@ -221,6 +227,10 @@ local function is_benchmark_active(self)
     return self.scene == "benchmark"
 end
 
+local function is_skins_active(self)
+    return self.scene == "skins"
+end
+
 local function button_enabled(self, id)
     if id == "profiler" or id == "debug" then
         return true
@@ -234,6 +244,8 @@ local function button_enabled(self, id)
         return is_benchmark_active(self)
     elseif id == "bench" then
         return not is_benchmark_active(self)
+    elseif id == "skins" then
+        return not is_skins_active(self)
     end
     return true
 end
@@ -265,6 +277,7 @@ local function refresh_buttons(self)
         debug = self.debug_gui_visible and "Hide UI" or "Show UI",
         toggle = self.scene ~= "none" and "Unload" or "Load Demo",
         bench = "Load Bench",
+        skins = "Load Skins",
         add = string.format("+%d Instances", self.benchmark.step_robots or 500),
         reset = "Reset Instances",
         center = "One Center",

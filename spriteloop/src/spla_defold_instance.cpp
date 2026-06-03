@@ -36,22 +36,34 @@ SplaDefoldRenderStats& global_render_stats()
 }
 
 std::vector<spriteloop::SplaBakedImage> baked_images_from_resources(
-    const std::vector<SplaDefoldImageResource>& resources)
+    const spriteloop::SplaPackage& package,
+    const std::vector<SplaDefoldImageResource>& resources,
+    const spriteloop::SplaPartImageMap& image_map,
+    const spriteloop::SplaSkinState& skin_state)
 {
-    std::vector<spriteloop::SplaBakedImage> images;
-    images.reserve(resources.size());
+    spriteloop::SplaAtlas atlas;
     for (const SplaDefoldImageResource& resource : resources) {
-        spriteloop::SplaBakedImage image;
-        image.width = resource.width;
-        image.height = resource.height;
-        image.u0 = resource.atlas_region.uv.u0;
-        image.v0 = resource.atlas_region.uv.v0;
-        image.u1 = resource.atlas_region.uv.u1;
-        image.v1 = resource.atlas_region.uv.v1;
-        image.rotated = resource.atlas_region.rotated;
-        images.push_back(image);
+        atlas.regions.push_back(resource.atlas_region);
     }
-    return images;
+    return spriteloop::build_baked_images_from_atlas(package, atlas, image_map, skin_state);
+}
+
+void rebuild_instance_baked_data(SplaDefoldInstance& instance)
+{
+    const spriteloop::SplaPackage& package = instance.shared_resource != nullptr
+                                                 ? instance.shared_resource->package
+                                                 : instance.package;
+    const std::vector<SplaDefoldImageResource>& resources =
+        instance.shared_resource != nullptr ? instance.shared_resource->image_resources
+                                            : instance.image_resources;
+    const spriteloop::SplaPartImageMap& image_map =
+        instance.shared_resource != nullptr ? instance.shared_resource->image_map
+                                            : instance.image_map;
+    const std::vector<spriteloop::SplaBakedImage> baked_images =
+        baked_images_from_resources(package, resources, image_map, instance.skin_state);
+    instance.bounds = spriteloop::calculate_baked_bounds(package, baked_images);
+    instance.baked_animations = spriteloop::build_baked_animations(package, baked_images);
+    ++instance.skin_revision;
 }
 
 std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>>::iterator find_shared_resource(
@@ -111,16 +123,13 @@ SplaDefoldInstance* create_instance_from_memory(const char* path,
     if (!build_image_resources(instance->package, instance->image_resources, error)) {
         return nullptr;
     }
+    instance->image_map = spriteloop::build_part_image_map_by_asset(instance->package);
     if (!upload_image_resources(dmGraphics::GetInstalledContext(), instance->image_resources,
                                 instance->atlas_texture, instance->atlas_width,
                                 instance->atlas_height, instance->atlas_texture_bytes, error)) {
         return nullptr;
     }
-    const std::vector<spriteloop::SplaBakedImage> baked_images =
-        baked_images_from_resources(instance->image_resources);
-    instance->bounds = spriteloop::calculate_baked_bounds(instance->package, baked_images);
-    instance->baked_animations =
-        spriteloop::build_baked_animations(instance->package, baked_images);
+    rebuild_instance_baked_data(*instance);
 
     instance->player.reset(new spriteloop::SplaPlayer(instance->package));
     register_instance(instance.get());
@@ -151,13 +160,15 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
     if (!build_image_resources(resource->package, resource->image_resources, error)) {
         return nullptr;
     }
+    resource->image_map = spriteloop::build_part_image_map_by_asset(resource->package);
     if (!upload_image_resources(dmGraphics::GetInstalledContext(), resource->image_resources,
                                 resource->atlas_texture, resource->atlas_width,
                                 resource->atlas_height, resource->atlas_texture_bytes, error)) {
         return nullptr;
     }
     const std::vector<spriteloop::SplaBakedImage> baked_images =
-        baked_images_from_resources(resource->image_resources);
+        baked_images_from_resources(resource->package, resource->image_resources,
+                                    resource->image_map, {});
     resource->bounds = spriteloop::calculate_baked_bounds(resource->package, baked_images);
     resource->baked_animations =
         spriteloop::build_baked_animations(resource->package, baked_images);
@@ -192,6 +203,7 @@ SplaDefoldInstance* create_instance_from_shared_resource(
     instance->byte_count = shared_resource->byte_count;
     instance->shared_resource = shared_resource;
     instance->player.reset(new spriteloop::SplaPlayer(shared_resource->package));
+    rebuild_instance_baked_data(*instance);
     register_instance(instance.get());
     return instance.release();
 }
@@ -258,15 +270,72 @@ std::size_t instance_atlas_texture_bytes(const SplaDefoldInstance& instance)
 
 const SplaDefoldBounds& instance_bounds(const SplaDefoldInstance& instance)
 {
-    return instance.shared_resource != nullptr ? instance.shared_resource->bounds
-                                               : instance.bounds;
+    return instance.bounds;
 }
 
 const std::vector<SplaDefoldBakedAnimation>& instance_baked_animations(
     const SplaDefoldInstance& instance)
 {
-    return instance.shared_resource != nullptr ? instance.shared_resource->baked_animations
-                                               : instance.baked_animations;
+    return instance.baked_animations;
+}
+
+bool rebuild_instance_skin(SplaDefoldInstance& instance)
+{
+    rebuild_instance_baked_data(instance);
+    return instance.baked_animations.size() == instance_package(instance).animations.size();
+}
+
+bool set_instance_skin(SplaDefoldInstance& instance, const std::string& skin_id)
+{
+    const spriteloop::SplaPackage& package = instance_package(instance);
+    const int skin_index = spriteloop::find_skin_index_by_id(package, skin_id);
+    if (skin_index < 0) {
+        return false;
+    }
+
+    instance.skin_state.skin_index = skin_index;
+    return rebuild_instance_skin(instance);
+}
+
+bool set_instance_variant(SplaDefoldInstance& instance,
+                          const std::string& part_id,
+                          const std::string& variant_id)
+{
+    const spriteloop::SplaPackage& package = instance_package(instance);
+    const int part_index = spriteloop::find_part_index_by_id(package, part_id);
+    const int variant_index = spriteloop::find_variant_index_by_id(package, variant_id);
+    if (part_index < 0 || variant_index < 0 ||
+        package.variants[static_cast<std::size_t>(variant_index)].part_index != part_index) {
+        return false;
+    }
+
+    if (instance.skin_state.variant_overrides_by_part.size() < package.parts.size()) {
+        instance.skin_state.variant_overrides_by_part.assign(package.parts.size(), -1);
+    }
+    instance.skin_state.variant_overrides_by_part[static_cast<std::size_t>(part_index)] =
+        variant_index;
+    return rebuild_instance_skin(instance);
+}
+
+bool clear_instance_variant(SplaDefoldInstance& instance, const std::string& part_id)
+{
+    const spriteloop::SplaPackage& package = instance_package(instance);
+    const int part_index = spriteloop::find_part_index_by_id(package, part_id);
+    if (part_index < 0) {
+        return false;
+    }
+
+    if (instance.skin_state.variant_overrides_by_part.size() < package.parts.size()) {
+        instance.skin_state.variant_overrides_by_part.assign(package.parts.size(), -1);
+    }
+    instance.skin_state.variant_overrides_by_part[static_cast<std::size_t>(part_index)] = -1;
+    return rebuild_instance_skin(instance);
+}
+
+void clear_instance_variants(SplaDefoldInstance& instance)
+{
+    instance.skin_state.variant_overrides_by_part.clear();
+    rebuild_instance_skin(instance);
 }
 
 // Adds instance to the live registry if it is non-null and not already present.

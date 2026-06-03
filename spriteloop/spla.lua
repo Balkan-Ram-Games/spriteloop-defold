@@ -117,6 +117,40 @@ function M.set_visible(handle, visible)
     end
 end
 
+-- Sets the active runtime skin by id.
+function M.set_skin(handle, skin_id)
+    if native and native.set_skin then
+        return native.set_skin(handle, skin_id)
+    end
+
+    return false
+end
+
+-- Overrides one part to render a specific variant id.
+function M.set_variant(handle, part_id, variant_id)
+    if native and native.set_variant then
+        return native.set_variant(handle, part_id, variant_id)
+    end
+
+    return false
+end
+
+-- Clears one part variant override.
+function M.clear_variant(handle, part_id)
+    if native and native.clear_variant then
+        return native.clear_variant(handle, part_id)
+    end
+
+    return false
+end
+
+-- Clears all part variant overrides.
+function M.clear_variants(handle)
+    if native and native.clear_variants then
+        return native.clear_variants(handle)
+    end
+end
+
 -- Returns debug/package/playback information for handle.
 function M.get_info(handle)
     if native and native.get_info then

@@ -11,6 +11,10 @@ components {
   component: "/example/bench/bench.collectionproxy"
 }
 components {
+  id: "skins_proxy"
+  component: "/example/skins/skins.collectionproxy"
+}
+components {
   id: "debug_gui"
   component: "/example/main/root_debug.gui"
 }
