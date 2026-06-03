@@ -1,7 +1,9 @@
 #pragma once
 
+#include "spriteloop/spla_atlas.hpp"
 #include "spriteloop/spla_package.hpp"
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -42,6 +44,17 @@ struct SplaBakedAnimation {
     std::string id;
     std::vector<SplaBakedFrame> frames;
 };
+
+struct SplaPartImageMap {
+    std::vector<std::size_t> source_part_indices;
+    std::vector<std::size_t> atlas_region_indices_by_part;
+};
+
+SplaPartImageMap build_part_image_map_by_asset(const SplaPackage& package);
+
+std::vector<SplaBakedImage> build_baked_images_from_atlas(
+    const SplaAtlas& atlas,
+    const std::vector<std::size_t>& atlas_region_indices_by_part);
 
 SplaBounds calculate_baked_bounds(const SplaPackage& package,
                                   const std::vector<SplaBakedImage>& images);

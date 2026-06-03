@@ -41,6 +41,7 @@ struct SplaDefoldImageResource {
     int width = 0;
     int height = 0;
     std::size_t byte_count = 0;
+    std::size_t atlas_region_index = 0;
     std::vector<std::uint8_t> rgba_pixels;
     spriteloop::SplaAtlasRegion atlas_region;
 };

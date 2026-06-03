@@ -89,9 +89,18 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
                            std::string& error)
 {
     resources.clear();
-    resources.reserve(package.parts.size());
+    resources.resize(package.parts.size());
+    const spriteloop::SplaPartImageMap image_map =
+        spriteloop::build_part_image_map_by_asset(package);
 
-    for (const spriteloop::SplaPart& part : package.parts) {
+    if (image_map.atlas_region_indices_by_part.size() != package.parts.size()) {
+        error = "failed to build image map for package parts";
+        resources.clear();
+        return false;
+    }
+
+    for (std::size_t part_index = 0; part_index < package.parts.size(); ++part_index) {
+        const spriteloop::SplaPart& part = package.parts[part_index];
         const spriteloop::SplaAsset* asset = find_asset(package, part.asset_path);
         if (asset == nullptr) {
             error = "missing embedded asset for part '" + part.id + "': " + part.asset_path;
@@ -102,7 +111,26 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
         SplaDefoldImageResource resource;
         resource.asset_path = asset->path;
         resource.byte_count = asset->bytes.size();
+        resource.atlas_region_index = image_map.atlas_region_indices_by_part[part_index];
+        resources[part_index] = resource;
+    }
 
+    for (const std::size_t source_part_index : image_map.source_part_indices) {
+        if (source_part_index >= package.parts.size()) {
+            error = "image map references missing source part";
+            resources.clear();
+            return false;
+        }
+
+        const spriteloop::SplaPart& part = package.parts[source_part_index];
+        const spriteloop::SplaAsset* asset = find_asset(package, part.asset_path);
+        if (asset == nullptr) {
+            error = "missing embedded asset for part '" + part.id + "': " + part.asset_path;
+            resources.clear();
+            return false;
+        }
+
+        SplaDefoldImageResource& resource = resources[source_part_index];
         if (!read_png_size(*asset, resource.width, resource.height, error)) {
             resources.clear();
             return false;
@@ -130,8 +158,21 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
             static_cast<std::size_t>(decoded_width) * static_cast<std::size_t>(decoded_height);
         resource.rgba_pixels.assign(pixels, pixels + pixel_count * 4);
         stbi_image_free(pixels);
+    }
 
-        resources.push_back(resource);
+    for (std::size_t part_index = 0; part_index < resources.size(); ++part_index) {
+        const std::size_t atlas_region_index = resources[part_index].atlas_region_index;
+        if (atlas_region_index >= image_map.source_part_indices.size()) {
+            error = "image resource has invalid atlas region index: " +
+                    resources[part_index].asset_path;
+            resources.clear();
+            return false;
+        }
+
+        const SplaDefoldImageResource& source =
+            resources[image_map.source_part_indices[atlas_region_index]];
+        resources[part_index].width = source.width;
+        resources[part_index].height = source.height;
     }
 
     return true;
@@ -155,8 +196,13 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
 
     std::vector<spriteloop::SplaRgbaImage> atlas_images;
     atlas_images.reserve(resources.size());
-    for (const SplaDefoldImageResource& resource : resources) {
-        if (resource.width <= 0 || resource.height <= 0 || resource.rgba_pixels.empty()) {
+    for (std::size_t resource_index = 0; resource_index < resources.size(); ++resource_index) {
+        const SplaDefoldImageResource& resource = resources[resource_index];
+        if (resource.rgba_pixels.empty()) {
+            continue;
+        }
+
+        if (resource.width <= 0 || resource.height <= 0) {
             error = "image resource has no decoded pixels: " + resource.asset_path;
             return false;
         }
@@ -235,7 +281,12 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
     atlas_height = atlas.height;
     atlas_texture_bytes = atlas.pixels.size();
     for (std::size_t i = 0; i < resources.size(); ++i) {
-        resources[i].atlas_region = atlas.regions[i];
+        if (resources[i].atlas_region_index >= atlas.regions.size()) {
+            error = "image resource has invalid atlas region: " + resources[i].asset_path;
+            return false;
+        }
+
+        resources[i].atlas_region = atlas.regions[resources[i].atlas_region_index];
         resources[i].rgba_pixels.clear();
         resources[i].rgba_pixels.shrink_to_fit();
     }
