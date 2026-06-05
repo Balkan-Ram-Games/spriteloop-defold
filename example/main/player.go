@@ -13,9 +13,10 @@ components {
 embedded_components {
   id: "robot"
   type: "spriteloop"
-  data: "package: \"/example/assets/robot_idle.spla\"\n"
+  data: "package: \"/example/assets/robot_idle_skins.spla\"\n"
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
   "autoplay: false\n"
+  "default_skin: \"blue_robot\"\n"
   ""
   position {
     x: -192.0

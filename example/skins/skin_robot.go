@@ -3,6 +3,7 @@ embedded_components {
   type: "spriteloop"
   data: "package: \"/example/assets/robot_idle_skins.spla\"\n"
   "default_animation: \"idle\"\n"
+  "default_skin: \"blue_robot\"\n"
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
   ""
   scale {

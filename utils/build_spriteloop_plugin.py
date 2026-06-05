@@ -47,9 +47,11 @@ def read_defold_sdk(java: str, bob: Path, project_root: Path) -> str:
         check=True,
     )
     tokens = result.stdout.strip().split()
-    if not tokens:
-        raise RuntimeError("Bob --version returned no output.")
-    return tokens[-1]
+    try:
+        sha_index = tokens.index("sha1:")
+        return tokens[sha_index + 1]
+    except (ValueError, IndexError) as exc:
+        raise RuntimeError(f"Bob --version returned unexpected output: {result.stdout!r}") from exc
 
 
 def find_plugin_jar(build_root: Path) -> Path:

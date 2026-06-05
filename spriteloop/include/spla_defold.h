@@ -82,13 +82,14 @@ struct SplaDefoldInstance {
 };
 
 // Component-side state for one .spriteloop component instance in a collection.
-// The DDF resource supplies the configured package, material, default animation, and flags.
+// The DDF resource supplies the configured package, material, default animation/skin, and flags.
 struct SplaDefoldComponent {
     SplaDefoldInstance* instance = nullptr;
     SpriteLoopResource* resource = nullptr;
     dmGameObject::HInstance game_object = 0;
     std::string package_path;
     std::string default_animation;
+    std::string default_skin;
     float playback_rate = 1.0f;
     bool loop = true;
     bool visible = true;

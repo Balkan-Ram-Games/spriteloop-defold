@@ -26,4 +26,6 @@ message SpriteLoopDesc
     optional string material = 6 [(resource)=true, default="/spriteloop/spriteloop/materials/spriteloop.material"];
     // Starts the default animation automatically when the component is initialized.
     optional bool autoplay = 7 [default = true];
+    // Skin id applied when the component instance is created. Empty keeps the package default.
+    optional string default_skin = 8;
 }

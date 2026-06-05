@@ -219,16 +219,17 @@
     (catch Throwable _
       nil)))
 
-;; Builds the preview cache key from package path, package hash, and requested animation.
+;; Builds the preview cache key from package path, package hash, and requested animation/skin.
 ;; Including the sha1 makes the preview refresh when the .spla file changes on disk.
-(defn- cache-key [package-resource default-animation]
+(defn- cache-key [package-resource default-animation default-skin]
   (when package-resource
     [(resource/resource->proj-path package-resource)
      (try
        (resource/resource->sha1-hex package-resource)
        (catch Throwable _
          nil))
-     default-animation]))
+     default-animation
+     default-skin]))
 
 ;; Returns a cached preview image or stores a newly produced one.
 ;; cache-key is produced by cache-key and produce-fn must return a BufferedImage or nil.
@@ -285,6 +286,14 @@
        distinct
        vec))
 
+;; Extracts all skin ids from a parsed .spla manifest.
+(defn- manifest-skin-ids [manifest]
+  (->> (:skins manifest)
+       (keep :id)
+       (filter string?)
+       distinct
+       vec))
+
 ;; Selects the animation used for frame-0 preview.
 ;; default-animation wins when present; otherwise the first animation in the manifest is used.
 (defn- select-preview-animation [manifest default-animation]
@@ -299,18 +308,71 @@
                [(:id part) part]))
         (:parts manifest)))
 
+;; Indexes manifest variants by id for skin preview image lookup.
+(defn- variant-by-id [manifest]
+  (into {}
+        (keep (fn [variant]
+                (when (string? (:id variant))
+                  [(:id variant) variant])))
+        (:variants manifest)))
+
+;; Returns the selected skin, or nil for the package default/base part images.
+(defn- select-preview-skin [manifest default-skin]
+  (when (seq default-skin)
+    (first (filter #(= default-skin (:id %)) (:skins manifest)))))
+
+;; Looks up one skin part override. JSON object keys are keywordized by read-str, but accepting
+;; strings as well keeps this robust if parsing changes later.
+(defn- skin-part-override [skin part-id]
+  (let [parts (:parts skin)]
+    (when (map? parts)
+      (or (get parts part-id)
+          (get parts (keyword part-id))))))
+
+;; Resolves the part image and pivot after the selected skin's visibility and variant overrides.
+(defn- preview-part-image [part variants-by-id skin]
+  (let [part-id (:id part)
+        override (skin-part-override skin part-id)
+        visible (if (and (map? override) (contains? override :visible))
+                  (:visible override)
+                  (not (false? (:visible part))))]
+    (when visible
+      (let [variant (when-let [variant-id (when (map? override)
+                                            (:variant override))]
+                      (let [candidate (get variants-by-id variant-id)]
+                        (when (= part-id (:part candidate))
+                          candidate)))
+            image-source (or variant part)
+            part-pivot (:pivot part)
+            part-width (number-or (:width part) 0.0)
+            part-height (number-or (:height part) 0.0)
+            image-width (number-or (:width image-source) part-width)
+            image-height (number-or (:height image-source) part-height)
+            pivot-x (number-or (:x part-pivot) (* 0.5 part-width))
+            pivot-y (number-or (:y part-pivot) (* 0.5 part-height))]
+        {:asset (:asset image-source)
+         :width image-width
+         :height image-height
+         :pivot-x (if variant
+                    (- (+ pivot-x (* 0.5 (- image-width part-width)))
+                       (number-or (:offsetX variant) 0.0))
+                    pivot-x)
+         :pivot-y (if variant
+                    (- (+ pivot-y (* 0.5 (- image-height part-height)))
+                       (number-or (:offsetY variant) 0.0))
+                    pivot-y)}))))
+
 ;; Draws one frame part into the flattened Java2D preview image.
-;; graphics is the destination Graphics2D, entries contains zip entry bytes, parts-by-id maps
-;; part ids to manifest parts, and frame-part contains the frame-local transform.
-(defn- draw-frame-part! [^java.awt.Graphics2D graphics entries parts-by-id frame-part]
+;; graphics is the destination Graphics2D, entries contains zip entry bytes, parts-by-id maps part
+;; ids to manifest parts, variants-by-id maps runtime variants, skin is the selected preview skin,
+;; and frame-part contains the frame-local transform.
+(defn- draw-frame-part! [^java.awt.Graphics2D graphics entries parts-by-id variants-by-id skin frame-part]
   (when-let [part (get parts-by-id (:part frame-part))]
-    (when-let [asset-bytes (get entries (:asset part))]
+    (when-let [preview-image (preview-part-image part variants-by-id skin)]
+      (when-let [asset-bytes (get entries (:asset preview-image))]
       (when-let [image (ImageIO/read (ByteArrayInputStream. asset-bytes))]
-        (let [pivot (:pivot part)
-              part-width (number-or (:width part) (.getWidth image))
-              part-height (number-or (:height part) (.getHeight image))
-              pivot-x (number-or (:x pivot) (* 0.5 part-width))
-              pivot-y (number-or (:y pivot) (* 0.5 part-height))
+        (let [pivot-x (number-or (:pivot-x preview-image) (* 0.5 (.getWidth image)))
+              pivot-y (number-or (:pivot-y preview-image) (* 0.5 (.getHeight image)))
               tx (number-or (:x frame-part) 0.0)
               ty (number-or (:y frame-part) 0.0)
               scale-x (number-or (:scaleX frame-part) 1.0)
@@ -335,19 +397,21 @@
               old-composite (.getComposite graphics)]
           (.setComposite graphics (AlphaComposite/getInstance AlphaComposite/SRC_OVER (float opacity)))
           (.drawImage graphics image transform nil)
-          (.setComposite graphics old-composite))))))
+          (.setComposite graphics old-composite)))))))
 
 ;; Composes one transparent BufferedImage for the selected animation's first frame.
-;; manifest is parsed JSON data, entries are raw .spla zip entries, and default-animation is
-;; the preferred animation id from the editor field.
-(defn- compose-preview-image [manifest entries default-animation]
+;; manifest is parsed JSON data, entries are raw .spla zip entries, default-animation is the
+;; preferred animation id, and default-skin is the preferred runtime skin id.
+(defn- compose-preview-image [manifest entries default-animation default-skin]
   (let [canvas (:canvas manifest)
         width (positive-int (:width canvas))
         height (positive-int (:height canvas))
         animation (select-preview-animation manifest default-animation)
+        skin (select-preview-skin manifest default-skin)
         frame (first (:frames animation))]
     (when (and width height frame)
       (let [parts-by-id (part-by-id manifest)
+            variants-by-id (variant-by-id manifest)
             image (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)]
         (let [graphics (.createGraphics image)]
           (try
@@ -355,7 +419,7 @@
             (.setRenderingHint graphics RenderingHints/KEY_RENDERING RenderingHints/VALUE_RENDER_QUALITY)
             (doseq [frame-part (sort-by #(number-or (:drawOrder (get parts-by-id (:part %))) 0.0)
                                         (:parts frame))]
-              (draw-frame-part! graphics entries parts-by-id frame-part))
+              (draw-frame-part! graphics entries parts-by-id variants-by-id skin frame-part))
             (finally
               (.dispose graphics))))
         image))))
@@ -363,9 +427,9 @@
 ;; Reads and composes the preview image for a .spla resource.
 ;; Any corrupt package, unsupported manifest, or image decode error returns nil for bounds-only
 ;; display instead of failing editor loading.
-(defn- read-spla-preview-image [spla-resource default-animation]
+(defn- read-spla-preview-image [spla-resource default-animation default-skin]
   (when spla-resource
-    (let [key (cache-key spla-resource default-animation)]
+    (let [key (cache-key spla-resource default-animation default-skin)]
       (cached-preview-image
         key
         (fn []
@@ -374,7 +438,7 @@
               (when-let [manifest-bytes (get entries "manifest.json")]
                 (let [manifest (json/read-str (String. ^bytes manifest-bytes "UTF-8") :key-fn keyword)]
                   (when (valid-spla-manifest? manifest)
-                    (compose-preview-image manifest entries default-animation)))))
+                    (compose-preview-image manifest entries default-animation default-skin)))))
             (catch Throwable _
               nil)))))))
 
@@ -398,17 +462,27 @@
   (or (read-spla-canvas-size package)
       fallback-canvas-size))
 
-;; Graph output: decoded static frame preview image, cached by package resource and animation.
-(g/defnk produce-preview-image [package default-animation]
-  (read-spla-preview-image package default-animation))
+;; Graph output: decoded static frame preview image, cached by package resource, animation, and skin.
+(g/defnk produce-preview-image [package default-animation default-skin]
+  (read-spla-preview-image package default-animation default-skin))
 
 ;; Graph output: animation ids used by the inspector Default Animation dropdown.
 (g/defnk produce-animation-ids [package]
   (manifest-animation-ids (read-spla-manifest package)))
 
+;; Graph output: skin ids used by the inspector Default Skin dropdown.
+(g/defnk produce-skin-ids [package]
+  (manifest-skin-ids (read-spla-manifest package)))
+
 ;; Graph output: options used by the standalone form view.
 (g/defnk produce-animation-options [animation-ids]
   (mapv (fn [id] [id id]) animation-ids))
+
+;; Graph output: skin options used by the standalone form view.
+(g/defnk produce-skin-options [skin-ids]
+  (into [["" "Base"]]
+        (map (fn [id] [id id]))
+        skin-ids))
 
 ;; Graph output: Defold-editor-owned texture for the composed preview image.
 ;; _node-id is included in the texture id to keep component previews independent.
@@ -636,13 +710,20 @@
       (g/clear-property (:node-id user-data) prop))))
 
 ;; Graph output: Clojure form model shown in the Defold inspector.
-(g/defnk produce-form-data [_node-id resource package default-animation playback-rate loop visible autoplay material animation-options]
+(g/defnk produce-form-data [_node-id resource package default-animation default-skin playback-rate loop visible autoplay material animation-options skin-options]
   (let [default-animation-field (cond-> {:path [:default-animation]
                                          :label "Default Animation"
                                          :type :string}
                                   (seq animation-options)
                                   (assoc :type :choicebox
                                          :options animation-options
+                                         :from-string identity))
+        default-skin-field (cond-> {:path [:default-skin]
+                                    :label "Default Skin"
+                                    :type :string}
+                             (seq skin-options)
+                             (assoc :type :choicebox
+                                    :options skin-options
                                          :from-string identity))]
     {:navigation false
      :form-ops {:user-data {:node-id _node-id
@@ -654,6 +735,7 @@
                            :label "Package"
                            :type :string}
                           default-animation-field
+                          default-skin-field
                           {:path [:playback-rate]
                            :label "Playback Rate"
                            :type :number}
@@ -671,6 +753,7 @@
                            :type :string}]}]
      :values {[:package] (resource/resource->proj-path package)
               [:default-animation] default-animation
+              [:default-skin] default-skin
               [:playback-rate] playback-rate
               [:loop] loop
               [:visible] visible
@@ -678,10 +761,11 @@
               [:material] (or (resource/resource->proj-path material) default-material)}}))
 
 ;; Graph output: serializable DDF map saved into the .spriteloop file.
-(g/defnk produce-save-value [package default-animation playback-rate loop visible autoplay material]
+(g/defnk produce-save-value [package default-animation default-skin playback-rate loop visible autoplay material]
   (protobuf/make-map-without-defaults @spriteloop-desc-cls
     :package (resource/resource->proj-path package)
     :default-animation default-animation
+    :default-skin default-skin
     :playback-rate playback-rate
     :loop loop
     :visible visible
@@ -703,6 +787,7 @@
     (gu/set-properties-from-pb-map self @spriteloop-desc-cls data
       package (resolve-resource (:package :or ""))
       default-animation :default-animation
+      default-skin :default-skin
       playback-rate :playback-rate
       loop :loop
       visible :visible
@@ -722,6 +807,13 @@
             (dynamic edit-type (g/fnk [animation-ids]
                                  (if (seq animation-ids)
                                    (properties/->choicebox animation-ids)
+                                   {:type g/Str})))
+            (dynamic ext-edit-type (g/constantly {:type g/Str})))
+  (property default-skin g/Str
+            (default "")
+            (dynamic edit-type (g/fnk [skin-ids]
+                                 (if (seq skin-ids)
+                                   (properties/->choicebox (into [""] skin-ids))
                                    {:type g/Str})))
             (dynamic ext-edit-type (g/constantly {:type g/Str})))
   (property playback-rate g/Num
@@ -747,6 +839,8 @@
 
   (output animation-ids g/Any :cached produce-animation-ids)
   (output animation-options g/Any :cached produce-animation-options)
+  (output skin-ids g/Any :cached produce-skin-ids)
+  (output skin-options g/Any :cached produce-skin-options)
   (output form-data g/Any :cached produce-form-data)
   (output canvas-size g/Any :cached produce-canvas-size)
   (output preview-image g/Any :cached produce-preview-image)

@@ -1081,12 +1081,21 @@ dmGameObject::CreateResult component_create(const dmGameObject::ComponentCreateP
     component->package_path = package_path;
     component->default_animation =
         non_empty_or_default(resource->ddf->m_DefaultAnimation, "idle");
+    component->default_skin = resource->ddf->m_DefaultSkin != nullptr
+                                  ? resource->ddf->m_DefaultSkin
+                                  : "";
     component->playback_rate = resource->ddf->m_PlaybackRate;
     component->loop = resource->ddf->m_Loop;
     component->visible = resource->ddf->m_Visible;
     component->autoplay = resource->ddf->m_Autoplay;
 
     if (load_component_package(context, component, package_path)) {
+        if (!component->default_skin.empty() &&
+            !set_instance_skin(*component->instance, component->default_skin)) {
+            dmLogWarning("SpriteLoop default skin '%s' was not found in '%s'",
+                         component->default_skin.c_str(),
+                         component->package_path.c_str());
+        }
         component->instance->player->set_loop_override(component->loop);
         component->instance->local_position = params.m_Position;
         component->instance->local_rotation = params.m_Rotation;
