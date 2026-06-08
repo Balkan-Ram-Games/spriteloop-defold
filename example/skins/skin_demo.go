@@ -11,10 +11,9 @@ embedded_components {
 embedded_components {
   id: "robot"
   type: "spriteloop"
-  data: "package: \"/example/assets/robot_idle_skins.spla\"\n"
-  "default_animation: \"idle\"\n"
-  "default_skin: \"blue_robot\"\n"
+  data: "package: \"/example/assets/robot_idle_z.spla\"\n"
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
+  "default_skin: \"blue_robot\"\n"
   ""
   scale {
     x: 0.38
