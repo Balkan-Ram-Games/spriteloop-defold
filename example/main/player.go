@@ -36,6 +36,7 @@ embedded_components {
   type: "spriteloop"
   data: "package: \"/example/assets/robot_idle.spla\"\n"
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
+  "default_skin: \"default\"\n"
   ""
   scale {
     x: 0.4
@@ -45,8 +46,9 @@ embedded_components {
 embedded_components {
   id: "robot2"
   type: "spriteloop"
-  data: "package: \"/example/assets/robot_idle.spla\"\n"
+  data: "package: \"/example/assets/robot_idle_z.spla\"\n"
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
+  "default_skin: \"blue_robot\"\n"
   ""
   position {
     x: 105.0

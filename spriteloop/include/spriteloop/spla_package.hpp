@@ -42,6 +42,7 @@ struct SplaVariant {
     int height = 0;
     float offset_x = 0.0f;
     float offset_y = 0.0f;
+    int z_offset = 0;
 };
 
 struct SplaSkinPartOverride {

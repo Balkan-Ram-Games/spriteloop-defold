@@ -362,6 +362,18 @@
                        (number-or (:offsetY variant) 0.0))
                     pivot-y)}))))
 
+;; Resolves the selected skin variant's effective draw order while preserving base order on ties.
+(defn- preview-part-draw-order [part variants-by-id skin]
+  (let [part-id (:id part)
+        override (skin-part-override skin part-id)
+        variant (when-let [variant-id (when (map? override) (:variant override))]
+                  (let [candidate (get variants-by-id variant-id)]
+                    (when (= part-id (:part candidate))
+                      candidate)))]
+    [(+ (number-or (:drawOrder part) 0.0)
+        (number-or (:zOffset variant) 0.0))
+     (number-or (:drawOrder part) 0.0)]))
+
 ;; Draws one frame part into the flattened Java2D preview image.
 ;; graphics is the destination Graphics2D, entries contains zip entry bytes, parts-by-id maps part
 ;; ids to manifest parts, variants-by-id maps runtime variants, skin is the selected preview skin,
@@ -417,7 +429,10 @@
           (try
             (.setRenderingHint graphics RenderingHints/KEY_INTERPOLATION RenderingHints/VALUE_INTERPOLATION_BILINEAR)
             (.setRenderingHint graphics RenderingHints/KEY_RENDERING RenderingHints/VALUE_RENDER_QUALITY)
-            (doseq [frame-part (sort-by #(number-or (:drawOrder (get parts-by-id (:part %))) 0.0)
+            (doseq [frame-part (sort-by #(preview-part-draw-order
+                                          (get parts-by-id (:part %))
+                                          variants-by-id
+                                          skin)
                                         (:parts frame))]
               (draw-frame-part! graphics entries parts-by-id variants-by-id skin frame-part))
             (finally
