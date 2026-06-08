@@ -39,6 +39,79 @@ end
 The included example project shows an embedded SpriteLoop component, movement
 script, collision object, collection proxy load/unload flow, and cache debug UI.
 
+## Skins and Part Variants
+
+A SpriteLoop component can select a default skin in the Defold editor. Runtime
+scripts can change the active skin and override individual part variants through
+the component-oriented Lua API:
+
+```lua
+local spriteloop = require "spriteloop.spriteloop"
+
+function init(self)
+    local component = "#body"
+
+    -- Applies the skin's part variants and visibility settings.
+    spriteloop.set_skin(component, "blue_robot")
+
+    -- Overrides one part after applying the skin.
+    spriteloop.set_variant(component, "head", "head_helmet")
+
+    spriteloop.play_anim(component, "idle", { loop = true })
+end
+```
+
+Skin and part APIs use the IDs exported in the `.spla` package:
+
+```lua
+local changed = spriteloop.set_skin(url, skin_id)
+local changed = spriteloop.set_variant(url, part_id, variant_id)
+local changed = spriteloop.clear_variant(url, part_id)
+spriteloop.clear_variants(url)
+```
+
+- `set_skin()` returns `true` when the skin ID exists.
+- `set_variant()` returns `true` when the part exists and the variant belongs
+  to that part.
+- `clear_variant()` returns `true` when the part ID exists.
+- `clear_variants()` removes every manual part override.
+
+Manual part variants take precedence over the active skin. Clearing an override
+restores the variant selected by the active skin, or the part's base image when
+the skin does not override it. Changing skins does not clear manual part
+overrides.
+
+Use `get_info()` to discover the skins and variants available in the loaded
+package:
+
+```lua
+local info = spriteloop.get_info("#body")
+
+print("active skin index", info.skin_index) -- zero-based, or -1
+
+for _, skin in ipairs(info.skins) do
+    print(skin.id, skin.name, skin.override_count)
+end
+
+for _, variant in ipairs(info.variants) do
+    print(variant.id, variant.name, variant.part_id, variant.z_offset)
+end
+```
+
+`info.skins` and `info.variants` are Lua arrays. `skin_index` is the native
+zero-based package index and is `-1` when no skin is active.
+
+The same skin and part functions are also available from the low-level
+`spriteloop.spla` module for handles returned by `spla.load()`:
+
+```lua
+local spla = require "spriteloop.spla"
+local handle = spla.load("/character.spla")
+
+spla.set_skin(handle, "blue_robot")
+spla.set_variant(handle, "head", "head_helmet")
+```
+
 ## Supported Native Extension Libraries
 
 The repository currently includes prebuilt native extension libraries for these
