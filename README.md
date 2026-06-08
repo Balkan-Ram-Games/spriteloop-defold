@@ -32,7 +32,7 @@ your project. Scripts can control the component through:
 local spriteloop = require "spriteloop.spriteloop"
 
 function init(self)
-    spriteloop.play_anim("#body", "idle", { loop = true })
+    spriteloop.play_anim("#robot", "idle", { loop = true })
 end
 ```
 
@@ -49,7 +49,7 @@ the component-oriented Lua API:
 local spriteloop = require "spriteloop.spriteloop"
 
 function init(self)
-    local component = "#body"
+    local component = "#robot"
 
     -- Applies the skin's part variants and visibility settings.
     spriteloop.set_skin(component, "blue_robot")
@@ -85,7 +85,7 @@ Use `get_info()` to discover the skins and variants available in the loaded
 package:
 
 ```lua
-local info = spriteloop.get_info("#body")
+local info = spriteloop.get_info("#robot")
 
 print("active skin index", info.skin_index) -- zero-based, or -1
 
