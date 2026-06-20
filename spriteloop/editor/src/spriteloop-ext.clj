@@ -160,6 +160,17 @@
   (or (validation/prop-error :fatal node-id :material validation/prop-nil? value "Material")
       (validation/prop-error :fatal node-id :material validation/prop-resource-not-exists? value "Material")))
 
+;; Validates that a stored id still exists in the currently referenced .spla package.
+(defn- validate-id-in-package [node-id prop-kw ids value label]
+  (when (and (seq ids)
+             (seq value)
+             (not (contains? (set ids) value)))
+    (validation/prop-error :fatal node-id prop-kw
+                           (fn [_ _]
+                             (format "'%s' must be one of the ids in the selected SpriteLoop package" label))
+                           value
+                           label)))
+
 ;; Produces the compiled .spriteloopc build content.
 ;; resource is the output build resource, dep-resources contains resolved dependency outputs,
 ;; and user-data carries the editor DDF map plus the labels of dependent resources to rewrite.
@@ -221,13 +232,17 @@
 
 ;; Builds the preview cache key from package path, package hash, and requested animation/skin.
 ;; Including the sha1 makes the preview refresh when the .spla file changes on disk.
+(defn- package-sha1 [package-resource]
+  (try
+    (when package-resource
+      (resource/resource->sha1-hex package-resource))
+    (catch Throwable _
+      nil)))
+
 (defn- cache-key [package-resource default-animation default-skin]
   (when package-resource
     [(resource/resource->proj-path package-resource)
-     (try
-       (resource/resource->sha1-hex package-resource)
-       (catch Throwable _
-         nil))
+     (package-sha1 package-resource)
      default-animation
      default-skin]))
 
@@ -472,21 +487,25 @@
     (catch Throwable _
       nil)))
 
+;; Graph output: package content hash used to refresh inspector models when a .spla changes.
+(g/defnk produce-package-sha1 [package]
+  (package-sha1 package))
+
 ;; Graph output: canvas size for bounds, AABB, picking, and preview quad generation.
-(g/defnk produce-canvas-size [package]
+(g/defnk produce-canvas-size [package package-sha1]
   (or (read-spla-canvas-size package)
       fallback-canvas-size))
 
 ;; Graph output: decoded static frame preview image, cached by package resource, animation, and skin.
-(g/defnk produce-preview-image [package default-animation default-skin]
+(g/defnk produce-preview-image [package package-sha1 default-animation default-skin]
   (read-spla-preview-image package default-animation default-skin))
 
 ;; Graph output: animation ids used by the inspector Default Animation dropdown.
-(g/defnk produce-animation-ids [package]
+(g/defnk produce-animation-ids [package package-sha1]
   (manifest-animation-ids (read-spla-manifest package)))
 
 ;; Graph output: skin ids used by the inspector Default Skin dropdown.
-(g/defnk produce-skin-ids [package]
+(g/defnk produce-skin-ids [package package-sha1]
   (manifest-skin-ids (read-spla-manifest package)))
 
 ;; Graph output: options used by the standalone form view.
@@ -671,7 +690,7 @@
                                      :passes [pass/outline]}}))}))
 
 ;; Graph output: build targets for the compiled .spriteloopc resource and its raw .spla package.
-(g/defnk produce-build-targets [_node-id resource package save-value own-build-errors material-resource dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource package package-sha1 save-value own-build-errors material-resource dep-build-targets]
   (g/precluding-errors own-build-errors
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-source (into {}
@@ -686,7 +705,8 @@
                                    {:node-id _node-id
                                     :resource (workspace/make-build-resource package)
                                     :build-fn build-spla-package
-                                    :user-data {:source-resource package}}))]
+                                    :user-data {:source-resource package
+                                                :package-sha1 package-sha1}}))]
       (cond-> [(bt/with-content-hash
                  {:node-id _node-id
                   :resource (workspace/make-build-resource resource)
@@ -725,12 +745,13 @@
       (g/clear-property (:node-id user-data) prop))))
 
 ;; Graph output: Clojure form model shown in the Defold inspector.
-(g/defnk produce-form-data [_node-id resource package default-animation default-skin playback-rate loop visible autoplay material animation-options skin-options]
+(g/defnk produce-form-data [_node-id resource package package-sha1 default-animation default-skin playback-rate loop visible autoplay material animation-options skin-options]
   (let [default-animation-field (cond-> {:path [:default-animation]
                                          :label "Default Animation"
                                          :type :string}
                                   (seq animation-options)
                                   (assoc :type :choicebox
+                                         :package-sha1 package-sha1
                                          :options animation-options
                                          :from-string identity))
         default-skin-field (cond-> {:path [:default-skin]
@@ -738,6 +759,7 @@
                                     :type :string}
                              (seq skin-options)
                              (assoc :type :choicebox
+                                    :package-sha1 package-sha1
                                     :options skin-options
                                          :from-string identity))]
     {:navigation false
@@ -788,11 +810,13 @@
     :material (or (resource/resource->proj-path material) default-material)))
 
 ;; Graph output: validation errors that should block builds.
-(g/defnk produce-own-build-errors [_node-id package material]
+(g/defnk produce-own-build-errors [_node-id package material animation-ids default-animation skin-ids default-skin]
   (g/package-errors
     _node-id
     (validate-package _node-id package)
-    (validate-material _node-id material)))
+    (validate-material _node-id material)
+    (validate-id-in-package _node-id :default-animation animation-ids default-animation "Default Animation")
+    (validate-id-in-package _node-id :default-skin skin-ids default-skin "Default Skin")))
 
 ;; Loads a .spriteloop DDF file into graph node properties.
 ;; _project is unused, self is the node id, _resource resolves referenced resources, and data is
@@ -815,21 +839,31 @@
   (inherits resource-node/ResourceNode)
 
   (property package resource/Resource
+            (value (gu/passthrough package-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :package-resource])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "spla"}))
             (dynamic error (g/fnk [_node-id package] (validate-package _node-id package))))
   (property default-animation g/Str
             (default "idle")
-            (dynamic edit-type (g/fnk [animation-ids]
+            (dynamic edit-type (g/fnk [animation-ids package-sha1]
                                  (if (seq animation-ids)
-                                   (properties/->choicebox animation-ids)
+                                   (assoc (properties/->choicebox animation-ids)
+                                          :package-sha1 package-sha1)
                                    {:type g/Str})))
+            (dynamic error (g/fnk [_node-id animation-ids default-animation]
+                             (validate-id-in-package _node-id :default-animation animation-ids default-animation "Default Animation")))
             (dynamic ext-edit-type (g/constantly {:type g/Str})))
   (property default-skin g/Str
             (default "")
-            (dynamic edit-type (g/fnk [skin-ids]
+            (dynamic edit-type (g/fnk [skin-ids package-sha1]
                                  (if (seq skin-ids)
-                                   (properties/->choicebox (into [""] skin-ids))
+                                   (assoc (properties/->choicebox (into [""] skin-ids))
+                                          :package-sha1 package-sha1)
                                    {:type g/Str})))
+            (dynamic error (g/fnk [_node-id skin-ids default-skin]
+                             (validate-id-in-package _node-id :default-skin skin-ids default-skin "Default Skin")))
             (dynamic ext-edit-type (g/constantly {:type g/Str})))
   (property playback-rate g/Num
             (default 1.0))
@@ -849,15 +883,17 @@
             (dynamic error (g/fnk [_node-id material]
                              (validate-material _node-id material))))
 
+  (input package-resource resource/Resource)
   (input material-resource resource/Resource)
   (input dep-build-targets g/Any :array)
 
-  (output animation-ids g/Any :cached produce-animation-ids)
-  (output animation-options g/Any :cached produce-animation-options)
-  (output skin-ids g/Any :cached produce-skin-ids)
-  (output skin-options g/Any :cached produce-skin-options)
-  (output form-data g/Any :cached produce-form-data)
-  (output canvas-size g/Any :cached produce-canvas-size)
+  (output package-sha1 g/Any produce-package-sha1)
+  (output animation-ids g/Any produce-animation-ids)
+  (output animation-options g/Any produce-animation-options)
+  (output skin-ids g/Any produce-skin-ids)
+  (output skin-options g/Any produce-skin-options)
+  (output form-data g/Any produce-form-data)
+  (output canvas-size g/Any produce-canvas-size)
   (output preview-image g/Any :cached produce-preview-image)
   (output preview-texture g/Any :cached produce-preview-texture)
   (output aabb AABB :cached produce-aabb)

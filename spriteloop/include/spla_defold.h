@@ -102,6 +102,7 @@ struct SplaDefoldComponent {
 struct SplaDefoldSharedPackageResource {
     std::string path;
     std::size_t byte_count = 0;
+    std::uint64_t content_hash = 0;
     spriteloop::SplaPackage package;
     std::vector<SplaDefoldImageResource> image_resources;
     dmGraphics::HTexture atlas_texture = 0;

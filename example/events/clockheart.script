@@ -1,0 +1,26 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local CLOCKHEART = "#clockheart"
+local ANIMATION_ID = "run"
+
+function init(_self)
+    -- local played = spriteloop.play_anim(CLOCKHEART, ANIMATION_ID, { loop = true })
+    -- print(string.format(
+    --     "SpriteLoop events demo: clockheart animation (%s) playback %s",
+    --     ANIMATION_ID,
+    --     played and "started" or "failed"))
+end
+
+function update(_self, _dt)
+    local events = spriteloop.consume_events(CLOCKHEART)
+    for _, event in ipairs(events) do
+        print(string.format(
+            "SPRITELOOP_EVENT name=%s data=%s animation=%s animation_name=%s frame=%s source_frame=%s",
+            tostring(event.event_name or event.name),
+            tostring(event.data or ""),
+            tostring(event.animation_id or ""),
+            tostring(event.animation_name or ""),
+            tostring(event.frame or ""),
+            tostring(event.source_frame or "")))
+    end
+end

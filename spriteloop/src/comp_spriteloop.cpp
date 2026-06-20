@@ -965,18 +965,6 @@ bool load_component_package(SpriteLoopContext* context,
                             SplaDefoldComponent* component,
                             const char* package_path)
 {
-    SplaDefoldSharedPackageResource* shared_resource =
-        retain_shared_package_resource(package_path);
-    if (shared_resource != nullptr) {
-        component->instance = create_instance_from_shared_resource(shared_resource);
-        if (component->instance != nullptr) {
-            component->instance->game_object = component->game_object;
-            component->instance->visible = component->visible;
-            return true;
-        }
-        return false;
-    }
-
     SplaPackageBytesResource* package_resource = nullptr;
     dmResource::Result resource_result =
         dmResource::Get(context->factory, package_path, reinterpret_cast<void**>(&package_resource));
@@ -990,7 +978,7 @@ bool load_component_package(SpriteLoopContext* context,
     }
 
     std::string error;
-    shared_resource = acquire_shared_package_resource(
+    SplaDefoldSharedPackageResource* shared_resource = acquire_shared_package_resource(
         package_path, package_resource->bytes.data(), package_resource->bytes.size(), error);
     dmResource::Release(context->factory, package_resource);
     component->instance = create_instance_from_shared_resource(shared_resource);

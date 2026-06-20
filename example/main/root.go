@@ -15,6 +15,10 @@ components {
   component: "/example/skins/skins.collectionproxy"
 }
 components {
+  id: "events_proxy"
+  component: "/example/events/events.collectionproxy"
+}
+components {
   id: "debug_gui"
   component: "/example/main/root_debug.gui"
 }

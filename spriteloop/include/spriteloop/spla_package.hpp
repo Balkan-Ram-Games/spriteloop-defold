@@ -64,10 +64,16 @@ struct SplaFramePart {
     SplaTransform transform;
 };
 
+struct SplaEvent {
+    std::string name;
+    std::string data;
+};
+
 struct SplaFrame {
     int index = 0;
     int source_frame = 0;
     std::vector<SplaFramePart> parts;
+    std::vector<SplaEvent> events;
 };
 
 struct SplaAnimation {

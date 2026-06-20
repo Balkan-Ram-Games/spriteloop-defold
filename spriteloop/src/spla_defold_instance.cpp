@@ -48,6 +48,18 @@ std::vector<spriteloop::SplaBakedImage> baked_images_from_resources(
     return spriteloop::build_baked_images_from_atlas(package, atlas, image_map, skin_state);
 }
 
+std::uint64_t hash_package_bytes(const std::uint8_t* bytes, std::size_t byte_count)
+{
+    constexpr std::uint64_t fnv_offset = 14695981039346656037ull;
+    constexpr std::uint64_t fnv_prime = 1099511628211ull;
+    std::uint64_t hash = fnv_offset;
+    for (std::size_t i = 0; i < byte_count; ++i) {
+        hash ^= bytes[i];
+        hash *= fnv_prime;
+    }
+    return hash;
+}
+
 void rebuild_instance_baked_data(SplaDefoldInstance& instance)
 {
     const spriteloop::SplaPackage& package = instance.shared_resource != nullptr
@@ -67,12 +79,14 @@ void rebuild_instance_baked_data(SplaDefoldInstance& instance)
 }
 
 std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>>::iterator find_shared_resource(
-    const std::string& path)
+    const std::string& path,
+    std::uint64_t content_hash)
 {
     std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>>& resources = shared_resources();
     return std::find_if(resources.begin(), resources.end(),
-                        [&path](const std::unique_ptr<SplaDefoldSharedPackageResource>& resource) {
-                            return resource != nullptr && resource->path == path;
+                        [&path, content_hash](const std::unique_ptr<SplaDefoldSharedPackageResource>& resource) {
+                            return resource != nullptr && resource->path == path &&
+                                   resource->content_hash == content_hash;
                         });
 }
 
@@ -142,8 +156,11 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
                                                                  std::string& error)
 {
     const std::string cache_path = path != nullptr ? path : "";
-    if (SplaDefoldSharedPackageResource* existing = retain_shared_package_resource(path)) {
-        return existing;
+    const std::uint64_t content_hash = hash_package_bytes(bytes, byte_count);
+    auto existing = find_shared_resource(cache_path, content_hash);
+    if (existing != shared_resources().end()) {
+        ++(*existing)->ref_count;
+        return existing->get();
     }
 
     auto package_result = spriteloop::load_package_from_memory(bytes, byte_count, cache_path);
@@ -155,6 +172,7 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
     std::unique_ptr<SplaDefoldSharedPackageResource> resource(new SplaDefoldSharedPackageResource);
     resource->path = cache_path;
     resource->byte_count = byte_count;
+    resource->content_hash = content_hash;
     resource->package = std::move(package_result).value();
 
     if (!build_image_resources(resource->package, resource->image_resources, error)) {
@@ -182,13 +200,16 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
 SplaDefoldSharedPackageResource* retain_shared_package_resource(const char* path)
 {
     const std::string cache_path = path != nullptr ? path : "";
-    auto existing = find_shared_resource(cache_path);
-    if (existing == shared_resources().end()) {
-        return nullptr;
+    std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>>& resources = shared_resources();
+    auto existing = std::find_if(resources.begin(), resources.end(),
+                                 [&cache_path](const std::unique_ptr<SplaDefoldSharedPackageResource>& resource) {
+                                     return resource != nullptr && resource->path == cache_path;
+                                 });
+    if (existing != resources.end()) {
+        ++(*existing)->ref_count;
+        return existing->get();
     }
-
-    ++(*existing)->ref_count;
-    return existing->get();
+    return nullptr;
 }
 
 SplaDefoldInstance* create_instance_from_shared_resource(

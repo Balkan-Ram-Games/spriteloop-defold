@@ -11,14 +11,14 @@
       desc: SpriteLoop component URL.
     - name: animation_id
       type: string
-      desc: Animation id to play.
+      desc: Animation id or name to play. Exact ids are matched before names.
     - name: playback
       type: number
       desc: Defold playback mode. Accepted for API compatibility.
     returns:
     - name: played
       type: boolean
-      desc: True when the animation id exists and playback started.
+      desc: True when the animation id or name exists and playback started.
   - name: stop_anim
     type: function
     desc: Stops playback on a SpriteLoop component.
@@ -46,6 +46,17 @@
     - name: frame_index
       type: number
       desc: Frame index.
+  - name: consume_events
+    type: function
+    desc: Returns and clears SpriteLoop animation events collected since the previous call.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    returns:
+    - name: events
+      type: table
+      desc: Array of event tables with event_name, name, data, animation_id, animation_name, frame, and source_frame.
   - name: set_playback_rate
     type: function
     desc: Sets playback rate multiplier.

@@ -36,8 +36,38 @@ function init(self)
 end
 ```
 
+The animation argument may be either the exported animation ID or the display
+name. Exact IDs are matched before names.
+
 The included example project shows an embedded SpriteLoop component, movement
 script, collision object, collection proxy load/unload flow, and cache debug UI.
+
+## Animation Events
+
+SpriteLoop frame events are collected during playback updates. Drain them once
+per frame with `consume_events()`:
+
+```lua
+local spriteloop = require "spriteloop.spriteloop"
+
+function update(self, dt)
+    for _, event in ipairs(spriteloop.consume_events("#robot")) do
+        print(event.name, event.data, event.animation_id, event.animation_name, event.frame, event.source_frame)
+    end
+end
+```
+
+Each event table contains:
+
+- `event_name` and `name`: the exported event name.
+- `data`: the exported event payload string, or an empty string.
+- `animation_id`: the exported ID of the animation that emitted the event.
+- `animation_name`: the display name of the animation that emitted the event.
+- `frame`: the zero-based frame index inside the exported animation.
+- `source_frame`: the original editor/source frame number.
+
+The same API is available from `spriteloop.spla` for manually loaded handles:
+`spla.consume_events(handle)`.
 
 ## Skins and Part Variants
 

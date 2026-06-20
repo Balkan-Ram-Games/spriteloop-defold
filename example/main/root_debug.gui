@@ -523,5 +523,51 @@ nodes {
   pivot: PIVOT_CENTER
   inherit_alpha: true
 }
+nodes {
+  position {
+    x: 1182.0
+    y: 124.0
+  }
+  size {
+    x: 176.0
+    y: 50.0
+  }
+  color {
+    x: 0.12
+    y: 0.16
+    z: 0.2
+    w: 0.92
+  }
+  type: TYPE_BOX
+  id: "events_button"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 1182.0
+    y: 124.0
+  }
+  size {
+    x: 166.0
+    y: 28.0
+  }
+  color {
+    x: 0.92
+    y: 0.96
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Load Events"
+  font: "system_font"
+  id: "events_button_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_CENTER
+  inherit_alpha: true
+}
 material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_PARENT

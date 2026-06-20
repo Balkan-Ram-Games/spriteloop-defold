@@ -15,7 +15,7 @@ local function call(name, ...)
     return native[name](...)
 end
 
--- Plays animation_id on the SpriteLoop component at url.
+-- Plays an animation id or name on the SpriteLoop component at url.
 -- options can include { loop = true } or { loop = false }.
 function M.play_anim(url, animation_id, options)
     return call("play_anim", url, animation_id, options)
@@ -34,6 +34,11 @@ end
 -- Sets the current animation frame index on the component at url.
 function M.set_frame(url, frame_index)
     return call("set_frame", url, frame_index)
+end
+
+-- Returns and clears playback events collected by previous component updates.
+function M.consume_events(url)
+    return call("consume_events", url)
 end
 
 -- Sets the per-component playback rate multiplier.

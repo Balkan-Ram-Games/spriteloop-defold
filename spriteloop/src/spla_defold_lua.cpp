@@ -100,6 +100,31 @@ void push_package_skin_tables(lua_State* lua_state, const spriteloop::SplaPackag
     lua_setfield(lua_state, -2, "variants");
 }
 
+void push_playback_events(lua_State* lua_state,
+                          const std::vector<spriteloop::SplaPlaybackEvent>& events)
+{
+    lua_newtable(lua_state);
+    for (std::size_t i = 0; i < events.size(); ++i) {
+        const spriteloop::SplaPlaybackEvent& event = events[i];
+        lua_newtable(lua_state);
+        lua_pushstring(lua_state, event.name.c_str());
+        lua_setfield(lua_state, -2, "event_name");
+        lua_pushstring(lua_state, event.name.c_str());
+        lua_setfield(lua_state, -2, "name");
+        lua_pushstring(lua_state, event.data.c_str());
+        lua_setfield(lua_state, -2, "data");
+        lua_pushstring(lua_state, event.animation_id.c_str());
+        lua_setfield(lua_state, -2, "animation_id");
+        lua_pushstring(lua_state, event.animation_name.c_str());
+        lua_setfield(lua_state, -2, "animation_name");
+        lua_pushinteger(lua_state, event.frame_index);
+        lua_setfield(lua_state, -2, "frame");
+        lua_pushinteger(lua_state, event.source_frame);
+        lua_setfield(lua_state, -2, "source_frame");
+        lua_rawseti(lua_state, -2, static_cast<int>(i + 1));
+    }
+}
+
 // Lua: spla_native.version() -> string.
 int version(lua_State* lua_state)
 {
@@ -209,6 +234,16 @@ int set_frame(lua_State* lua_state)
     const int frame_index = static_cast<int>(luaL_checknumber(lua_state, 2));
     instance->player->set_frame(frame_index);
     return 0;
+}
+
+// Lua: spla_native.consume_events(handle) -> table.
+// Returns and clears playback events collected by previous update calls.
+int consume_events(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
+    push_playback_events(lua_state, instance->player->consume_events());
+    return 1;
 }
 
 // Lua: spla_native.set_position(handle, x, y).
@@ -369,6 +404,7 @@ const luaL_reg module_methods[] = {
     {"update", update},
     {"set_time", set_time},
     {"set_frame", set_frame},
+    {"consume_events", consume_events},
     {"set_position", set_position},
     {"set_scale", set_scale},
     {"set_visible", set_visible},
@@ -468,6 +504,16 @@ int component_set_frame(lua_State* lua_state)
     spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
     component->instance->player->set_frame(static_cast<int>(luaL_checknumber(lua_state, 2)));
     return 0;
+}
+
+// Lua: spriteloop_native.consume_events(url) -> table.
+// Returns and clears playback events collected on the component since the previous call.
+int component_consume_events(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    push_playback_events(lua_state, component->instance->player->consume_events());
+    return 1;
 }
 
 // Lua: spriteloop_native.set_playback_rate(url, rate).
@@ -768,6 +814,7 @@ const luaL_reg component_module_methods[] = {
     {"stop_anim", component_stop_anim},
     {"set_time", component_set_time},
     {"set_frame", component_set_frame},
+    {"consume_events", component_consume_events},
     {"set_playback_rate", component_set_playback_rate},
     {"set_visible", component_set_visible},
     {"set_skin", component_set_skin},

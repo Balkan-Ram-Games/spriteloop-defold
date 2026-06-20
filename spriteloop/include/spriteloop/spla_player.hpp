@@ -4,8 +4,18 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace spriteloop {
+
+struct SplaPlaybackEvent {
+    std::string animation_id;
+    std::string animation_name;
+    int frame_index = 0;
+    int source_frame = 0;
+    std::string name;
+    std::string data;
+};
 
 class SplaPlayer {
 public:
@@ -27,10 +37,13 @@ public:
     [[nodiscard]] bool effective_loop() const noexcept;
     [[nodiscard]] const SplaAnimation* current_animation() const noexcept;
     [[nodiscard]] const SplaFrame* current_frame() const noexcept;
+    [[nodiscard]] std::vector<SplaPlaybackEvent> consume_events();
 
 private:
     [[nodiscard]] const SplaAnimation* find_animation(const std::string& animation_id) const noexcept;
     [[nodiscard]] int frame_index_for_time(const SplaAnimation& animation) const noexcept;
+    [[nodiscard]] int raw_frame_index_for_time(const SplaAnimation& animation) const noexcept;
+    void queue_crossed_events(const SplaAnimation& animation, int previous_raw_frame, int next_raw_frame);
     void sync_frame_to_time() noexcept;
 
     const SplaPackage* package_ = nullptr;
@@ -40,6 +53,7 @@ private:
     bool playing_ = false;
     bool loop_override_ = false;
     bool has_loop_override_ = false;
+    std::vector<SplaPlaybackEvent> pending_events_;
 
     static constexpr std::size_t invalid_index = static_cast<std::size_t>(-1);
 };

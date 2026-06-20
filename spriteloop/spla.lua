@@ -44,7 +44,7 @@ function M.destroy(handle)
     end
 end
 
--- Starts playback of animation_id on handle and returns true when the animation exists.
+-- Starts playback of an animation id or name on handle and returns true when it exists.
 function M.play(handle, animation_id)
     if native and native.play then
         return native.play(handle, animation_id)
@@ -79,6 +79,15 @@ function M.set_frame(handle, frame_index)
     if native and native.set_frame then
         return native.set_frame(handle, frame_index)
     end
+end
+
+-- Returns and clears playback events collected by previous update calls.
+function M.consume_events(handle)
+    if native and native.consume_events then
+        return native.consume_events(handle)
+    end
+
+    return {}
 end
 
 -- Sets the standalone instance position used by the low-level renderer path.
