@@ -57,6 +57,48 @@
     - name: events
       type: table
       desc: Array of event tables with event_name, name, data, animation_id, animation_name, frame, and source_frame.
+  - name: listen
+    type: function
+    desc: Registers a Lua callback for a SpriteLoop animation event on one component.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: event_name
+      type: string
+      desc: Event name to listen for.
+    - name: callback
+      type: function
+      desc: Function called with the event table when dispatch_events consumes a matching event.
+    returns:
+    - name: listener_id
+      type: number
+      desc: Numeric listener id that can be passed to unlisten.
+  - name: unlisten
+    type: function
+    desc: Removes SpriteLoop event listeners for one component.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: listener_or_event_name
+      type: [number, string]
+      desc: Optional listener id or event name. Omit to remove all listeners for the component.
+    returns:
+    - name: removed
+      type: boolean
+      desc: True when one or more listener entries existed.
+  - name: dispatch_events
+    type: function
+    desc: Consumes queued events and calls matching Lua listeners registered with listen.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    returns:
+    - name: events
+      type: table
+      desc: Array of consumed event tables.
   - name: set_playback_rate
     type: function
     desc: Sets playback rate multiplier.

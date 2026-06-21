@@ -6,7 +6,7 @@ embedded_components {
   id: "clockheart"
   type: "spriteloop"
   data: "package: \"/example/events/clockheart.spla\"\n"
-  "default_animation: \"idle_down_down\"\n"
+  "default_animation: \"run_copy\"\n"
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
   "default_skin: \"default\"\n"
   ""

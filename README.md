@@ -44,8 +44,12 @@ script, collision object, collection proxy load/unload flow, and cache debug UI.
 
 ## Animation Events
 
-SpriteLoop frame events are collected during playback updates. Drain them once
-per frame with `consume_events()`:
+SpriteLoop frame events are collected during playback updates. You can either
+drain the event queue yourself with `consume_events()`, or register Lua
+callbacks and drain/dispatch the queue with `dispatch_events()`.
+
+Use `consume_events()` when you want explicit control over batching, ordering,
+or delayed handling:
 
 ```lua
 local spriteloop = require "spriteloop.spriteloop"
@@ -53,6 +57,53 @@ local spriteloop = require "spriteloop.spriteloop"
 function update(self, dt)
     for _, event in ipairs(spriteloop.consume_events("#robot")) do
         print(event.name, event.data, event.animation_id, event.animation_name, event.frame, event.source_frame)
+    end
+end
+```
+
+`consume_events()` returns all pending events since the previous consume call
+and clears the queue for that component. If you do not consume regularly, events
+remain queued and will be returned later.
+
+Use `listen()` when you prefer callback-style gameplay code:
+
+```lua
+local spriteloop = require "spriteloop.spriteloop"
+
+function init(self)
+    self.step_listener = spriteloop.listen("#robot", "step", function(event)
+        print("step at frame", event.frame)
+    end)
+end
+
+function update(self, dt)
+    spriteloop.dispatch_events("#robot")
+end
+
+function final(self)
+    spriteloop.unlisten("#robot", self.step_listener)
+end
+```
+
+`listen()` is a Lua wrapper over the same native event queue. Call
+`dispatch_events(url)` regularly, usually from `update()`, to consume queued
+events and invoke matching callbacks. `consume_events(url)` and
+`dispatch_events(url)` both drain the same queue, so do not call both for the
+same component in the same frame unless you expect the second call to return no
+events. Use
+`unlisten(url)` to remove every listener for a component, `unlisten(url,
+event_name)` to remove every listener for one event name, or `unlisten(url,
+listener_id)` to remove one listener returned by `listen()`.
+
+If you use listeners and still want to inspect the consumed events manually, use
+the table returned by `dispatch_events()`:
+
+```lua
+function update(self, dt)
+    local events = spriteloop.dispatch_events("#robot")
+
+    for _, event in ipairs(events) do
+        print(event.name, event.frame)
     end
 end
 ```
