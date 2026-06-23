@@ -133,6 +133,70 @@ void push_playback_events(lua_State* lua_state,
     }
 }
 
+const char* instance_log_path(const spla_defold::SplaDefoldInstance& instance)
+{
+    return instance.path.empty() ? "<unknown>" : instance.path.c_str();
+}
+
+void log_missing_animation(const spla_defold::SplaDefoldInstance& instance,
+                           const char* animation_id_or_name)
+{
+    dmLogWarning("SpriteLoop animation '%s' was not found in '%s'",
+                 animation_id_or_name,
+                 instance_log_path(instance));
+}
+
+void log_missing_skin(const spla_defold::SplaDefoldInstance& instance,
+                      const char* skin_id_or_name)
+{
+    dmLogWarning("SpriteLoop skin '%s' was not found in '%s'",
+                 skin_id_or_name,
+                 instance_log_path(instance));
+}
+
+void log_missing_part(const spla_defold::SplaDefoldInstance& instance,
+                      const char* part_id_key_or_name)
+{
+    dmLogWarning("SpriteLoop part '%s' was not found in '%s'",
+                 part_id_key_or_name,
+                 instance_log_path(instance));
+}
+
+void log_missing_variant(const spla_defold::SplaDefoldInstance& instance,
+                         const char* variant_id_key_or_name,
+                         const char* part_id_key_or_name)
+{
+    dmLogWarning("SpriteLoop variant '%s' was not found for part '%s' in '%s'",
+                 variant_id_key_or_name,
+                 part_id_key_or_name,
+                 instance_log_path(instance));
+}
+
+void log_set_variant_failure(const spla_defold::SplaDefoldInstance& instance,
+                             const char* part_id_key_or_name,
+                             const char* variant_id_key_or_name)
+{
+    const spriteloop::SplaPackage& package = spla_defold::instance_package(instance);
+    const int part_index =
+        spriteloop::find_part_index_by_id_key_or_name(package, part_id_key_or_name);
+    if (part_index < 0) {
+        log_missing_part(instance, part_id_key_or_name);
+        return;
+    }
+
+    const int variant_index = spriteloop::find_variant_index_by_id_key_or_name_for_part(
+        package, part_index, variant_id_key_or_name);
+    if (variant_index < 0) {
+        log_missing_variant(instance, variant_id_key_or_name, part_id_key_or_name);
+        return;
+    }
+
+    dmLogWarning("SpriteLoop variant '%s' for part '%s' could not be applied in '%s'",
+                 variant_id_key_or_name,
+                 part_id_key_or_name,
+                 instance_log_path(instance));
+}
+
 // Lua: spla_native.version() -> string.
 int version(lua_State* lua_state)
 {
@@ -201,6 +265,9 @@ int play(lua_State* lua_state)
     spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
     const char* animation_id = luaL_checkstring(lua_state, 2);
     const bool played = instance->player->play(animation_id);
+    if (!played) {
+        log_missing_animation(*instance, animation_id);
+    }
     lua_pushboolean(lua_state, played ? 1 : 0);
     return 1;
 }
@@ -292,7 +359,11 @@ int set_skin(lua_State* lua_state)
     DM_LUA_STACK_CHECK(lua_state, 1);
     spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
     const char* skin_id = luaL_checkstring(lua_state, 2);
-    lua_pushboolean(lua_state, spla_defold::set_instance_skin(*instance, skin_id) ? 1 : 0);
+    const bool changed = spla_defold::set_instance_skin(*instance, skin_id);
+    if (!changed) {
+        log_missing_skin(*instance, skin_id);
+    }
+    lua_pushboolean(lua_state, changed ? 1 : 0);
     return 1;
 }
 
@@ -302,8 +373,11 @@ int set_variant(lua_State* lua_state)
     spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
     const char* part_id = luaL_checkstring(lua_state, 2);
     const char* variant_id = luaL_checkstring(lua_state, 3);
-    lua_pushboolean(lua_state,
-                    spla_defold::set_instance_variant(*instance, part_id, variant_id) ? 1 : 0);
+    const bool changed = spla_defold::set_instance_variant(*instance, part_id, variant_id);
+    if (!changed) {
+        log_set_variant_failure(*instance, part_id, variant_id);
+    }
+    lua_pushboolean(lua_state, changed ? 1 : 0);
     return 1;
 }
 
@@ -312,8 +386,11 @@ int clear_variant(lua_State* lua_state)
     DM_LUA_STACK_CHECK(lua_state, 1);
     spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
     const char* part_id = luaL_checkstring(lua_state, 2);
-    lua_pushboolean(lua_state,
-                    spla_defold::clear_instance_variant(*instance, part_id) ? 1 : 0);
+    const bool changed = spla_defold::clear_instance_variant(*instance, part_id);
+    if (!changed) {
+        log_missing_part(*instance, part_id);
+    }
+    lua_pushboolean(lua_state, changed ? 1 : 0);
     return 1;
 }
 
@@ -482,6 +559,7 @@ int component_play_anim(lua_State* lua_state)
         component->loop = loop;
     } else {
         component->instance->player->set_loop_override(component->loop);
+        log_missing_animation(*component->instance, animation_id);
     }
     lua_pushboolean(lua_state, played ? 1 : 0);
     return 1;
@@ -548,8 +626,11 @@ int component_set_skin(lua_State* lua_state)
     DM_LUA_STACK_CHECK(lua_state, 1);
     spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
     const char* skin_id = luaL_checkstring(lua_state, 2);
-    lua_pushboolean(lua_state,
-                    spla_defold::set_instance_skin(*component->instance, skin_id) ? 1 : 0);
+    const bool changed = spla_defold::set_instance_skin(*component->instance, skin_id);
+    if (!changed) {
+        log_missing_skin(*component->instance, skin_id);
+    }
+    lua_pushboolean(lua_state, changed ? 1 : 0);
     return 1;
 }
 
@@ -559,11 +640,12 @@ int component_set_variant(lua_State* lua_state)
     spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
     const char* part_id = luaL_checkstring(lua_state, 2);
     const char* variant_id = luaL_checkstring(lua_state, 3);
-    lua_pushboolean(lua_state,
-                    spla_defold::set_instance_variant(*component->instance, part_id,
-                                                       variant_id)
-                        ? 1
-                        : 0);
+    const bool changed =
+        spla_defold::set_instance_variant(*component->instance, part_id, variant_id);
+    if (!changed) {
+        log_set_variant_failure(*component->instance, part_id, variant_id);
+    }
+    lua_pushboolean(lua_state, changed ? 1 : 0);
     return 1;
 }
 
@@ -572,8 +654,11 @@ int component_clear_variant(lua_State* lua_state)
     DM_LUA_STACK_CHECK(lua_state, 1);
     spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
     const char* part_id = luaL_checkstring(lua_state, 2);
-    lua_pushboolean(lua_state,
-                    spla_defold::clear_instance_variant(*component->instance, part_id) ? 1 : 0);
+    const bool changed = spla_defold::clear_instance_variant(*component->instance, part_id);
+    if (!changed) {
+        log_missing_part(*component->instance, part_id);
+    }
+    lua_pushboolean(lua_state, changed ? 1 : 0);
     return 1;
 }
 

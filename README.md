@@ -161,6 +161,9 @@ spriteloop.clear_variants(url)
 - `clear_variant()` returns `true` when the part resolves.
 - `clear_variants()` removes every manual part override.
 
+Failed animation, skin, part, or variant lookups log a Defold warning while
+still returning `false`.
+
 Manual part variants take precedence over the active skin. Clearing an override
 restores the variant selected by the active skin, or the part's base image when
 the skin does not override it. Changing skins does not clear manual part
