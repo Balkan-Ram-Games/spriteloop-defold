@@ -1,5 +1,10 @@
 # SpriteLoop for Defold
 
+[![Defold extension version](https://img.shields.io/badge/Defold%20extension-v0.8.1--alpha-4f7cff?style=for-the-badge)](https://github.com/Balkan-Ram-Games/spriteloop-defold/releases/tag/v0.8.1-alpha)
+
+> For SpriteLoop desktop app bugs and feature requests, use the
+> [SpriteLoop app issue tracker](https://github.com/Balkan-Ram-Games/spriteloop-app/issues).
+
 SpriteLoop for Defold adds native playback for `.spla` animation packages. It
 includes a `spriteloop` component, editor integration, Bob builders, Lua helpers,
 and a small example project.
