@@ -140,19 +140,19 @@ function M.set_visible(url, visible)
     return call("set_visible", url, visible)
 end
 
--- Sets the active runtime skin by id.
-function M.set_skin(url, skin_id)
-    return call("set_skin", url, skin_id)
+-- Sets the active runtime skin by id or name.
+function M.set_skin(url, skin_id_or_name)
+    return call("set_skin", url, skin_id_or_name)
 end
 
--- Overrides one part to render a specific variant id.
-function M.set_variant(url, part_id, variant_id)
-    return call("set_variant", url, part_id, variant_id)
+-- Overrides one part to render a specific variant id, key, or name.
+function M.set_variant(url, part_id_key_or_name, variant_id_key_or_name)
+    return call("set_variant", url, part_id_key_or_name, variant_id_key_or_name)
 end
 
--- Clears one part variant override.
-function M.clear_variant(url, part_id)
-    return call("clear_variant", url, part_id)
+-- Clears one part variant override by part id, key, or name.
+function M.clear_variant(url, part_id_key_or_name)
+    return call("clear_variant", url, part_id_key_or_name)
 end
 
 -- Clears all part variant overrides.

@@ -24,6 +24,7 @@ struct SplaTransform {
 
 struct SplaPart {
     std::string id;
+    std::string key;
     std::string name;
     std::string asset_path;
     int width = 0;
@@ -35,6 +36,7 @@ struct SplaPart {
 
 struct SplaVariant {
     std::string id;
+    std::string key;
     std::string name;
     int part_index = -1;
     std::string asset_path;

@@ -77,6 +77,14 @@ std::vector<SplaBakedImage> build_baked_images_from_atlas(
 int find_skin_index_by_id(const SplaPackage& package, const std::string& skin_id);
 int find_variant_index_by_id(const SplaPackage& package, const std::string& variant_id);
 int find_part_index_by_id(const SplaPackage& package, const std::string& part_id);
+int find_skin_index_by_id_or_name(const SplaPackage& package,
+                                  const std::string& skin_id_or_name);
+int find_part_index_by_id_key_or_name(const SplaPackage& package,
+                                      const std::string& part_id_key_or_name);
+int find_variant_index_by_id_key_or_name_for_part(
+    const SplaPackage& package,
+    int part_index,
+    const std::string& variant_id_key_or_name);
 
 SplaBounds calculate_baked_bounds(const SplaPackage& package,
                                   const std::vector<SplaBakedImage>& images);

@@ -309,7 +309,7 @@ bool rebuild_instance_skin(SplaDefoldInstance& instance)
 bool set_instance_skin(SplaDefoldInstance& instance, const std::string& skin_id)
 {
     const spriteloop::SplaPackage& package = instance_package(instance);
-    const int skin_index = spriteloop::find_skin_index_by_id(package, skin_id);
+    const int skin_index = spriteloop::find_skin_index_by_id_or_name(package, skin_id);
     if (skin_index < 0) {
         return false;
     }
@@ -323,10 +323,10 @@ bool set_instance_variant(SplaDefoldInstance& instance,
                           const std::string& variant_id)
 {
     const spriteloop::SplaPackage& package = instance_package(instance);
-    const int part_index = spriteloop::find_part_index_by_id(package, part_id);
-    const int variant_index = spriteloop::find_variant_index_by_id(package, variant_id);
-    if (part_index < 0 || variant_index < 0 ||
-        package.variants[static_cast<std::size_t>(variant_index)].part_index != part_index) {
+    const int part_index = spriteloop::find_part_index_by_id_key_or_name(package, part_id);
+    const int variant_index = spriteloop::find_variant_index_by_id_key_or_name_for_part(
+        package, part_index, variant_id);
+    if (part_index < 0 || variant_index < 0) {
         return false;
     }
 
@@ -341,7 +341,7 @@ bool set_instance_variant(SplaDefoldInstance& instance,
 bool clear_instance_variant(SplaDefoldInstance& instance, const std::string& part_id)
 {
     const spriteloop::SplaPackage& package = instance_package(instance);
-    const int part_index = spriteloop::find_part_index_by_id(package, part_id);
+    const int part_index = spriteloop::find_part_index_by_id_key_or_name(package, part_id);
     if (part_index < 0) {
         return false;
     }

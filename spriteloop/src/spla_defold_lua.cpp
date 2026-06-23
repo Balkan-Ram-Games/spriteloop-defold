@@ -85,13 +85,21 @@ void push_package_skin_tables(lua_State* lua_state, const spriteloop::SplaPackag
         lua_newtable(lua_state);
         lua_pushstring(lua_state, variant.id.c_str());
         lua_setfield(lua_state, -2, "id");
+        lua_pushstring(lua_state, variant.key.c_str());
+        lua_setfield(lua_state, -2, "key");
         lua_pushstring(lua_state, variant.name.c_str());
         lua_setfield(lua_state, -2, "name");
         if (variant.part_index >= 0 &&
             variant.part_index < static_cast<int>(package.parts.size())) {
+            const spriteloop::SplaPart& part =
+                package.parts[static_cast<std::size_t>(variant.part_index)];
             lua_pushstring(lua_state,
-                           package.parts[static_cast<std::size_t>(variant.part_index)].id.c_str());
+                           part.id.c_str());
             lua_setfield(lua_state, -2, "part_id");
+            lua_pushstring(lua_state, part.key.c_str());
+            lua_setfield(lua_state, -2, "part_key");
+            lua_pushstring(lua_state, part.name.c_str());
+            lua_setfield(lua_state, -2, "part_name");
         }
         lua_pushinteger(lua_state, variant.z_offset);
         lua_setfield(lua_state, -2, "z_offset");

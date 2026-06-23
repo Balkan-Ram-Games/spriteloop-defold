@@ -144,19 +144,21 @@ function init(self)
 end
 ```
 
-Skin and part APIs use the IDs exported in the `.spla` package:
+Skin and part APIs accept runtime keys, display names, and the internal IDs
+exported in the `.spla` package. Exact IDs are matched first, then keys, then
+names:
 
 ```lua
-local changed = spriteloop.set_skin(url, skin_id)
-local changed = spriteloop.set_variant(url, part_id, variant_id)
-local changed = spriteloop.clear_variant(url, part_id)
+local changed = spriteloop.set_skin(url, skin_id_or_name)
+local changed = spriteloop.set_variant(url, part_key_or_name, variant_key_or_name)
+local changed = spriteloop.clear_variant(url, part_key_or_name)
 spriteloop.clear_variants(url)
 ```
 
-- `set_skin()` returns `true` when the skin ID exists.
-- `set_variant()` returns `true` when the part exists and the variant belongs
-  to that part.
-- `clear_variant()` returns `true` when the part ID exists.
+- `set_skin()` returns `true` when the skin ID or name exists.
+- `set_variant()` returns `true` when the part resolves and the variant resolves
+  to a variant belonging to that part.
+- `clear_variant()` returns `true` when the part resolves.
 - `clear_variants()` removes every manual part override.
 
 Manual part variants take precedence over the active skin. Clearing an override
@@ -177,7 +179,7 @@ for _, skin in ipairs(info.skins) do
 end
 
 for _, variant in ipairs(info.variants) do
-    print(variant.id, variant.name, variant.part_id, variant.z_offset)
+    print(variant.part_key, variant.key, variant.name, variant.id, variant.z_offset)
 end
 ```
 

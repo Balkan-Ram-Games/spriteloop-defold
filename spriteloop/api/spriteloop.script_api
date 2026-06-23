@@ -128,11 +128,11 @@
       desc: SpriteLoop component URL.
     - name: skin_id
       type: string
-      desc: Skin id.
+      desc: Skin id or name. Exact ids are matched before names.
     returns:
     - name: changed
       type: boolean
-      desc: True when the skin id exists.
+      desc: True when the skin id or name exists.
   - name: set_variant
     type: function
     desc: Overrides one part variant.
@@ -142,14 +142,14 @@
       desc: SpriteLoop component URL.
     - name: part_id
       type: string
-      desc: Part id.
+      desc: Part id, key, or name. Exact ids are matched before keys and names.
     - name: variant_id
       type: string
-      desc: Variant id.
+      desc: Variant id, key, or name for the selected part. Exact ids are matched before keys and names.
     returns:
     - name: changed
       type: boolean
-      desc: True when the part and variant ids match.
+      desc: True when the part and variant resolve to a matching pair.
   - name: clear_variant
     type: function
     desc: Clears one part variant override.
@@ -159,11 +159,11 @@
       desc: SpriteLoop component URL.
     - name: part_id
       type: string
-      desc: Part id.
+      desc: Part id, key, or name. Exact ids are matched before keys and names.
     returns:
     - name: changed
       type: boolean
-      desc: True when the part id exists.
+      desc: True when the part id or name exists.
   - name: clear_variants
     type: function
     desc: Clears all part variant overrides.
