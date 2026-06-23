@@ -1,0 +1,44 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local CLOCKHEART = "#clockheart"
+local ANIMATION_ID = "run"
+
+local function event_line(prefix, event)
+    return string.format(
+        "%s name=%s data=%s animation=%s frame=%s source_frame=%s",
+        prefix,
+        tostring(event.name or event.event_name or ""),
+        tostring(event.data or ""),
+        tostring(event.animation_id or ""),
+        tostring(event.frame or ""),
+        tostring(event.source_frame or ""))
+end
+
+local function play(self)
+    self.event_count = 0
+    local played = spriteloop.play_anim(CLOCKHEART, ANIMATION_ID, { loop = true })
+    local result = played and "consume_events(): playing" or "consume_events(): failed"
+    print("SpriteLoop events demo: " .. result)
+end
+
+function init(self)
+    play(self)
+end
+
+function update(self, _dt)
+    local events = spriteloop.consume_events(CLOCKHEART)
+    if #events == 0 then
+        return
+    end
+
+    self.event_count = self.event_count + #events
+    for _, event in ipairs(events) do
+        print(event_line("SPRITELOOP_CONSUME", event))
+    end
+end
+
+function on_message(self, message_id, _message)
+    if message_id == hash("replay_events_demo") then
+        play(self)
+    end
+end

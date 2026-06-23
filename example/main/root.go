@@ -15,8 +15,12 @@ components {
   component: "/example/skins/skins.collectionproxy"
 }
 components {
-  id: "events_proxy"
-  component: "/example/events/events.collectionproxy"
+  id: "consume_events_proxy"
+  component: "/example/events/consume_events.collectionproxy"
+}
+components {
+  id: "listen_events_proxy"
+  component: "/example/events/listen_events.collectionproxy"
 }
 components {
   id: "debug_gui"

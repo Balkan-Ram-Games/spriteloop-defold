@@ -41,6 +41,8 @@ name. Exact IDs are matched before names.
 
 The included example project shows an embedded SpriteLoop component, movement
 script, collision object, collection proxy load/unload flow, and cache debug UI.
+The example project has separate `consume_events()` and `listen()` event scenes
+so each queue-draining approach can be tested in isolation.
 
 ## Animation Events
 

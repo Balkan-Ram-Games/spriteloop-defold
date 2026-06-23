@@ -1,0 +1,52 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local CLOCKHEART = "#clockheart"
+local ANIMATION_ID = "run"
+
+local function event_line(prefix, event)
+    return string.format(
+        "%s name=%s data=%s animation=%s frame=%s source_frame=%s",
+        prefix,
+        tostring(event.name or event.event_name or ""),
+        tostring(event.data or ""),
+        tostring(event.animation_id or ""),
+        tostring(event.frame or ""),
+        tostring(event.source_frame or ""))
+end
+
+local function on_event(self, event)
+    self.event_count = self.event_count + 1
+    print(event_line("SPRITELOOP_LISTEN", event))
+end
+
+local function play(self)
+    self.event_count = 0
+    local played = spriteloop.play_anim(CLOCKHEART, ANIMATION_ID, { loop = true })
+    local result = played and "listen()/dispatch_events(): playing" or "listen()/dispatch_events(): failed"
+    print("SpriteLoop events demo: " .. result)
+end
+
+function init(self)
+    self.block_listener = spriteloop.listen(CLOCKHEART, "block", function(event)
+        on_event(self, event)
+    end)
+    self.step_listener = spriteloop.listen(CLOCKHEART, "step", function(event)
+        on_event(self, event)
+    end)
+    play(self)
+end
+
+function update(_self, _dt)
+    spriteloop.dispatch_events(CLOCKHEART)
+end
+
+function final(self)
+    spriteloop.unlisten(CLOCKHEART, self.block_listener)
+    spriteloop.unlisten(CLOCKHEART, self.step_listener)
+end
+
+function on_message(self, message_id, _message)
+    if message_id == hash("replay_events_demo") then
+        play(self)
+    end
+end

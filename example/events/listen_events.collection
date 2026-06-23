@@ -1,7 +1,7 @@
-name: "events"
+name: "listen_events"
 instances {
-  id: "clockheart"
-  prototype: "/example/events/clockheart.go"
+  id: "listen_clockheart"
+  prototype: "/example/events/listen_clockheart.go"
   position {
     x: 640.0
     y: 360.0

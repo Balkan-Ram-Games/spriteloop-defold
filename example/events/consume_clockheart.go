@@ -1,6 +1,6 @@
 components {
   id: "controller"
-  component: "/example/events/clockheart.script"
+  component: "/example/events/consume_events.script"
 }
 embedded_components {
   id: "clockheart"
