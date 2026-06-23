@@ -4,6 +4,7 @@ local PROXIES = {
     skins = "#skins_proxy",
     consume_events = "#consume_events_proxy",
     listen_events = "#listen_events_proxy",
+    lua_api_test = "#lua_api_test_proxy",
 }
 
 local SCENE_NAMES = {
@@ -12,6 +13,7 @@ local SCENE_NAMES = {
     skins = "skins",
     consume_events = "consume events",
     listen_events = "listen events",
+    lua_api_test = "lua api test",
 }
 
 local DEBUG_GUI = "#debug_gui"
@@ -177,6 +179,8 @@ function on_message(self, message_id, _message, sender)
         switch_scene(self, "consume_events")
     elseif message_id == hash("ui_load_listen_events") then
         switch_scene(self, "listen_events")
+    elseif message_id == hash("ui_load_lua_api_test") then
+        switch_scene(self, "lua_api_test")
     elseif message_id == hash("ui_benchmark_add") then
         post_benchmark_if_active(self, "benchmark_add")
     elseif message_id == hash("ui_benchmark_reset") then

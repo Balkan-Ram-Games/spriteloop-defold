@@ -1,0 +1,36 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local COMPONENT = "#robot"
+
+local function expect(label, actual, expected)
+    if actual ~= expected then
+        error(string.format("SpriteLoop Lua API test failed: %s expected %s got %s",
+            label, tostring(expected), tostring(actual)))
+    end
+    print(string.format("SpriteLoop Lua API test ok: %s -> %s", label, tostring(actual)))
+end
+
+function init(self)
+    local info = spriteloop.get_info(COMPONENT)
+    expect("get_info has skins", (info.skin_count or 0) > 0, true)
+    expect("get_info has variants", (info.variant_count or 0) > 0, true)
+
+    expect("play animation by id", spriteloop.play_anim(COMPONENT, "idle"), true)
+    expect("play animation by name", spriteloop.play_anim(COMPONENT, "Idle"), true)
+    expect("missing animation", spriteloop.play_anim(COMPONENT, "__missing_animation__"), false)
+
+    expect("set skin by id/name", spriteloop.set_skin(COMPONENT, "blue_robot"), true)
+    expect("missing skin", spriteloop.set_skin(COMPONENT, "__missing_skin__"), false)
+
+    expect("set variant by part and variant names",
+        spriteloop.set_variant(COMPONENT, "body_top", "torso_blue"), true)
+    expect("missing variant part",
+        spriteloop.set_variant(COMPONENT, "__missing_part__", "torso_blue"), false)
+    expect("missing variant for part",
+        spriteloop.set_variant(COMPONENT, "body_top", "__missing_variant__"), false)
+    expect("clear variant by part name", spriteloop.clear_variant(COMPONENT, "body_top"), true)
+    expect("clear missing variant part", spriteloop.clear_variant(COMPONENT, "__missing_part__"), false)
+
+    spriteloop.clear_variants(COMPONENT)
+    print("SpriteLoop Lua API test passed")
+end

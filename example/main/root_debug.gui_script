@@ -42,6 +42,12 @@ local BUTTONS = {
         message = "ui_load_skins",
     },
     {
+        id = "lua_api_test",
+        box = "lua_api_test_button",
+        text = "lua_api_test_button_text",
+        message = "ui_load_lua_api_test",
+    },
+    {
         id = "consume_events",
         box = "consume_events_button",
         text = "consume_events_button_text",
@@ -251,6 +257,10 @@ local function is_listen_events_active(self)
     return self.scene == "listen events"
 end
 
+local function is_lua_api_test_active(self)
+    return self.scene == "lua api test"
+end
+
 local function button_enabled(self, id)
     if id == "profiler" or id == "debug" then
         return true
@@ -270,6 +280,8 @@ local function button_enabled(self, id)
         return not is_consume_events_active(self)
     elseif id == "listen_events" then
         return not is_listen_events_active(self)
+    elseif id == "lua_api_test" then
+        return not is_lua_api_test_active(self)
     end
     return true
 end
@@ -302,6 +314,7 @@ local function refresh_buttons(self)
         toggle = self.scene ~= "none" and "Unload" or "Load Demo",
         bench = "Load Bench",
         skins = "Load Skins",
+        lua_api_test = "Lua API Test",
         consume_events = "Consume Events",
         listen_events = "Listen Events",
         add = string.format("+%d Instances", self.benchmark.step_robots or 500),

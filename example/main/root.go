@@ -23,6 +23,10 @@ components {
   component: "/example/events/listen_events.collectionproxy"
 }
 components {
+  id: "lua_api_test_proxy"
+  component: "/example/tests/lua_api_test.collectionproxy"
+}
+components {
   id: "debug_gui"
   component: "/example/main/root_debug.gui"
 }
