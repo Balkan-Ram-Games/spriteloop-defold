@@ -72,6 +72,8 @@ function init(self)
     expect("seek preserves already queued events", #events, 1)
     expect("preserved event name", events[1].name, "step")
     expect("preserved event frame", events[1].frame, 0)
+    spriteloop.stop_anim(EVENT_COMPONENT)
+    spriteloop.consume_events(EVENT_COMPONENT)
 
     local handle = spla.load("/example/events/clockheart.spla")
     local handle_info = spla.get_info(handle)

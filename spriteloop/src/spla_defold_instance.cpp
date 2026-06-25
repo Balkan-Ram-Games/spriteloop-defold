@@ -256,7 +256,8 @@ void log_event_queue_overflow_if_needed(SplaDefoldInstance& instance)
 
     dmLogWarning(
         "SpriteLoop event queue overflow in '%s': oldest events are being dropped "
-        "(max_pending_events=%u)",
+        "(max_pending_events=%u). Call consume_events() or dispatch_events() regularly, "
+        "or increase spriteloop.max_pending_events",
         instance.path.empty() ? "<unknown>" : instance.path.c_str(),
         static_cast<uint32_t>(instance.player->max_pending_events()));
     instance.event_overflow_warning_logged = true;
