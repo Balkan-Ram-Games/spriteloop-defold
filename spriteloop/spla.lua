@@ -44,10 +44,10 @@ function M.destroy(handle)
     end
 end
 
--- Starts playback of an animation id or name on handle and returns true when it exists.
-function M.play(handle, animation_id)
+-- Starts playback. options can include { emit_events = false }.
+function M.play(handle, animation_id, options)
     if native and native.play then
-        return native.play(handle, animation_id)
+        return native.play(handle, animation_id, options)
     end
 
     return false
@@ -67,17 +67,17 @@ function M.update(handle, dt)
     end
 end
 
--- Sets absolute playback time in seconds.
-function M.set_time(handle, seconds)
+-- Sets absolute playback time. Destination events emit by default.
+function M.set_time(handle, seconds, options)
     if native and native.set_time then
-        return native.set_time(handle, seconds)
+        return native.set_time(handle, seconds, options)
     end
 end
 
--- Sets the current frame index in the active animation.
-function M.set_frame(handle, frame_index)
+-- Sets the current frame index. Destination events emit by default.
+function M.set_frame(handle, frame_index, options)
     if native and native.set_frame then
-        return native.set_frame(handle, frame_index)
+        return native.set_frame(handle, frame_index, options)
     end
 end
 

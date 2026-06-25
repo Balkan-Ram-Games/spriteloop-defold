@@ -70,6 +70,7 @@ struct SplaDefoldInstance {
     spriteloop::SplaPartImageMap image_map;
     spriteloop::SplaSkinState skin_state;
     std::uint32_t skin_revision = 0;
+    bool event_overflow_warning_logged = false;
     float x = 0.0f;
     float y = 0.0f;
     float scale_x = 1.0f;
@@ -181,6 +182,13 @@ SplaDefoldSharedPackageResource* retain_shared_package_resource(const char* path
 // Creates per-component playback/transform state backed by a shared package resource.
 SplaDefoldInstance* create_instance_from_shared_resource(
     SplaDefoldSharedPackageResource* shared_resource);
+
+// Sets the queue capacity used by subsequently created players.
+// Values below one use SplaPlayer::default_max_pending_events.
+void set_default_max_pending_events(int max_pending_events);
+
+// Logs the first event queue overflow for an instance.
+void log_event_queue_overflow_if_needed(SplaDefoldInstance& instance);
 
 // Destroys an instance and its textures.
 // graphics_context is the Defold graphics context used to release GPU image resources.

@@ -12,9 +12,9 @@
     - name: animation_id
       type: string
       desc: Animation id or name to play. Exact ids are matched before names.
-    - name: playback
-      type: number
-      desc: Defold playback mode. Accepted for API compatibility.
+    - name: options
+      type: table
+      desc: Optional table with loop and emit_events booleans. emit_events controls the full playback session and defaults to true.
     returns:
     - name: played
       type: boolean
@@ -36,6 +36,9 @@
     - name: seconds
       type: number
       desc: Playback time.
+    - name: options
+      type: table
+      desc: Optional table with emit_events. Destination-frame events emit by default.
   - name: set_frame
     type: function
     desc: Sets the current frame index.
@@ -46,6 +49,9 @@
     - name: frame_index
       type: number
       desc: Frame index.
+    - name: options
+      type: table
+      desc: Optional table with emit_events. Destination-frame events emit by default.
   - name: consume_events
     type: function
     desc: Returns and clears SpriteLoop animation events collected since the previous call.
@@ -192,7 +198,7 @@
     returns:
     - name: info
       type: table
-      desc: Package and playback information.
+      desc: Package and playback information, including pending_event_count, max_pending_events, and dropped_event_count.
   - name: get_cache_info
     type: function
     desc: Gets shared package and texture cache diagnostics.

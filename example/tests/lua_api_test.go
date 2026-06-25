@@ -13,3 +13,14 @@ embedded_components {
     y: 0.18
   }
 }
+embedded_components {
+  id: "event_robot"
+  type: "spriteloop"
+  data: "package: \"/example/events/clockheart.spla\"\n"
+  "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
+  "default_animation: \"run\"\n"
+  "loop: true\n"
+  "visible: false\n"
+  "autoplay: false\n"
+  ""
+}

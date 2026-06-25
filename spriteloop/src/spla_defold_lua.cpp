@@ -258,13 +258,45 @@ int gc_instance(lua_State* lua_state)
     return 0;
 }
 
-// Lua: spla_native.play(handle, animation_id) -> boolean.
+bool read_emit_events_option(lua_State* lua_state,
+                             int index,
+                             const char* api_name,
+                             bool& emit_events)
+{
+    emit_events = true;
+    if (lua_gettop(lua_state) < index || lua_isnil(lua_state, index)) {
+        return true;
+    }
+
+    if (!lua_istable(lua_state, index)) {
+        luaL_error(lua_state, "SpriteLoop %s options must be a table", api_name);
+        return false;
+    }
+
+    lua_getfield(lua_state, index, "emit_events");
+    if (!lua_isnil(lua_state, -1)) {
+        if (!lua_isboolean(lua_state, -1)) {
+            lua_pop(lua_state, 1);
+            luaL_error(lua_state, "SpriteLoop %s options.emit_events must be a boolean",
+                       api_name);
+            return false;
+        }
+        emit_events = lua_toboolean(lua_state, -1) != 0;
+    }
+    lua_pop(lua_state, 1);
+    return true;
+}
+
+// Lua: spla_native.play(handle, animation_id, options?) -> boolean.
 int play(lua_State* lua_state)
 {
     DM_LUA_STACK_CHECK(lua_state, 1);
     spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
     const char* animation_id = luaL_checkstring(lua_state, 2);
-    const bool played = instance->player->play(animation_id);
+    bool emit_events = true;
+    read_emit_events_option(lua_state, 3, "play", emit_events);
+    const bool played = instance->player->play(animation_id, emit_events);
+    spla_defold::log_event_queue_overflow_if_needed(*instance);
     if (!played) {
         log_missing_animation(*instance, animation_id);
     }
@@ -288,26 +320,33 @@ int update(lua_State* lua_state)
     spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
     const float delta_seconds = static_cast<float>(luaL_checknumber(lua_state, 2));
     instance->player->update(delta_seconds);
+    spla_defold::log_event_queue_overflow_if_needed(*instance);
     return 0;
 }
 
-// Lua: spla_native.set_time(handle, seconds).
+// Lua: spla_native.set_time(handle, seconds, options?).
 int set_time(lua_State* lua_state)
 {
     DM_LUA_STACK_CHECK(lua_state, 0);
     spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
     const float seconds = static_cast<float>(luaL_checknumber(lua_state, 2));
-    instance->player->set_time(seconds);
+    bool emit_events = true;
+    read_emit_events_option(lua_state, 3, "set_time", emit_events);
+    instance->player->set_time(seconds, emit_events);
+    spla_defold::log_event_queue_overflow_if_needed(*instance);
     return 0;
 }
 
-// Lua: spla_native.set_frame(handle, frame_index).
+// Lua: spla_native.set_frame(handle, frame_index, options?).
 int set_frame(lua_State* lua_state)
 {
     DM_LUA_STACK_CHECK(lua_state, 0);
     spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
     const int frame_index = static_cast<int>(luaL_checknumber(lua_state, 2));
-    instance->player->set_frame(frame_index);
+    bool emit_events = true;
+    read_emit_events_option(lua_state, 3, "set_frame", emit_events);
+    instance->player->set_frame(frame_index, emit_events);
+    spla_defold::log_event_queue_overflow_if_needed(*instance);
     return 0;
 }
 
@@ -443,6 +482,15 @@ int get_info(lua_State* lua_state)
     lua_setfield(lua_state, -2, "time");
     lua_pushinteger(lua_state, instance->player->current_frame_index());
     lua_setfield(lua_state, -2, "frame_index");
+    lua_pushinteger(lua_state,
+                    static_cast<lua_Integer>(instance->player->pending_event_count()));
+    lua_setfield(lua_state, -2, "pending_event_count");
+    lua_pushinteger(lua_state,
+                    static_cast<lua_Integer>(instance->player->max_pending_events()));
+    lua_setfield(lua_state, -2, "max_pending_events");
+    lua_pushnumber(lua_state,
+                   static_cast<lua_Number>(instance->player->dropped_event_count()));
+    lua_setfield(lua_state, -2, "dropped_event_count");
     lua_pushnumber(lua_state, instance->x);
     lua_setfield(lua_state, -2, "x");
     lua_pushnumber(lua_state, instance->y);
@@ -516,11 +564,16 @@ spla_defold::SplaDefoldComponent* check_component(lua_State* lua_state, int inde
     return component;
 }
 
-// Reads the optional play options table. Currently supported:
-// { loop = boolean }.
-bool read_play_options(lua_State* lua_state, int index, bool current_loop, bool& loop)
+// Reads the optional play options table:
+// { loop = boolean, emit_events = boolean }.
+bool read_play_options(lua_State* lua_state,
+                       int index,
+                       bool current_loop,
+                       bool& loop,
+                       bool& emit_events)
 {
     loop = current_loop;
+    emit_events = true;
     if (lua_gettop(lua_state) < index || lua_isnil(lua_state, index)) {
         return true;
     }
@@ -540,6 +593,18 @@ bool read_play_options(lua_State* lua_state, int index, bool current_loop, bool&
         loop = lua_toboolean(lua_state, -1) != 0;
     }
     lua_pop(lua_state, 1);
+
+    lua_getfield(lua_state, index, "emit_events");
+    if (!lua_isnil(lua_state, -1)) {
+        if (!lua_isboolean(lua_state, -1)) {
+            lua_pop(lua_state, 1);
+            luaL_error(lua_state,
+                       "SpriteLoop play_anim options.emit_events must be a boolean");
+            return false;
+        }
+        emit_events = lua_toboolean(lua_state, -1) != 0;
+    }
+    lua_pop(lua_state, 1);
     return true;
 }
 
@@ -551,9 +616,11 @@ int component_play_anim(lua_State* lua_state)
     spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
     const char* animation_id = luaL_checkstring(lua_state, 2);
     bool loop = component->loop;
-    read_play_options(lua_state, 3, component->loop, loop);
+    bool emit_events = true;
+    read_play_options(lua_state, 3, component->loop, loop, emit_events);
     component->instance->player->set_loop_override(loop);
-    const bool played = component->instance->player->play(animation_id);
+    const bool played = component->instance->player->play(animation_id, emit_events);
+    spla_defold::log_event_queue_overflow_if_needed(*component->instance);
     if (played) {
         component->default_animation = animation_id;
         component->loop = loop;
@@ -574,21 +641,29 @@ int component_stop_anim(lua_State* lua_state)
     return 0;
 }
 
-// Lua: spriteloop_native.set_time(url, seconds).
+// Lua: spriteloop_native.set_time(url, seconds, options?).
 int component_set_time(lua_State* lua_state)
 {
     DM_LUA_STACK_CHECK(lua_state, 0);
     spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
-    component->instance->player->set_time(static_cast<float>(luaL_checknumber(lua_state, 2)));
+    bool emit_events = true;
+    read_emit_events_option(lua_state, 3, "set_time", emit_events);
+    component->instance->player->set_time(
+        static_cast<float>(luaL_checknumber(lua_state, 2)), emit_events);
+    spla_defold::log_event_queue_overflow_if_needed(*component->instance);
     return 0;
 }
 
-// Lua: spriteloop_native.set_frame(url, frame_index).
+// Lua: spriteloop_native.set_frame(url, frame_index, options?).
 int component_set_frame(lua_State* lua_state)
 {
     DM_LUA_STACK_CHECK(lua_state, 0);
     spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
-    component->instance->player->set_frame(static_cast<int>(luaL_checknumber(lua_state, 2)));
+    bool emit_events = true;
+    read_emit_events_option(lua_state, 3, "set_frame", emit_events);
+    component->instance->player->set_frame(
+        static_cast<int>(luaL_checknumber(lua_state, 2)), emit_events);
+    spla_defold::log_event_queue_overflow_if_needed(*component->instance);
     return 0;
 }
 
@@ -738,6 +813,15 @@ int component_get_info(lua_State* lua_state)
     lua_setfield(lua_state, -2, "time");
     lua_pushinteger(lua_state, instance->player->current_frame_index());
     lua_setfield(lua_state, -2, "frame_index");
+    lua_pushinteger(lua_state,
+                    static_cast<lua_Integer>(instance->player->pending_event_count()));
+    lua_setfield(lua_state, -2, "pending_event_count");
+    lua_pushinteger(lua_state,
+                    static_cast<lua_Integer>(instance->player->max_pending_events()));
+    lua_setfield(lua_state, -2, "max_pending_events");
+    lua_pushnumber(lua_state,
+                   static_cast<lua_Number>(instance->player->dropped_event_count()));
+    lua_setfield(lua_state, -2, "dropped_event_count");
     lua_pushnumber(lua_state, component->playback_rate);
     lua_setfield(lua_state, -2, "playback_rate");
     lua_pushboolean(lua_state, component->loop ? 1 : 0);

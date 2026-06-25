@@ -2,6 +2,8 @@
 
 #include "spriteloop/spla.hpp"
 
+#include <dmsdk/dlib/log.h>
+
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -27,6 +29,12 @@ std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>>& shared_resources(
 {
     static std::vector<std::unique_ptr<SplaDefoldSharedPackageResource>> resources;
     return resources;
+}
+
+std::size_t& default_max_pending_events()
+{
+    static std::size_t value = spriteloop::SplaPlayer::default_max_pending_events;
+    return value;
 }
 
 SplaDefoldRenderStats& global_render_stats()
@@ -145,7 +153,8 @@ SplaDefoldInstance* create_instance_from_memory(const char* path,
     }
     rebuild_instance_baked_data(*instance);
 
-    instance->player.reset(new spriteloop::SplaPlayer(instance->package));
+    instance->player.reset(
+        new spriteloop::SplaPlayer(instance->package, default_max_pending_events()));
     register_instance(instance.get());
     return instance.release();
 }
@@ -223,10 +232,34 @@ SplaDefoldInstance* create_instance_from_shared_resource(
     instance->path = shared_resource->path;
     instance->byte_count = shared_resource->byte_count;
     instance->shared_resource = shared_resource;
-    instance->player.reset(new spriteloop::SplaPlayer(shared_resource->package));
+    instance->player.reset(
+        new spriteloop::SplaPlayer(shared_resource->package, default_max_pending_events()));
     rebuild_instance_baked_data(*instance);
     register_instance(instance.get());
     return instance.release();
+}
+
+void set_default_max_pending_events(int max_pending_events)
+{
+    default_max_pending_events() =
+        max_pending_events > 0
+            ? static_cast<std::size_t>(max_pending_events)
+            : spriteloop::SplaPlayer::default_max_pending_events;
+}
+
+void log_event_queue_overflow_if_needed(SplaDefoldInstance& instance)
+{
+    if (instance.event_overflow_warning_logged || instance.player == nullptr ||
+        instance.player->dropped_event_count() == 0) {
+        return;
+    }
+
+    dmLogWarning(
+        "SpriteLoop event queue overflow in '%s': oldest events are being dropped "
+        "(max_pending_events=%u)",
+        instance.path.empty() ? "<unknown>" : instance.path.c_str(),
+        static_cast<uint32_t>(instance.player->max_pending_events()));
+    instance.event_overflow_warning_logged = true;
 }
 
 // Destroys an instance previously returned by create_instance_from_memory.

@@ -1,6 +1,8 @@
 local spriteloop = require "spriteloop.spriteloop"
+local spla = require "spriteloop.spla"
 
 local COMPONENT = "#robot"
+local EVENT_COMPONENT = "#event_robot"
 
 local function expect(label, actual, expected)
     if actual ~= expected then
@@ -14,9 +16,14 @@ function init(self)
     local info = spriteloop.get_info(COMPONENT)
     expect("get_info has skins", (info.skin_count or 0) > 0, true)
     expect("get_info has variants", (info.variant_count or 0) > 0, true)
+    expect("get_info event queue limit", info.max_pending_events, 256)
+    expect("get_info pending events", info.pending_event_count, 0)
+    expect("get_info dropped events", info.dropped_event_count, 0)
 
     expect("play animation by id", spriteloop.play_anim(COMPONENT, "idle"), true)
     expect("play animation by name", spriteloop.play_anim(COMPONENT, "Idle"), true)
+    expect("play animation with events disabled",
+        spriteloop.play_anim(COMPONENT, "idle", { emit_events = false }), true)
     expect("missing animation", spriteloop.play_anim(COMPONENT, "__missing_animation__"), false)
 
     expect("set skin by id/name", spriteloop.set_skin(COMPONENT, "blue_robot"), true)
@@ -32,5 +39,49 @@ function init(self)
     expect("clear missing variant part", spriteloop.clear_variant(COMPONENT, "__missing_part__"), false)
 
     spriteloop.clear_variants(COMPONENT)
+
+    expect("event animation with events disabled",
+        spriteloop.play_anim(EVENT_COMPONENT, "run", { emit_events = false }), true)
+    expect("disabled play emits no frame 0 event",
+        #spriteloop.consume_events(EVENT_COMPONENT), 0)
+
+    spriteloop.set_frame(EVENT_COMPONENT, 0)
+    local events = spriteloop.consume_events(EVENT_COMPONENT)
+    expect("set_frame emits destination event count", #events, 1)
+    expect("set_frame emits destination event", events[1].name, "step")
+    expect("set_frame event frame", events[1].frame, 0)
+
+    spriteloop.set_frame(EVENT_COMPONENT, 1, { emit_events = false })
+    expect("set_frame emit_events false suppresses destination event",
+        #spriteloop.consume_events(EVENT_COMPONENT), 0)
+
+    spriteloop.set_time(EVENT_COMPONENT, 0)
+    events = spriteloop.consume_events(EVENT_COMPONENT)
+    expect("set_time emits destination event count", #events, 1)
+    expect("set_time emits destination event", events[1].name, "step")
+    expect("set_time event frame", events[1].frame, 0)
+
+    spriteloop.set_time(EVENT_COMPONENT, 1 / 60, { emit_events = false })
+    expect("set_time emit_events false suppresses destination event",
+        #spriteloop.consume_events(EVENT_COMPONENT), 0)
+
+    expect("event animation queues frame 0",
+        spriteloop.play_anim(EVENT_COMPONENT, "run"), true)
+    spriteloop.set_frame(EVENT_COMPONENT, 1, { emit_events = false })
+    events = spriteloop.consume_events(EVENT_COMPONENT)
+    expect("seek preserves already queued events", #events, 1)
+    expect("preserved event name", events[1].name, "step")
+    expect("preserved event frame", events[1].frame, 0)
+
+    local handle = spla.load("/example/events/clockheart.spla")
+    local handle_info = spla.get_info(handle)
+    expect("low-level event queue limit", handle_info.max_pending_events, 256)
+    expect("low-level play with events disabled",
+        spla.play(handle, "run", { emit_events = false }), true)
+    spla.set_frame(handle, 0, { emit_events = false })
+    spla.set_time(handle, 0, { emit_events = false })
+    expect("low-level suppressed events", #spla.consume_events(handle), 0)
+    spla.destroy(handle)
+
     print("SpriteLoop Lua API test passed")
 end

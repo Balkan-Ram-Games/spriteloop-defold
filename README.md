@@ -51,9 +51,34 @@ so each queue-draining approach can be tested in isolation.
 
 ## Animation Events
 
-SpriteLoop frame events are collected during playback updates. You can either
+SpriteLoop emits frame events when playback enters a frame. Starting an animation
+emits events on frame 0, normal playback emits events for every crossed frame,
+and `set_frame()` or `set_time()` emits only events on the destination frame.
+You can either
 drain the event queue yourself with `consume_events()`, or register Lua
 callbacks and drain/dispatch the queue with `dispatch_events()`.
+
+Event emission is enabled by default. Disable it for an entire playback session
+with:
+
+```lua
+spriteloop.play_anim("#robot", "idle", {
+    loop = true,
+    emit_events = false,
+})
+```
+
+For direct positioning, `emit_events` affects only that operation and does not
+change whether subsequent playback emits events:
+
+```lua
+spriteloop.set_frame("#robot", 10, { emit_events = false })
+spriteloop.set_time("#robot", 0.5, { emit_events = false })
+```
+
+Direct positioning never emits events from intermediate frames. Explicitly
+selecting the current frame emits that frame's events again unless disabled.
+Playing or seeking never removes events that were already queued.
 
 Use `consume_events()` when you want explicit control over batching, ordering,
 or delayed handling:
@@ -69,8 +94,8 @@ end
 ```
 
 `consume_events()` returns all pending events since the previous consume call
-and clears the queue for that component. If you do not consume regularly, events
-remain queued and will be returned later.
+and clears the queue for that component. Pending events remain available until
+consumed or displaced by the configured queue limit.
 
 Use `listen()` when you prefer callback-style gameplay code:
 
@@ -126,6 +151,19 @@ Each event table contains:
 
 The same API is available from `spriteloop.spla` for manually loaded handles:
 `spla.consume_events(handle)`.
+
+Each component and low-level handle has an independent bounded event queue. Set
+the maximum number of pending events in `game.project`:
+
+```ini
+[spriteloop]
+max_pending_events = 256
+```
+
+The default is 256. Zero and negative values also use 256. When the queue is
+full, SpriteLoop drops the oldest event, keeps the newest event, increments
+`dropped_event_count`, and logs one warning for that player. `get_info()` exposes
+`pending_event_count`, `max_pending_events`, and `dropped_event_count`.
 
 ## Skins and Part Variants
 

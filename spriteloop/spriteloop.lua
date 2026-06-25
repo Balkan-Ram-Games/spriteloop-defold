@@ -18,7 +18,7 @@ local function call(name, ...)
 end
 
 -- Plays an animation id or name on the SpriteLoop component at url.
--- options can include { loop = true } or { loop = false }.
+-- options can include loop and emit_events booleans.
 function M.play_anim(url, animation_id, options)
     return call("play_anim", url, animation_id, options)
 end
@@ -28,14 +28,14 @@ function M.stop_anim(url)
     return call("stop_anim", url)
 end
 
--- Sets absolute playback time in seconds on the component at url.
-function M.set_time(url, seconds)
-    return call("set_time", url, seconds)
+-- Sets absolute playback time in seconds. Destination events emit by default.
+function M.set_time(url, seconds, options)
+    return call("set_time", url, seconds, options)
 end
 
--- Sets the current animation frame index on the component at url.
-function M.set_frame(url, frame_index)
-    return call("set_frame", url, frame_index)
+-- Sets the current animation frame index. Destination events emit by default.
+function M.set_frame(url, frame_index, options)
+    return call("set_frame", url, frame_index, options)
 end
 
 -- Returns and clears playback events collected by previous component updates.

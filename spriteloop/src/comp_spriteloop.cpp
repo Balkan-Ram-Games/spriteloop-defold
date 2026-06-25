@@ -27,6 +27,7 @@ namespace spla_defold {
 namespace {
 
 constexpr const char* max_count_property = "spriteloop.max_count";
+constexpr const char* max_pending_events_property = "spriteloop.max_pending_events";
 const dmhash_t position_property = dmHashString64("position");
 const dmhash_t rotation_property = dmHashString64("rotation");
 const dmhash_t scale_property = dmHashString64("scale");
@@ -50,6 +51,7 @@ struct SpriteLoopContext {
     dmGraphics::HContext graphics_context = 0;
     dmRender::HRenderContext render_context = 0;
     uint32_t max_components_per_world = 1024;
+    uint32_t max_pending_events = spriteloop::SplaPlayer::default_max_pending_events;
 };
 
 struct RenderSignatureEntry {
@@ -1108,6 +1110,7 @@ dmGameObject::CreateResult component_init(const dmGameObject::ComponentInitParam
         !component->default_animation.empty()) {
         const bool played =
             component->instance->player->play(component->default_animation.c_str());
+        log_event_queue_overflow_if_needed(*component->instance);
         if (!played) {
             dmLogWarning("SpriteLoop default animation '%s' was not found in '%s'",
                          component->default_animation.c_str(),
@@ -1168,6 +1171,7 @@ dmGameObject::UpdateResult component_update(
         if (component != nullptr && component->instance != nullptr &&
             component->instance->player != nullptr) {
             component->instance->player->update(dt * component->playback_rate);
+            log_event_queue_overflow_if_needed(*component->instance);
             ++world->update_stats.playback_updates;
             component->instance->visible = component->visible;
         }
@@ -1279,6 +1283,14 @@ dmGameObject::Result component_type_create(const dmGameObject::ComponentTypeCrea
         ctx->m_Contexts.Get(dmHashString64("render")));
     context->max_components_per_world =
         dmConfigFile::GetInt(ctx->m_Config, max_count_property, 1024);
+    const int configured_max_pending_events = dmConfigFile::GetInt(
+        ctx->m_Config, max_pending_events_property,
+        static_cast<int>(spriteloop::SplaPlayer::default_max_pending_events));
+    context->max_pending_events = configured_max_pending_events > 0
+                                      ? static_cast<uint32_t>(configured_max_pending_events)
+                                      : static_cast<uint32_t>(
+                                            spriteloop::SplaPlayer::default_max_pending_events);
+    set_default_max_pending_events(static_cast<int>(context->max_pending_events));
     dmGameObject::ComponentTypeSetPrio(type, 1050);
     dmGameObject::ComponentTypeSetContext(type, context);
     dmGameObject::ComponentTypeSetHasUserData(type, true);
