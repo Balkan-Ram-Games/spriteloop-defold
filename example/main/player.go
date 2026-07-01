@@ -66,8 +66,7 @@ embedded_components {
 embedded_components {
   id: "robot3"
   type: "spriteloop"
-  data: "package: \"/example/assets/robot.spla\"\n"
-  "default_animation: \"test\"\n"
+  data: "package: \"/example/assets/tint_idle.spla\"\n"
   "material: \"/spriteloop/spriteloop/materials/spriteloop.material\"\n"
   ""
   position {
@@ -77,10 +76,6 @@ embedded_components {
   rotation {
     z: 0.18496804
     w: 0.9827445
-  }
-  scale {
-    x: 0.4
-    y: 0.4
   }
 }
 embedded_components {
