@@ -30,7 +30,7 @@
            [editor.types AABB]
            [java.awt AlphaComposite RenderingHints]
            [java.awt.geom AffineTransform]
-           [java.awt.image BufferedImage]
+           [java.awt.image BufferedImage RescaleOp]
            [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.nio ByteBuffer]
            [javax.imageio ImageIO]
@@ -393,11 +393,32 @@
 ;; graphics is the destination Graphics2D, entries contains zip entry bytes, parts-by-id maps part
 ;; ids to manifest parts, variants-by-id maps runtime variants, skin is the selected preview skin,
 ;; and frame-part contains the frame-local transform.
+(defn- preview-tint [frame-part]
+  (let [tint (:tint frame-part)]
+    (if (and (sequential? tint) (= 3 (count tint)) (every? number? tint))
+      (mapv #(max 0.0 (min 1.0 (double %))) tint)
+      [1.0 1.0 1.0])))
+
+(defn- tinted-preview-image [^BufferedImage image frame-part]
+  (let [[r g b] (preview-tint frame-part)]
+    (if (and (= 1.0 r) (= 1.0 g) (= 1.0 b))
+      image
+      (let [argb (BufferedImage. (.getWidth image) (.getHeight image) BufferedImage/TYPE_INT_ARGB)
+            argb-graphics (.createGraphics argb)]
+        (.drawImage argb-graphics image 0 0 nil)
+        (.dispose argb-graphics)
+        (.filter (RescaleOp. (float-array [r g b 1.0])
+                             (float-array [0.0 0.0 0.0 0.0])
+                             nil)
+                 argb
+                 nil)))))
+
 (defn- draw-frame-part! [^java.awt.Graphics2D graphics entries parts-by-id variants-by-id skin frame-part]
   (when-let [part (get parts-by-id (:part frame-part))]
     (when-let [preview-image (preview-part-image part variants-by-id skin)]
       (when-let [asset-bytes (get entries (:asset preview-image))]
-      (when-let [image (ImageIO/read (ByteArrayInputStream. asset-bytes))]
+      (when-let [source-image (ImageIO/read (ByteArrayInputStream. asset-bytes))]
+        (let [image (tinted-preview-image source-image frame-part)]
         (let [pivot-x (number-or (:pivot-x preview-image) (* 0.5 (.getWidth image)))
               pivot-y (number-or (:pivot-y preview-image) (* 0.5 (.getHeight image)))
               tx (number-or (:x frame-part) 0.0)
@@ -424,7 +445,7 @@
               old-composite (.getComposite graphics)]
           (.setComposite graphics (AlphaComposite/getInstance AlphaComposite/SRC_OVER (float opacity)))
           (.drawImage graphics image transform nil)
-          (.setComposite graphics old-composite)))))))
+          (.setComposite graphics old-composite))))))))
 
 ;; Composes one transparent BufferedImage for the selected animation's first frame.
 ;; manifest is parsed JSON data, entries are raw .spla zip entries, default-animation is the

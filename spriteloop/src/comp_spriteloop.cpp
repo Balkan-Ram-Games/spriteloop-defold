@@ -337,6 +337,9 @@ SpriteLoopVertex transform_baked_vertex(const SplaDefoldInstance& instance,
     vertex.z = transformed.getZ();
     vertex.u = baked.u;
     vertex.v = baked.v;
+    vertex.r = baked.r;
+    vertex.g = baked.g;
+    vertex.b = baked.b;
     vertex.a = baked.a;
     return vertex;
 }
