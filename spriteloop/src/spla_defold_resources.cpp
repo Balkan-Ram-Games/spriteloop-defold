@@ -93,12 +93,6 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
         spriteloop::build_part_image_map_by_asset(package);
     const std::vector<std::string>& asset_paths = image_map.source_asset_paths;
 
-    if (asset_paths.empty()) {
-        error = "failed to build image map for package assets";
-        resources.clear();
-        return false;
-    }
-
     resources.resize(asset_paths.size());
     for (std::size_t asset_index = 0; asset_index < asset_paths.size(); ++asset_index) {
         const std::string& asset_path = asset_paths[asset_index];
@@ -190,6 +184,15 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
         atlas_images.push_back(std::move(image));
     }
 
+    if (atlas_images.empty()) {
+        spriteloop::SplaRgbaImage image;
+        image.id = "__spriteloop_empty";
+        image.width = 1;
+        image.height = 1;
+        image.pixels = {0, 0, 0, 0};
+        atlas_images.push_back(std::move(image));
+    }
+
     spriteloop::SplaAtlasOptions options;
     options.padding = 1;
     auto atlas_result = spriteloop::pack_rgba_atlas(atlas_images, options);
@@ -205,7 +208,7 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
         return false;
     }
 
-    dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureCreationParams creation_params = {};
     creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
     creation_params.m_Width = static_cast<std::uint16_t>(atlas.width);
     creation_params.m_Height = static_cast<std::uint16_t>(atlas.height);
@@ -223,7 +226,7 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
         return false;
     }
 
-    dmGraphics::TextureParams texture_params;
+    dmGraphics::TextureParams texture_params = {};
     texture_params.m_Data = atlas.pixels.data();
     texture_params.m_DataSize = static_cast<std::uint32_t>(atlas.pixels.size());
     texture_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
@@ -251,6 +254,7 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
     for (std::size_t i = 0; i < resources.size(); ++i) {
         if (resources[i].atlas_region_index >= atlas.regions.size()) {
             error = "image resource has invalid atlas region: " + resources[i].asset_path;
+            destroy_atlas_texture(graphics_context, atlas_texture);
             return false;
         }
 

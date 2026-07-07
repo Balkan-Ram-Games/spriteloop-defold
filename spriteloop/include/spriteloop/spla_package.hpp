@@ -34,6 +34,7 @@ struct SplaPart {
     std::string key;
     std::string name;
     std::string asset_path;
+    bool transform_only = false;
     int width = 0;
     int height = 0;
     SplaVec2 pivot;
