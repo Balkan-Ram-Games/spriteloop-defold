@@ -96,4 +96,10 @@ std::vector<SplaBakedAnimation> build_baked_animations(
     const SplaPackage& package,
     const std::vector<SplaBakedImage>& images);
 
+std::vector<SplaBakedAnimation> build_baked_animations(
+    const SplaPackage& package,
+    const SplaAtlas& atlas,
+    const SplaPartImageMap& image_map,
+    const SplaSkinState& skin_state = {});
+
 } // namespace spriteloop

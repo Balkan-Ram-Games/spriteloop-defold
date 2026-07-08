@@ -56,6 +56,19 @@ std::vector<spriteloop::SplaBakedImage> baked_images_from_resources(
     return spriteloop::build_baked_images_from_atlas(package, atlas, image_map, skin_state);
 }
 
+std::vector<spriteloop::SplaBakedAnimation> baked_animations_from_resources(
+    const spriteloop::SplaPackage& package,
+    const std::vector<SplaDefoldImageResource>& resources,
+    const spriteloop::SplaPartImageMap& image_map,
+    const spriteloop::SplaSkinState& skin_state)
+{
+    spriteloop::SplaAtlas atlas;
+    for (const SplaDefoldImageResource& resource : resources) {
+        atlas.regions.push_back(resource.atlas_region);
+    }
+    return spriteloop::build_baked_animations(package, atlas, image_map, skin_state);
+}
+
 std::uint64_t hash_package_bytes(const std::uint8_t* bytes, std::size_t byte_count)
 {
     constexpr std::uint64_t fnv_offset = 14695981039346656037ull;
@@ -82,7 +95,8 @@ void rebuild_instance_baked_data(SplaDefoldInstance& instance)
     const std::vector<spriteloop::SplaBakedImage> baked_images =
         baked_images_from_resources(package, resources, image_map, instance.skin_state);
     instance.bounds = spriteloop::calculate_baked_bounds(package, baked_images);
-    instance.baked_animations = spriteloop::build_baked_animations(package, baked_images);
+    instance.baked_animations =
+        baked_animations_from_resources(package, resources, image_map, instance.skin_state);
     ++instance.skin_revision;
 }
 
@@ -198,7 +212,8 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
                                     resource->image_map, {});
     resource->bounds = spriteloop::calculate_baked_bounds(resource->package, baked_images);
     resource->baked_animations =
-        spriteloop::build_baked_animations(resource->package, baked_images);
+        baked_animations_from_resources(resource->package, resource->image_resources,
+                                        resource->image_map, {});
 
     resource->ref_count = 1;
     SplaDefoldSharedPackageResource* raw_resource = resource.get();

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace spriteloop {
@@ -61,6 +62,7 @@ struct SplaSkinPartOverride {
     bool has_variant = false;
     bool visible = true;
     bool has_visible = false;
+    std::vector<std::pair<int, int>> state_variant_indices;
 };
 
 struct SplaSkin {
@@ -69,9 +71,20 @@ struct SplaSkin {
     std::vector<SplaSkinPartOverride> parts;
 };
 
+struct SplaSpriteState {
+    std::string id;
+    std::string key;
+    std::string name;
+    int part_index = -1;
+};
+
 struct SplaFramePart {
     int part_index = -1;
     SplaTransform transform;
+    int state_index = -1;
+    int next_state_index = -1;
+    bool has_next_state = false;
+    float state_mix = 0.0f;
 };
 
 struct SplaEvent {
@@ -106,6 +119,7 @@ struct SplaPackage {
     std::vector<SplaPart> parts;
     std::vector<SplaVariant> variants;
     std::vector<SplaSkin> skins;
+    std::vector<SplaSpriteState> states;
     std::vector<SplaAnimation> animations;
     std::vector<SplaAsset> assets;
 };

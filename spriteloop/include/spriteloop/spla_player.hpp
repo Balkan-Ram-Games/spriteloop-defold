@@ -25,7 +25,7 @@ public:
 
     explicit SplaPlayer(
         const SplaPackage& package,
-        std::size_t max_pending_events = default_max_pending_events) noexcept;
+        std::size_t max_pending_events = default_max_pending_events);
 
     [[nodiscard]] const SplaPackage& package() const noexcept;
 
