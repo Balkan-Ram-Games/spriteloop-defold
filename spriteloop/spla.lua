@@ -33,6 +33,9 @@ function M.load(path)
         byte_count = #bytes,
         loaded = true,
         native = false,
+        tint_r = 1,
+        tint_g = 1,
+        tint_b = 1,
     }
 end
 
@@ -157,6 +160,32 @@ end
 function M.clear_variants(handle)
     if native and native.clear_variants then
         return native.clear_variants(handle)
+    end
+end
+
+-- Sets a whole-character runtime RGB tint multiplier.
+function M.set_tint(handle, r, g, b)
+    if native and native.set_tint then
+        return native.set_tint(handle, r, g, b)
+    end
+
+    if type(handle) == "table" then
+        handle.tint_r = math.max(0, math.min(r, 1))
+        handle.tint_g = math.max(0, math.min(g, 1))
+        handle.tint_b = math.max(0, math.min(b, 1))
+    end
+end
+
+-- Resets the whole-character runtime tint multiplier to white.
+function M.clear_tint(handle)
+    if native and native.clear_tint then
+        return native.clear_tint(handle)
+    end
+
+    if type(handle) == "table" then
+        handle.tint_r = 1
+        handle.tint_g = 1
+        handle.tint_b = 1
     end
 end
 

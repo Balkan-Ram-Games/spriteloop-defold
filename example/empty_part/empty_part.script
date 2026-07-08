@@ -1,0 +1,46 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local RANGER = "#ranger"
+local STEP_SECONDS = 1.2
+local TINTS = {
+    { label = "clear", r = 1, g = 1, b = 1, clear = true },
+    { label = "warm", r = 1, g = 0.42, b = 0.34 },
+    { label = "mint", r = 0.48, g = 1, b = 0.62 },
+    { label = "blue", r = 0.45, g = 0.7, b = 1 },
+}
+
+local function apply_tint(self)
+    local tint = TINTS[self.tint_index]
+    if tint.clear then
+        spriteloop.clear_tint(RANGER)
+    else
+        spriteloop.set_tint(RANGER, tint.r, tint.g, tint.b)
+    end
+
+    local info = spriteloop.get_info(RANGER)
+    print(string.format(
+        "SpriteLoop empty part tint: %s rgb=(%.2f, %.2f, %.2f)",
+        tint.label,
+        info.tint_r or 1,
+        info.tint_g or 1,
+        info.tint_b or 1))
+end
+
+function init(self)
+    self.tint_index = 1
+    self.tint_timer = 0
+
+    spriteloop.play_anim(RANGER, "idle", { loop = true })
+    apply_tint(self)
+end
+
+function update(self, dt)
+    self.tint_timer = self.tint_timer + dt
+    if self.tint_timer < STEP_SECONDS then
+        return
+    end
+
+    self.tint_timer = self.tint_timer - STEP_SECONDS
+    self.tint_index = (self.tint_index % #TINTS) + 1
+    apply_tint(self)
+end

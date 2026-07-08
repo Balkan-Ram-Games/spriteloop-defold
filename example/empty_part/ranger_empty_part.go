@@ -1,3 +1,7 @@
+components {
+  id: "controller"
+  component: "/example/empty_part/empty_part.script"
+}
 embedded_components {
   id: "ranger"
   type: "spriteloop"

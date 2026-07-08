@@ -61,6 +61,7 @@ struct RenderSignatureEntry {
     const spriteloop::SplaAnimation* animation = nullptr;
     int frame_index = -1;
     uint32_t skin_revision = 0;
+    uint32_t tint_revision = 0;
     uint32_t vertex_count = 0;
     uint32_t index_count = 0;
 };
@@ -115,6 +116,7 @@ struct ComponentGeometryCache {
     const spriteloop::SplaAnimation* animation = nullptr;
     int frame_index = -1;
     uint32_t skin_revision = 0;
+    uint32_t tint_revision = 0;
     dmVMath::Matrix4 world_matrix;
     dmVMath::Point3 local_position;
     dmVMath::Quat local_rotation;
@@ -337,9 +339,9 @@ SpriteLoopVertex transform_baked_vertex(const SplaDefoldInstance& instance,
     vertex.z = transformed.getZ();
     vertex.u = baked.u;
     vertex.v = baked.v;
-    vertex.r = baked.r;
-    vertex.g = baked.g;
-    vertex.b = baked.b;
+    vertex.r = baked.r * instance.tint_r;
+    vertex.g = baked.g * instance.tint_g;
+    vertex.b = baked.b * instance.tint_b;
     vertex.a = baked.a;
     return vertex;
 }
@@ -408,7 +410,7 @@ bool same_signature_entry(const RenderSignatureEntry& a,
 {
     return a.component == b.component && a.material == b.material && a.texture == b.texture &&
            a.animation == b.animation && a.frame_index == b.frame_index &&
-           a.skin_revision == b.skin_revision &&
+           a.skin_revision == b.skin_revision && a.tint_revision == b.tint_revision &&
            a.vertex_count == b.vertex_count && a.index_count == b.index_count;
 }
 
@@ -468,6 +470,9 @@ RenderSignatureEntry signature_entry_from_prepared(
     entry.skin_revision = prepared.component != nullptr && prepared.component->instance != nullptr
                               ? prepared.component->instance->skin_revision
                               : 0;
+    entry.tint_revision = prepared.component != nullptr && prepared.component->instance != nullptr
+                              ? prepared.component->instance->tint_revision
+                              : 0;
     entry.vertex_count = prepared.vertex_count;
     entry.index_count = prepared.index_count;
     return entry;
@@ -500,6 +505,7 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
         cache.valid && cache.animation == animation &&
         cache.frame_index == frame_index &&
         cache.skin_revision == instance.skin_revision &&
+        cache.tint_revision == instance.tint_revision &&
         same_matrix4(cache.world_matrix, world_matrix) &&
         same_point3(cache.local_position, instance.local_position) &&
         same_quat(cache.local_rotation, instance.local_rotation) &&
@@ -514,6 +520,7 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
         cache.animation = animation;
         cache.frame_index = frame_index;
         cache.skin_revision = instance.skin_revision;
+        cache.tint_revision = instance.tint_revision;
         cache.world_matrix = world_matrix;
         cache.local_position = instance.local_position;
         cache.local_rotation = instance.local_rotation;

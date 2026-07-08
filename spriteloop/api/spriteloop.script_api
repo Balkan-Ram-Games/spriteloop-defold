@@ -125,6 +125,29 @@
     - name: visible
       type: boolean
       desc: Visibility state.
+  - name: set_tint
+    type: function
+    desc: Sets a whole-character runtime RGB tint multiplier.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: r
+      type: number
+      desc: Red multiplier clamped to 0..1.
+    - name: g
+      type: number
+      desc: Green multiplier clamped to 0..1.
+    - name: b
+      type: number
+      desc: Blue multiplier clamped to 0..1.
+  - name: clear_tint
+    type: function
+    desc: Resets the whole-character runtime RGB tint multiplier to white.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
   - name: set_skin
     type: function
     desc: Sets the active runtime skin.

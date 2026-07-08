@@ -81,6 +81,11 @@ std::uint64_t hash_package_bytes(const std::uint8_t* bytes, std::size_t byte_cou
     return hash;
 }
 
+float clamp_tint_channel(float value)
+{
+    return std::max(0.0f, std::min(value, 1.0f));
+}
+
 void rebuild_instance_baked_data(SplaDefoldInstance& instance)
 {
     const spriteloop::SplaPackage& package = instance.shared_resource != nullptr
@@ -406,6 +411,26 @@ void clear_instance_variants(SplaDefoldInstance& instance)
 {
     instance.skin_state.variant_overrides_by_part.clear();
     rebuild_instance_skin(instance);
+}
+
+void set_instance_tint(SplaDefoldInstance& instance, float r, float g, float b)
+{
+    const float next_r = clamp_tint_channel(r);
+    const float next_g = clamp_tint_channel(g);
+    const float next_b = clamp_tint_channel(b);
+    if (instance.tint_r == next_r && instance.tint_g == next_g && instance.tint_b == next_b) {
+        return;
+    }
+
+    instance.tint_r = next_r;
+    instance.tint_g = next_g;
+    instance.tint_b = next_b;
+    ++instance.tint_revision;
+}
+
+void clear_instance_tint(SplaDefoldInstance& instance)
+{
+    set_instance_tint(instance, 1.0f, 1.0f, 1.0f);
 }
 
 // Adds instance to the live registry if it is non-null and not already present.

@@ -70,6 +70,10 @@ struct SplaDefoldInstance {
     spriteloop::SplaPartImageMap image_map;
     spriteloop::SplaSkinState skin_state;
     std::uint32_t skin_revision = 0;
+    float tint_r = 1.0f;
+    float tint_g = 1.0f;
+    float tint_b = 1.0f;
+    std::uint32_t tint_revision = 0;
     bool event_overflow_warning_logged = false;
     float x = 0.0f;
     float y = 0.0f;
@@ -215,6 +219,8 @@ bool set_instance_variant(SplaDefoldInstance& instance,
                           const std::string& variant_id);
 bool clear_instance_variant(SplaDefoldInstance& instance, const std::string& part_id);
 void clear_instance_variants(SplaDefoldInstance& instance);
+void set_instance_tint(SplaDefoldInstance& instance, float r, float g, float b);
+void clear_instance_tint(SplaDefoldInstance& instance);
 
 // Extracts and decodes PNG part images from an already parsed SpriteLoop package.
 // resources is replaced with decoded image entries; error explains the first unsupported asset.

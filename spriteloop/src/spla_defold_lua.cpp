@@ -197,6 +197,17 @@ void log_set_variant_failure(const spla_defold::SplaDefoldInstance& instance,
                  instance_log_path(instance));
 }
 
+void push_instance_tint_fields(lua_State* lua_state,
+                               const spla_defold::SplaDefoldInstance& instance)
+{
+    lua_pushnumber(lua_state, instance.tint_r);
+    lua_setfield(lua_state, -2, "tint_r");
+    lua_pushnumber(lua_state, instance.tint_g);
+    lua_setfield(lua_state, -2, "tint_g");
+    lua_pushnumber(lua_state, instance.tint_b);
+    lua_setfield(lua_state, -2, "tint_b");
+}
+
 // Lua: spla_native.version() -> string.
 int version(lua_State* lua_state)
 {
@@ -441,6 +452,25 @@ int clear_variants(lua_State* lua_state)
     return 0;
 }
 
+int set_tint(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 0);
+    spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
+    const float r = static_cast<float>(luaL_checknumber(lua_state, 2));
+    const float g = static_cast<float>(luaL_checknumber(lua_state, 3));
+    const float b = static_cast<float>(luaL_checknumber(lua_state, 4));
+    spla_defold::set_instance_tint(*instance, r, g, b);
+    return 0;
+}
+
+int clear_tint(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 0);
+    spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
+    spla_defold::clear_instance_tint(*instance);
+    return 0;
+}
+
 // Lua: spla_native.get_info(handle) -> table.
 // Returns package, playback, transform, and image-resource details for diagnostics.
 int get_info(lua_State* lua_state)
@@ -501,6 +531,7 @@ int get_info(lua_State* lua_state)
     lua_setfield(lua_state, -2, "scale_y");
     lua_pushboolean(lua_state, instance->visible ? 1 : 0);
     lua_setfield(lua_state, -2, "visible");
+    push_instance_tint_fields(lua_state, *instance);
 
     if (animation != nullptr) {
         lua_pushstring(lua_state, animation->id.c_str());
@@ -545,6 +576,8 @@ const luaL_reg module_methods[] = {
     {"set_variant", set_variant},
     {"clear_variant", clear_variant},
     {"clear_variants", clear_variants},
+    {"set_tint", set_tint},
+    {"clear_tint", clear_tint},
     {"get_info", get_info},
     {0, 0},
 };
@@ -745,6 +778,25 @@ int component_clear_variants(lua_State* lua_state)
     return 0;
 }
 
+int component_set_tint(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 0);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    const float r = static_cast<float>(luaL_checknumber(lua_state, 2));
+    const float g = static_cast<float>(luaL_checknumber(lua_state, 3));
+    const float b = static_cast<float>(luaL_checknumber(lua_state, 4));
+    spla_defold::set_instance_tint(*component->instance, r, g, b);
+    return 0;
+}
+
+int component_clear_tint(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 0);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    spla_defold::clear_instance_tint(*component->instance);
+    return 0;
+}
+
 // Lua: spriteloop_native.debug_destroy_component(url) -> boolean.
 // Releases one component runtime instance while leaving the Defold component shell in place.
 int component_debug_destroy_component(lua_State* lua_state)
@@ -830,6 +882,7 @@ int component_get_info(lua_State* lua_state)
     lua_setfield(lua_state, -2, "visible");
     lua_pushboolean(lua_state, component->autoplay ? 1 : 0);
     lua_setfield(lua_state, -2, "autoplay");
+    push_instance_tint_fields(lua_state, *instance);
 
     if (animation != nullptr) {
         lua_pushstring(lua_state, animation->id.c_str());
@@ -998,6 +1051,8 @@ const luaL_reg component_module_methods[] = {
     {"set_variant", component_set_variant},
     {"clear_variant", component_clear_variant},
     {"clear_variants", component_clear_variants},
+    {"set_tint", component_set_tint},
+    {"clear_tint", component_clear_tint},
     {"debug_destroy_component", component_debug_destroy_component},
     {"get_info", component_get_info},
     {"get_cache_info", component_get_cache_info},

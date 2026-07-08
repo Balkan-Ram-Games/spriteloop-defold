@@ -160,6 +160,16 @@ function M.clear_variants(url)
     return call("clear_variants", url)
 end
 
+-- Sets a whole-character runtime RGB tint multiplier.
+function M.set_tint(url, r, g, b)
+    return call("set_tint", url, r, g, b)
+end
+
+-- Resets the whole-character runtime tint multiplier to white.
+function M.clear_tint(url)
+    return call("clear_tint", url)
+end
+
 -- Debug helper: releases one SpriteLoop component runtime instance.
 -- This is intended for lifecycle/cache diagnostics, not normal gameplay.
 function M.debug_destroy_component(url)

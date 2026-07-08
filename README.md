@@ -243,6 +243,30 @@ spla.set_skin(handle, "blue_robot")
 spla.set_variant(handle, "head", "head_helmet")
 ```
 
+## Runtime Tint
+
+Scripts can tint a whole SpriteLoop character at runtime. Runtime tint is an RGB
+multiplier applied on top of the tint authored in the `.spla` package, and
+defaults to white:
+
+```lua
+local spriteloop = require "spriteloop.spriteloop"
+
+spriteloop.set_tint("#robot", 1, 0.45, 0.45)
+spriteloop.clear_tint("#robot")
+```
+
+Tint channels are clamped to the 0..1 range. Changing tint frequently on many
+components can increase vertex cache misses and vertex buffer uploads because
+SpriteLoop applies the multiplier through per-vertex color.
+
+The same API is available from `spriteloop.spla` for manually loaded handles:
+
+```lua
+spla.set_tint(handle, 0.5, 0.8, 1)
+spla.clear_tint(handle)
+```
+
 ## Supported Native Extension Libraries
 
 The repository currently includes prebuilt native extension libraries for these
