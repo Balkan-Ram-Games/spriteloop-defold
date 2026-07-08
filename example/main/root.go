@@ -27,6 +27,10 @@ components {
   component: "/example/tests/lua_api_test.collectionproxy"
 }
 components {
+  id: "empty_part_proxy"
+  component: "/example/empty_part/empty_part.collectionproxy"
+}
+components {
   id: "debug_gui"
   component: "/example/main/root_debug.gui"
 }
