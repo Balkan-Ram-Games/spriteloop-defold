@@ -448,12 +448,14 @@ void ensure_quad_index_pattern(SpriteLoopWorld* world, uint32_t quad_count)
     for (uint32_t quad = old_quad_count; quad < quad_count; ++quad) {
         const uint32_t base_vertex = quad * 4;
         const uint32_t base_index = quad * 6;
+        // Baked quads are TL, TR, BR, BL. Keep triangles CCW to match Defold 1.13+
+        // built-in 2D components when projects enable back-face culling.
         world->quad_index_pattern[base_index + 0] = base_vertex + 0;
-        world->quad_index_pattern[base_index + 1] = base_vertex + 1;
-        world->quad_index_pattern[base_index + 2] = base_vertex + 2;
+        world->quad_index_pattern[base_index + 1] = base_vertex + 2;
+        world->quad_index_pattern[base_index + 2] = base_vertex + 1;
         world->quad_index_pattern[base_index + 3] = base_vertex + 0;
-        world->quad_index_pattern[base_index + 4] = base_vertex + 2;
-        world->quad_index_pattern[base_index + 5] = base_vertex + 3;
+        world->quad_index_pattern[base_index + 4] = base_vertex + 3;
+        world->quad_index_pattern[base_index + 5] = base_vertex + 2;
     }
     ++world->frame_stats.index_pattern_rebuilds;
 }
