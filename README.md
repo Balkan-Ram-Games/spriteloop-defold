@@ -225,7 +225,7 @@ for _, skin in ipairs(info.skins) do
 end
 
 for _, variant in ipairs(info.variants) do
-    print(variant.part_key, variant.key, variant.name, variant.id, variant.z_offset)
+    print(variant.part_key, variant.key, variant.name, variant.id, variant.rotation, variant.z_offset)
 end
 ```
 

@@ -103,6 +103,8 @@ void push_package_skin_tables(lua_State* lua_state, const spriteloop::SplaPackag
         }
         lua_pushinteger(lua_state, variant.z_offset);
         lua_setfield(lua_state, -2, "z_offset");
+        lua_pushnumber(lua_state, variant.rotation_degrees);
+        lua_setfield(lua_state, -2, "rotation");
         lua_rawseti(lua_state, -2, static_cast<int>(i + 1));
     }
     lua_setfield(lua_state, -2, "variants");

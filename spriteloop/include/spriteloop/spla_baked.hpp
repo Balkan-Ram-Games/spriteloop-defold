@@ -30,6 +30,7 @@ struct SplaBakedImage {
     float pivot_x = 0.0f;
     float pivot_y = 0.0f;
     bool has_pivot = false;
+    float rotation_degrees = 0.0f;
     int z_offset = 0;
 };
 
