@@ -8,6 +8,7 @@ local ROOT_CONTROLLER = "/root#controller"
 local DEBUG_NODES = {
     "debug_text",
     "bench_mode_text",
+    "resolution_text",
 }
 
 local BUTTONS = {
@@ -106,6 +107,36 @@ local BUTTON_TEXT_DISABLED_COLOR = vmath.vector4(0.62, 0.66, 0.7, 1.0)
 local function format_bytes(bytes)
     local mb = bytes / (1024 * 1024)
     return string.format("%.2f MB", mb)
+end
+
+local function rounded(value)
+    return math.floor((value or 0) + 0.5)
+end
+
+local function current_resolution_text(width, height)
+    width = width or sys.get_config_int("display.width", 0)
+    height = height or sys.get_config_int("display.height", 0)
+
+    if width > 0 and height > 0 then
+        return string.format("resolution: %dx%d", rounded(width), rounded(height))
+    end
+
+    return "resolution: unavailable"
+end
+
+local function read_current_resolution_text()
+    local width = sys.get_config_int("display.width", 0)
+    local height = sys.get_config_int("display.height", 0)
+
+    if window and window.get_size then
+        local ok, window_width, window_height = pcall(window.get_size)
+        if ok and window_width and window_height and window_width > 0 and window_height > 0 then
+            width = window_width
+            height = window_height
+        end
+    end
+
+    return current_resolution_text(width, height)
 end
 
 local function cache_text()
@@ -345,6 +376,14 @@ local function refresh_buttons(self)
     end
 end
 
+local function refresh_resolution(self, width, height)
+    gui.set_text(self.resolution_text_node, current_resolution_text(width, height))
+end
+
+local function refresh_runtime_resolution(self)
+    gui.set_text(self.resolution_text_node, read_current_resolution_text())
+end
+
 local function refresh(self)
     for _, id in ipairs(DEBUG_NODES) do
         gui.set_enabled(gui.get_node(id), self.debug_gui_visible)
@@ -353,6 +392,7 @@ local function refresh(self)
     refresh_buttons(self)
 
     gui.set_text(self.bench_mode_text_node, benchmark_mode_text(self))
+    refresh_runtime_resolution(self)
 
     if not self.debug_gui_visible then
         return
@@ -373,9 +413,19 @@ local function refresh(self)
 
 end
 
+local function window_callback(self, event, data)
+    data = data or {}
+    if event == window.WINDOW_EVENT_RESIZED and data.width and data.height then
+        refresh_resolution(self, data.width, data.height)
+    else
+        refresh_runtime_resolution(self)
+    end
+end
+
 function init(self)
     self.text_node = gui.get_node("debug_text")
     self.bench_mode_text_node = gui.get_node("bench_mode_text")
+    self.resolution_text_node = gui.get_node("resolution_text")
     self.button_nodes = {}
     self.button_text_nodes = {}
     for _, button in ipairs(BUTTONS) do
@@ -396,11 +446,17 @@ function init(self)
     self.benchmark = { active = false }
     self.console_stats_sample = 0
     profiler.enable_ui(false)
+    if window and window.set_listener then
+        window.set_listener(window_callback)
+    end
     msg.post(".", "acquire_input_focus")
     refresh(self)
 end
 
 function final(_self)
+    if window and window.set_listener then
+        window.set_listener(nil)
+    end
     msg.post(".", "release_input_focus")
 end
 

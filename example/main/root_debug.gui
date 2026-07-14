@@ -27,6 +27,30 @@ nodes {
 }
 nodes {
   position {
+    x: 858.0
+    y: 704.0
+  }
+  size {
+    x: 220.0
+    y: 28.0
+  }
+  color {
+    x: 1.0
+    y: 0.92
+    z: 0.18
+    w: 1.0
+  }
+  type: TYPE_TEXT
+  text: "resolution: 1280x720"
+  font: "system_font"
+  id: "resolution_text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NE
+  inherit_alpha: true
+}
+nodes {
+  position {
     x: 1182.0
     y: 704.0
   }
