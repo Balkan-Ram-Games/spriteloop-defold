@@ -30,3 +30,9 @@ platforms:
   armv7-android:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]
+  arm64-ios:
+    context:
+      flags: ["-std=c++17", "-Wno-unused-private-field"]
+  x86_64-ios:
+    context:
+      flags: ["-std=c++17", "-Wno-unused-private-field"]

@@ -24,6 +24,8 @@ jobs:
           - wasm-web
           - arm64-android
           - armv7-android
+          - arm64-ios
+          - x86_64-ios
 
     steps:
       - uses: actions/checkout@v6

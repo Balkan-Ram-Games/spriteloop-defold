@@ -280,6 +280,8 @@ arm64-osx
 wasm-web
 arm64-android
 armv7-android
+arm64-ios
+x86_64-ios
 ```
 
 More Defold arc-platforms can be added by committing the matching library under
@@ -318,6 +320,13 @@ For Android validation, use Defold's Android arc-platform names:
 ```sh
 python3 utils/validate.py --bob path/to/bob.jar --platform arm64-android
 python3 utils/validate.py --bob path/to/bob.jar --platform armv7-android
+```
+
+For iOS validation, use Defold's iOS arc-platform names:
+
+```sh
+python3 utils/validate.py --bob path/to/bob.jar --platform arm64-ios
+python3 utils/validate.py --bob path/to/bob.jar --platform x86_64-ios
 ```
 
 On Windows, the same command works from PowerShell:
