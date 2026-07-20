@@ -81,6 +81,7 @@ struct SplaSpriteState {
 
 struct SplaFramePart {
     int part_index = -1;
+    int z_offset = 0;
     SplaTransform transform;
     int state_index = -1;
     int next_state_index = -1;
