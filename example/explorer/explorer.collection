@@ -1,0 +1,16 @@
+name: "explorer"
+instances {
+  id: "controller"
+  prototype: "/example/explorer/explorer_controller.go"
+}
+instances {
+  id: "preview"
+  prototype: "/example/explorer/explorer_preview.go"
+  position { x: 640.0 y: 365.0 }
+}
+embedded_instances {
+  id: "camera"
+  data: "embedded_components {\n  id: \"camera\"\n  type: \"camera\"\n  data: \"aspect_ratio: 1.0\\nfov: 1.0\\nnear_z: 100.0\\nfar_z: 1000.0\\nauto_aspect_ratio: 1\\n\"\n}\n"
+  position { x: 640.0 y: 360.0 z: 993.0 }
+}
+scale_along_z: 0

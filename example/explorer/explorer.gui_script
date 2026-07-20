@@ -1,0 +1,69 @@
+local TOUCH = hash("touch")
+local CONTROLLER = "#controller"
+
+local BUTTONS = {
+    { box = "open_button", text = "open_text", message = "explorer_open", always = true },
+    { box = "reload_button", text = "reload_text", message = "explorer_reload" },
+    { box = "previous_button", text = "previous_text", message = "explorer_previous_animation" },
+    { box = "play_button", text = "play_text", message = "explorer_toggle_playback" },
+    { box = "next_button", text = "next_text", message = "explorer_next_animation" },
+    { box = "previous_skin_button", text = "previous_skin_text", message = "explorer_previous_skin" },
+    { box = "next_skin_button", text = "next_skin_text", message = "explorer_next_skin" },
+}
+
+local function refresh(self)
+    gui.set_text(self.status, self.state.status or "")
+    gui.set_text(self.play_text, self.state.playing and "Pause" or "Play")
+    for _, button in ipairs(BUTTONS) do
+        local enabled = button.always or self.state.loaded
+        gui.set_enabled(button.node, enabled)
+        gui.set_enabled(button.text_node, enabled)
+    end
+    if not self.state.loaded then
+        gui.set_text(self.info, "No package loaded")
+        return
+    end
+    gui.set_text(self.info, string.format(
+        "%s\n%s\n\nPackage: %s\nCanvas: %d x %d\nParts: %d\nAnimations: %d\nSkins: %d\nVariants: %d\n\nAnimation: %s\nFrame: %d / %d",
+        self.state.filename, self.state.path, self.state.name,
+        self.state.canvas_width, self.state.canvas_height,
+        self.state.part_count, self.state.animation_count,
+        self.state.skin_count, self.state.variant_count,
+        self.state.animation_name .. "\nSkin: " .. (self.state.skin_name or "default"),
+        self.state.frame_index + 1, self.state.frame_count))
+end
+
+function init(self)
+    self.status = gui.get_node("status")
+    self.info = gui.get_node("info")
+    self.play_text = gui.get_node("play_text")
+    self.state = { loaded = false, playing = false }
+    for _, button in ipairs(BUTTONS) do
+        button.node = gui.get_node(button.box)
+        button.text_node = gui.get_node(button.text)
+    end
+    msg.post(".", "acquire_input_focus")
+    refresh(self)
+end
+
+function final(_self)
+    msg.post(".", "release_input_focus")
+end
+
+function on_input(self, action_id, action)
+    if action_id ~= TOUCH or not action.pressed then return end
+    for _, button in ipairs(BUTTONS) do
+        if gui.is_enabled(button.node) and
+            (gui.pick_node(button.node, action.x, action.y) or gui.pick_node(button.text_node, action.x, action.y)) then
+            msg.post(CONTROLLER, button.message)
+            return true
+        end
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("explorer_state") then
+        self.state = message
+        refresh(self)
+    end
+end

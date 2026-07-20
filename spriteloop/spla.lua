@@ -6,6 +6,21 @@ local native = rawget(_G, "spla_native")
 -- still load enough information to fail gracefully when the native extension is unavailable.
 local M = {}
 
+-- Loads a .spla package from bytes already read by the caller.
+-- path is retained for diagnostics and may be an absolute external file path.
+function M.load_bytes(path, bytes)
+    if type(path) ~= "string" or path == "" then
+        error("spla.load_bytes path must be a non-empty string")
+    end
+    if type(bytes) ~= "string" then
+        error("spla.load_bytes bytes must be a string")
+    end
+    if native and native.load_bytes then
+        return native.load_bytes(path, bytes)
+    end
+    error("spla.load_bytes requires the SpriteLoop native extension")
+end
+
 -- Returns the native extension version string.
 function M.version()
     if native and native.version then
@@ -24,7 +39,7 @@ function M.load(path)
     end
 
     if native and native.load_bytes then
-        return native.load_bytes(path, bytes)
+        return M.load_bytes(path, bytes)
     end
 
     print("spla.load Lua placeholder: " .. path .. " (" .. #bytes .. " bytes)")

@@ -1,0 +1,21 @@
+script: "/example/explorer/explorer.gui_script"
+fonts { name: "system_font" font: "/builtins/fonts/default.font" }
+nodes { position { x: 640.0 y: 665.0 } size { x: 900.0 y: 38.0 } type: TYPE_TEXT text: "SPLA Explorer" font: "system_font" id: "title" }
+nodes { position { x: 640.0 y: 620.0 } size { x: 900.0 y: 30.0 } color { x: 0.65 y: 0.75 z: 0.85 w: 1.0 } type: TYPE_TEXT text: "Select any .spla file from your computer" font: "system_font" id: "status" line_break: true }
+nodes { position { x: 1165.0 y: 570.0 } size { x: 190.0 y: 44.0 } color { x: 0.1 y: 0.14 z: 0.19 w: 0.96 } type: TYPE_BOX id: "open_button" }
+nodes { position { x: 1165.0 y: 570.0 } size { x: 180.0 y: 28.0 } type: TYPE_TEXT text: "Open .spla..." font: "system_font" id: "open_text" }
+nodes { position { x: 1165.0 y: 518.0 } size { x: 190.0 y: 44.0 } color { x: 0.1 y: 0.14 z: 0.19 w: 0.96 } type: TYPE_BOX id: "reload_button" }
+nodes { position { x: 1165.0 y: 518.0 } size { x: 180.0 y: 28.0 } type: TYPE_TEXT text: "Reload file" font: "system_font" id: "reload_text" }
+nodes { position { x: 1165.0 y: 430.0 } size { x: 190.0 y: 44.0 } color { x: 0.1 y: 0.14 z: 0.19 w: 0.96 } type: TYPE_BOX id: "previous_button" }
+nodes { position { x: 1165.0 y: 430.0 } size { x: 180.0 y: 28.0 } type: TYPE_TEXT text: "Previous animation" font: "system_font" id: "previous_text" }
+nodes { position { x: 1165.0 y: 378.0 } size { x: 190.0 y: 44.0 } color { x: 0.1 y: 0.14 z: 0.19 w: 0.96 } type: TYPE_BOX id: "play_button" }
+nodes { position { x: 1165.0 y: 378.0 } size { x: 180.0 y: 28.0 } type: TYPE_TEXT text: "Play" font: "system_font" id: "play_text" }
+nodes { position { x: 1165.0 y: 326.0 } size { x: 190.0 y: 44.0 } color { x: 0.1 y: 0.14 z: 0.19 w: 0.96 } type: TYPE_BOX id: "next_button" }
+nodes { position { x: 1165.0 y: 326.0 } size { x: 180.0 y: 28.0 } type: TYPE_TEXT text: "Next animation" font: "system_font" id: "next_text" }
+nodes { position { x: 820.0 y: 570.0 } size { x: 230.0 y: 300.0 } color { x: 0.78 y: 0.84 z: 0.9 w: 1.0 } type: TYPE_TEXT text: "" font: "system_font" id: "info" pivot: PIVOT_NW line_break: true }
+nodes { position { x: 1165.0 y: 255.0 } size { x: 190.0 y: 44.0 } color { x: 0.1 y: 0.14 z: 0.19 w: 0.96 } type: TYPE_BOX id: "previous_skin_button" }
+nodes { position { x: 1165.0 y: 255.0 } size { x: 180.0 y: 28.0 } type: TYPE_TEXT text: "Previous skin" font: "system_font" id: "previous_skin_text" }
+nodes { position { x: 1165.0 y: 203.0 } size { x: 190.0 y: 44.0 } color { x: 0.1 y: 0.14 z: 0.19 w: 0.96 } type: TYPE_BOX id: "next_skin_button" }
+nodes { position { x: 1165.0 y: 203.0 } size { x: 180.0 y: 28.0 } type: TYPE_TEXT text: "Next skin" font: "system_font" id: "next_skin_text" }
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT

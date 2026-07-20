@@ -1,5 +1,6 @@
 [project]
 title = SpriteLoopDefold
+dependencies#0 = https://github.com/AsakuraMizu/defpfd/archive/master.zip
 
 [library]
 include_dirs = spriteloop

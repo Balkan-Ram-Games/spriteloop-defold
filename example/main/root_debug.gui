@@ -5,731 +5,283 @@ fonts {
 }
 nodes {
   position {
-    x: 18.0
-    y: 702.0
+    x: 640.0
+    y: 360.0
   }
   size {
-    x: 820.0
-    y: 540.0
+    x: 1280.0
+    y: 720.0
   }
   color {
-    x: 0.92
-    z: 0.88
+    x: 0.035
+    y: 0.05
+    z: 0.075
   }
-  type: TYPE_TEXT
-  text: "SpriteLoop debug"
-  font: "system_font"
-  id: "debug_text"
-  xanchor: XANCHOR_LEFT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_NW
-  inherit_alpha: true
+  type: TYPE_BOX
+  id: "preview_background"
 }
 nodes {
   position {
-    x: 858.0
-    y: 704.0
+    x: 640.0
+    y: 665.0
   }
   size {
-    x: 220.0
-    y: 28.0
+    x: 700.0
+    y: 48.0
   }
   color {
-    x: 1.0
-    y: 0.92
+    x: 0.94
+    y: 0.97
+  }
+  type: TYPE_TEXT
+  text: "SpriteLoop Examples"
+  font: "system_font"
+  id: "preview_title"
+  line_break: true
+}
+nodes {
+  position {
+    x: 640.0
+    y: 625.0
+  }
+  size {
+    x: 500.0
+    y: 30.0
+  }
+  color {
+    x: 0.6
+    y: 0.7
+    z: 0.8
+  }
+  type: TYPE_TEXT
+  text: "Choose a test collection"
+  font: "system_font"
+  id: "preview_subtitle"
+  line_break: true
+}
+nodes {
+  position {
+    x: 178.0
+    y: 455.0
+  }
+  size {
+    x: 278.0
+    y: 205.0
+  }
+  color {
+    x: 0.18
+    y: 0.48
+    z: 0.78
+  }
+  type: TYPE_BOX
+  id: "preview_demo"
+}
+nodes {
+  position {
+    x: 178.0
+    y: 455.0
+  }
+  size {
+    x: 250.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "SpriteLoop Demo"
+  font: "system_font"
+  id: "preview_demo_text"
+  line_break: true
+}
+nodes {
+  position {
+    x: 486.0
+    y: 455.0
+  }
+  size {
+    x: 278.0
+    y: 205.0
+  }
+  color {
+    x: 0.55
+    y: 0.32
+    z: 0.72
+  }
+  type: TYPE_BOX
+  id: "preview_skins"
+}
+nodes {
+  position {
+    x: 486.0
+    y: 455.0
+  }
+  size {
+    x: 250.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "Skins"
+  font: "system_font"
+  id: "preview_skins_text"
+  line_break: true
+}
+nodes {
+  position {
+    x: 794.0
+    y: 455.0
+  }
+  size {
+    x: 278.0
+    y: 205.0
+  }
+  color {
+    x: 0.19
+    y: 0.58
+    z: 0.48
+  }
+  type: TYPE_BOX
+  id: "preview_events"
+}
+nodes {
+  position {
+    x: 794.0
+    y: 455.0
+  }
+  size {
+    x: 250.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "Animation Events"
+  font: "system_font"
+  id: "preview_events_text"
+  line_break: true
+}
+nodes {
+  position {
+    x: 1102.0
+    y: 455.0
+  }
+  size {
+    x: 278.0
+    y: 205.0
+  }
+  color {
+    x: 0.72
+    y: 0.42
     z: 0.18
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "resolution: 1280x720"
-  font: "system_font"
-  id: "resolution_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_NE
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 704.0
-  }
-  rotation {
-  }
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.9
   }
   type: TYPE_BOX
-  id: "profiler_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
+  id: "preview_api"
 }
 nodes {
   position {
-    x: 1182.0
-    y: 704.0
-  }
-  rotation {
-  }
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
+    x: 1102.0
+    y: 455.0
   }
   size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Profiler OFF"
-  font: "system_font"
-  id: "profiler_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 126.0
-    y: 594.0
-  }
-  size {
-    x: 480.0
-    y: 24.0
-  }
-  color {
-    x: 0.25
-    y: 0.65
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "inactive"
-  font: "system_font"
-  id: "bench_mode_text"
-  xanchor: XANCHOR_LEFT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_NW
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 646.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "debug_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 646.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Hide UI"
-  font: "system_font"
-  id: "debug_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 588.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "scene_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 588.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Unload"
-  font: "system_font"
-  id: "scene_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 530.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "bench_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 530.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Load Bench"
-  font: "system_font"
-  id: "bench_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 472.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "skins_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 472.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Load Skins"
-  font: "system_font"
-  id: "skins_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 994.0
-    y: 472.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "lua_api_test_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 994.0
-    y: 472.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
+    x: 250.0
+    y: 30.0
   }
   type: TYPE_TEXT
   text: "Lua API Test"
   font: "system_font"
-  id: "lua_api_test_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
+  id: "preview_api_text"
+  line_break: true
 }
 nodes {
   position {
-    x: 994.0
-    y: 414.0
+    x: 332.0
+    y: 210.0
   }
   size {
-    x: 176.0
-    y: 50.0
+    x: 278.0
+    y: 205.0
   }
   color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
+    x: 0.48
+    y: 0.48
+    z: 0.52
   }
   type: TYPE_BOX
-  id: "empty_part_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
+  id: "preview_empty"
 }
 nodes {
   position {
-    x: 994.0
-    y: 414.0
+    x: 332.0
+    y: 210.0
   }
   size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
+    x: 250.0
+    y: 30.0
   }
   type: TYPE_TEXT
   text: "Empty Part"
   font: "system_font"
-  id: "empty_part_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
+  id: "preview_empty_text"
+  line_break: true
 }
 nodes {
   position {
-    x: 1182.0
-    y: 414.0
+    x: 640.0
+    y: 210.0
   }
   size {
-    x: 176.0
-    y: 50.0
+    x: 278.0
+    y: 205.0
   }
   color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
+    x: 0.18
+    y: 0.62
+    z: 0.64
   }
   type: TYPE_BOX
-  id: "add_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
+  id: "preview_explorer"
 }
 nodes {
   position {
-    x: 1182.0
-    y: 414.0
+    x: 640.0
+    y: 210.0
   }
   size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
+    x: 250.0
+    y: 30.0
   }
   type: TYPE_TEXT
-  text: "+500 Instances"
+  text: "SPLA Explorer"
   font: "system_font"
-  id: "add_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
+  id: "preview_explorer_text"
+  line_break: true
 }
 nodes {
   position {
-    x: 1182.0
-    y: 356.0
+    x: 948.0
+    y: 210.0
   }
   size {
-    x: 176.0
-    y: 50.0
+    x: 278.0
+    y: 205.0
   }
   color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
+    x: 0.72
+    y: 0.22
+    z: 0.25
   }
   type: TYPE_BOX
-  id: "reset_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
+  id: "preview_bench"
 }
 nodes {
   position {
-    x: 1182.0
-    y: 356.0
+    x: 948.0
+    y: 210.0
   }
   size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
+    x: 250.0
+    y: 30.0
   }
   type: TYPE_TEXT
-  text: "Reset Instances"
+  text: "Benchmarks"
   font: "system_font"
-  id: "reset_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 298.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "center_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 298.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "One Center"
-  font: "system_font"
-  id: "center_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 240.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "mode_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 240.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Next Bench"
-  font: "system_font"
-  id: "mode_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 182.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "previous_mode_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 182.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Prev Bench"
-  font: "system_font"
-  id: "previous_mode_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 124.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "consume_events_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 124.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Consume Events"
-  font: "system_font"
-  id: "consume_events_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 66.0
-  }
-  size {
-    x: 176.0
-    y: 50.0
-  }
-  color {
-    x: 0.12
-    y: 0.16
-    z: 0.2
-    w: 0.92
-  }
-  type: TYPE_BOX
-  id: "listen_events_button"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 1182.0
-    y: 66.0
-  }
-  size {
-    x: 166.0
-    y: 28.0
-  }
-  color {
-    x: 0.92
-    y: 0.96
-    z: 1.0
-    w: 1.0
-  }
-  type: TYPE_TEXT
-  text: "Listen Events"
-  font: "system_font"
-  id: "listen_events_button_text"
-  xanchor: XANCHOR_RIGHT
-  yanchor: YANCHOR_TOP
-  pivot: PIVOT_CENTER
-  inherit_alpha: true
+  id: "preview_bench_text"
+  line_break: true
 }
 material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_PARENT

@@ -6,6 +6,7 @@ local PROXIES = {
     listen_events = "#listen_events_proxy",
     lua_api_test = "#lua_api_test_proxy",
     empty_part = "#empty_part_proxy",
+    explorer = "#explorer_proxy",
 }
 
 local SCENE_NAMES = {
@@ -16,6 +17,18 @@ local SCENE_NAMES = {
     listen_events = "listen events",
     lua_api_test = "lua api test",
     empty_part = "empty part",
+    explorer = "SPLA explorer",
+}
+
+local SCENE_ORDER = {
+    "demo",
+    "skins",
+    "consume_events",
+    "listen_events",
+    "lua_api_test",
+    "empty_part",
+    "explorer",
+    "bench",
 }
 
 local DEBUG_GUI = "#debug_gui"
@@ -77,6 +90,37 @@ local function switch_scene(self, scene)
     end
 end
 
+local function scene_offset(self, offset)
+    if self.busy then
+        return
+    end
+
+    local index = 0
+    for i, scene in ipairs(SCENE_ORDER) do
+        if scene == self.active_scene then
+            index = i
+            break
+        end
+    end
+    if index == 0 then
+        index = offset > 0 and 0 or 1
+    end
+    index = ((index - 1 + offset) % #SCENE_ORDER) + 1
+    switch_scene(self, SCENE_ORDER[index])
+end
+
+local function show_selector(self)
+    if self.busy then
+        return
+    end
+    self.pending_scene = nil
+    if self.active_scene then
+        unload_active_scene(self)
+    else
+        post_debug(self, "selector")
+    end
+end
+
 local function post_benchmark(message_id)
     msg.post(BENCH_CONTROLLER, message_id)
 end
@@ -115,7 +159,7 @@ function init(self)
     self.unloads = 0
     msg.post(".", "acquire_input_focus")
     post_debug(self, "starting")
-    switch_scene(self, "demo")
+    post_debug(self, "selector")
 end
 
 function on_input(self, action_id, action)
@@ -173,6 +217,14 @@ function on_message(self, message_id, _message, sender)
         print("Failed to load collection proxy")
     elseif message_id == hash("ui_toggle_scene") then
         toggle_active_scene(self)
+    elseif message_id == hash("ui_select_scene") then
+        switch_scene(self, _message.scene)
+    elseif message_id == hash("ui_show_selector") then
+        show_selector(self)
+    elseif message_id == hash("ui_next_scene") then
+        scene_offset(self, 1)
+    elseif message_id == hash("ui_previous_scene") then
+        scene_offset(self, -1)
     elseif message_id == hash("ui_load_benchmark") then
         switch_scene(self, "bench")
     elseif message_id == hash("ui_load_skins") then

@@ -31,6 +31,10 @@ components {
   component: "/example/empty_part/empty_part.collectionproxy"
 }
 components {
+  id: "explorer_proxy"
+  component: "/example/explorer/explorer.collectionproxy"
+}
+components {
   id: "debug_gui"
   component: "/example/main/root_debug.gui"
 }

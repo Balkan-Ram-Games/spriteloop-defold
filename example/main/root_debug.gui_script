@@ -1,142 +1,26 @@
-local spriteloop = require "spriteloop.spriteloop"
-
+local ROOT = "/root#controller"
+local TOUCH = hash("touch")
 local TOGGLE_PROFILER = hash("toggle_profiler")
 local TOGGLE_DEBUG_GUI = hash("toggle_debug_gui")
-local TOUCH = hash("touch")
-local ROOT_CONTROLLER = "/root#controller"
+local spriteloop = require "spriteloop.spriteloop"
 
-local DEBUG_NODES = {
-    "debug_text",
-    "bench_mode_text",
-    "resolution_text",
+local LEVELS = {
+    { id = "demo", title = "SpriteLoop Demo", description = "Playback, transforms\nand interaction", color = vmath.vector4(0.18, 0.48, 0.78, 1) },
+    { id = "skins", title = "Skins", description = "Runtime skin and\ntint variants", color = vmath.vector4(0.55, 0.32, 0.72, 1) },
+    { id = "consume_events", title = "Consume Events", description = "Handle animation\nevents directly", color = vmath.vector4(0.19, 0.58, 0.48, 1) },
+    { id = "listen_events", title = "Listen Events", description = "Observe animation\nevent streams", color = vmath.vector4(0.18, 0.55, 0.68, 1) },
+    { id = "lua_api_test", title = "Lua API Test", description = "Exercise the public\nscripting API", color = vmath.vector4(0.72, 0.42, 0.18, 1) },
+    { id = "empty_part", title = "Empty Part", description = "Missing and empty-part\nbehaviour", color = vmath.vector4(0.48, 0.48, 0.52, 1) },
+    { id = "explorer", title = "SPLA Explorer", description = "Open any local .spla\nwithout rebuilding", color = vmath.vector4(0.18, 0.62, 0.64, 1) },
+    { id = "bench", title = "Benchmarks", description = "Render and playback\nstress tests", color = vmath.vector4(0.72, 0.22, 0.25, 1) },
 }
 
-local BUTTONS = {
-    {
-        id = "profiler",
-        box = "profiler_button",
-        text = "profiler_button_text",
-        action = "toggle_profiler",
-    },
-    {
-        id = "debug",
-        box = "debug_button",
-        text = "debug_button_text",
-        action = "toggle_debug",
-    },
-    {
-        id = "toggle",
-        box = "scene_button",
-        text = "scene_button_text",
-        message = "ui_toggle_scene",
-    },
-    {
-        id = "bench",
-        box = "bench_button",
-        text = "bench_button_text",
-        message = "ui_load_benchmark",
-    },
-    {
-        id = "skins",
-        box = "skins_button",
-        text = "skins_button_text",
-        message = "ui_load_skins",
-    },
-    {
-        id = "lua_api_test",
-        box = "lua_api_test_button",
-        text = "lua_api_test_button_text",
-        message = "ui_load_lua_api_test",
-    },
-    {
-        id = "empty_part",
-        box = "empty_part_button",
-        text = "empty_part_button_text",
-        message = "ui_load_empty_part",
-    },
-    {
-        id = "consume_events",
-        box = "consume_events_button",
-        text = "consume_events_button_text",
-        message = "ui_load_consume_events",
-    },
-    {
-        id = "listen_events",
-        box = "listen_events_button",
-        text = "listen_events_button_text",
-        message = "ui_load_listen_events",
-    },
-    {
-        id = "add",
-        box = "add_button",
-        text = "add_button_text",
-        message = "ui_benchmark_add",
-    },
-    {
-        id = "reset",
-        box = "reset_button",
-        text = "reset_button_text",
-        message = "ui_benchmark_reset",
-    },
-    {
-        id = "center",
-        box = "center_button",
-        text = "center_button_text",
-        message = "ui_benchmark_one_centered",
-    },
-    {
-        id = "mode",
-        box = "mode_button",
-        text = "mode_button_text",
-        message = "ui_benchmark_next_mode",
-    },
-    {
-        id = "previous_mode",
-        box = "previous_mode_button",
-        text = "previous_mode_button_text",
-        message = "ui_benchmark_previous_mode",
-    },
-}
-
-local FPS_SAMPLE_COUNT = 60
-local BUTTON_COLOR = vmath.vector4(0.12, 0.16, 0.2, 0.92)
-local BUTTON_DISABLED_COLOR = vmath.vector4(0.22, 0.24, 0.27, 0.7)
-local BUTTON_TEXT_COLOR = vmath.vector4(0.92, 0.96, 1.0, 1.0)
-local BUTTON_TEXT_DISABLED_COLOR = vmath.vector4(0.62, 0.66, 0.7, 1.0)
+local BUTTON_COLOR = vmath.vector4(0.10, 0.14, 0.19, 0.96)
+local DISABLED_COLOR = vmath.vector4(0.22, 0.24, 0.27, 0.75)
+local TEXT_COLOR = vmath.vector4(0.94, 0.97, 1, 1)
 
 local function format_bytes(bytes)
-    local mb = bytes / (1024 * 1024)
-    return string.format("%.2f MB", mb)
-end
-
-local function rounded(value)
-    return math.floor((value or 0) + 0.5)
-end
-
-local function current_resolution_text(width, height)
-    width = width or sys.get_config_int("display.width", 0)
-    height = height or sys.get_config_int("display.height", 0)
-
-    if width > 0 and height > 0 then
-        return string.format("resolution: %dx%d", rounded(width), rounded(height))
-    end
-
-    return "resolution: unavailable"
-end
-
-local function read_current_resolution_text()
-    local width = sys.get_config_int("display.width", 0)
-    local height = sys.get_config_int("display.height", 0)
-
-    if window and window.get_size then
-        local ok, window_width, window_height = pcall(window.get_size)
-        if ok and window_width and window_height and window_width > 0 and window_height > 0 then
-            width = window_width
-            height = window_height
-        end
-    end
-
-    return current_resolution_text(width, height)
+    return string.format("%.2f MB", (bytes or 0) / (1024 * 1024))
 end
 
 local function cache_text()
@@ -144,373 +28,230 @@ local function cache_text()
     if not ok or not info then
         return "cache: unavailable"
     end
-
-    local lines = {
-        string.format("cache entries: %d", info.entry_count or 0),
-        string.format("total refs: %d", info.total_ref_count or 0),
-        string.format("textures: %d", info.total_texture_count or 0),
-        string.format("texture bytes: %s", format_bytes(info.total_texture_bytes or 0)),
-    }
-
-    local entries = info.entries or {}
-    for i, entry in ipairs(entries) do
-        lines[#lines + 1] = string.format(
-            "%d. %s refs=%d textures=%d bytes=%s",
-            i,
-            tostring(entry.path),
-            entry.ref_count or 0,
-            entry.texture_count or 0,
-            format_bytes(entry.texture_bytes or 0))
-    end
-
-    return table.concat(lines, "\n")
+    return string.format("cache: %d entries, %d refs, %d textures, %s",
+        info.entry_count or 0, info.total_ref_count or 0,
+        info.total_texture_count or 0, format_bytes(info.total_texture_bytes))
 end
 
-local function render_stats(state)
+local function benchmark_text(state)
+    if not state or not state.active then
+        return ""
+    end
+    local render = state.render_stats or {}
     local ok, info = pcall(spriteloop.get_cache_info)
     if ok and info and info.render_stats then
-        return info.render_stats
+        render = info.render_stats
     end
-    state = state or {}
-    return state.render_stats or {}
-end
-
-local function console_stats_line(state)
-    local render = render_stats(state)
-    return string.format(
-        "SPRITELOOP_BENCH mode=%s renderer=%s fps=%.1f instances=%d entries=%d quads=%d copies=%d cache=%d/%d slots=%d dirty=%d slotcopies=%d layout=%d reused=%d rejected=%d reasons=%d/%d/%d/%d/%d uploads=%d/%d/%d fullv=%d bytes=%s",
-        tostring(state.mode or "unknown"),
-        tostring(state.renderer or "spriteloop"),
-        state.fps or 0,
-        state.robot_count or 0,
-        render.render_entries_submitted or 0,
-        render.quads_generated or 0,
-        render.vertex_bulk_copies or 0,
-        render.vertex_cache_hits or 0,
-        render.vertex_cache_misses or 0,
-        render.slot_count or 0,
-        render.dirty_slots or 0,
-        render.slot_vertex_copies or 0,
-        render.slot_layout_rebuilds or 0,
-        render.geometry_reused or 0,
-        render.reuse_rejected or 0,
-        render.reuse_reject_invalid_previous or 0,
-        render.reuse_reject_split_batch or 0,
-        render.reuse_reject_signature_size or 0,
-        render.reuse_reject_signature_entry or 0,
-        render.reuse_reject_cache_miss or 0,
-        render.vertex_uploads or 0,
-        render.index_uploads or 0,
-        render.buffer_uploads or 0,
-        render.full_vertex_uploads or 0,
-        format_bytes(render.bytes_uploaded or 0))
-end
-
-local function benchmark_text(self)
-    local state = self.benchmark
-    if not state or not state.active then
-        return "benchmark: inactive"
-    end
-
-    local render = render_stats(state)
     return table.concat({
-        string.format("benchmark: %d / %d instances", state.robot_count or 0, state.max_robots or 0),
-        string.format("%s  %s  fps %.1f",
-            state.renderer or "spriteloop",
-            state.movement or "none",
-            state.fps or 0),
-        state.mode_description or "",
-        string.format("visible est: %d instances / %d quads",
-            state.estimated_visible or 0,
-            state.estimated_visible_quads or 0),
-        string.format("render: components=%d candidates=%d visible/culled=%d/%d",
-            render.component_count or 0,
-            render.render_candidates or 0,
-            render.frustum_visible or 0,
-            render.frustum_culled or 0),
-        string.format("generated: quads=%d vertices=%d batches=%d entries=%d",
-            render.quads_generated or 0,
-            render.vertices_generated or 0,
-            render.batch_flushes or 0,
-            render.render_entries_submitted or 0),
-        string.format("indices=%d render objects=%d playback=%d",
-            render.indices_generated or 0,
-            render.render_objects or 0,
-            render.playback_updates or 0),
-        string.format("vertex cache: hits=%d misses=%d",
-            render.vertex_cache_hits or 0,
-            render.vertex_cache_misses or 0),
-        string.format("geometry: reused=%d rejected=%d copies=%d slots=%d dirty=%d",
-            render.geometry_reused or 0,
-            render.reuse_rejected or 0,
-            render.vertex_bulk_copies or 0,
-            render.slot_count or 0,
-            render.dirty_slots or 0),
-        string.format("slot copies=%d layouts=%d index patterns=%d index layouts=%d",
-            render.slot_vertex_copies or 0,
-            render.slot_layout_rebuilds or 0,
-            render.index_pattern_rebuilds or 0,
-            render.index_layout_uploads or 0),
-        string.format("reject invalid/split/size/entry/miss: %d/%d/%d/%d/%d",
-            render.reuse_reject_invalid_previous or 0,
-            render.reuse_reject_split_batch or 0,
-            render.reuse_reject_signature_size or 0,
-            render.reuse_reject_signature_entry or 0,
-            render.reuse_reject_cache_miss or 0),
-        string.format("uploads: vertex=%d index=%d total=%d bytes=%s",
-            render.vertex_uploads or 0,
-            render.index_uploads or 0,
-            render.buffer_uploads or 0,
-            format_bytes(render.bytes_uploaded or 0)),
-        string.format("full vertex uploads: %d",
-            render.full_vertex_uploads or 0),
-        string.format("cache entries: %d refs: %d", state.cache_entries or 0, state.cache_refs or 0),
-        string.format("textures: %d bytes: %s",
-            state.texture_count or 0,
-            state.texture_bytes_text or format_bytes(state.texture_bytes or 0)),
-        string.format("Space: +%d instances  B: mode  R: reset", state.step_robots or 100),
+        string.format("BENCHMARK  %d/%d instances  |  %.1f fps", state.robot_count or 0, state.max_robots or 0, state.fps or 0),
+        string.format("%d/%d  %s", state.mode_index or 1, state.mode_count or 1, state.mode or "unknown"),
+        tostring(state.mode_description or ""),
+        string.format("visible: %d  quads: %d  components: %d  culled: %d",
+            state.estimated_visible or 0, state.estimated_visible_quads or 0,
+            render.component_count or 0, render.frustum_culled or 0),
+        string.format("geometry reused/rejected: %d/%d  cache hits/misses: %d/%d",
+            render.geometry_reused or 0, render.reuse_rejected or 0,
+            render.vertex_cache_hits or 0, render.vertex_cache_misses or 0),
+        string.format("uploads: %d  bytes: %s  texture memory: %s",
+            render.buffer_uploads or 0, format_bytes(render.bytes_uploaded), format_bytes(state.texture_bytes)),
     }, "\n")
 end
 
-local function set_button(self, button, label, enabled)
-    gui.set_text(self.button_text_nodes[button.id], label)
-    gui.set_color(self.button_nodes[button.id], enabled and BUTTON_COLOR or BUTTON_DISABLED_COLOR)
-    gui.set_color(self.button_text_nodes[button.id], enabled and BUTTON_TEXT_COLOR or BUTTON_TEXT_DISABLED_COLOR)
+local function text_node(position, text, size, color)
+    local node = gui.new_text_node(position, text)
+    gui.set_font(node, "system_font")
+    gui.set_size(node, size)
+    gui.set_color(node, color or TEXT_COLOR)
+    gui.set_pivot(node, gui.PIVOT_CENTER)
+    return node
 end
 
-local function is_benchmark_active(self)
-    return self.scene == "benchmark"
+local function button(self, id, position, size, label, message, payload)
+    local box = gui.new_box_node(position, size)
+    gui.set_color(box, BUTTON_COLOR)
+    local label_node = text_node(position, label, vmath.vector3(size.x - 12, 30, 0))
+    local value = { id = id, box = box, label = label_node, message = message, payload = payload }
+    self.buttons[#self.buttons + 1] = value
+    return value
 end
 
-local function is_skins_active(self)
-    return self.scene == "skins"
-end
-
-local function is_consume_events_active(self)
-    return self.scene == "consume events"
-end
-
-local function is_listen_events_active(self)
-    return self.scene == "listen events"
-end
-
-local function is_lua_api_test_active(self)
-    return self.scene == "lua api test"
-end
-
-local function is_empty_part_active(self)
-    return self.scene == "empty part"
-end
-
-local function button_enabled(self, id)
-    if id == "profiler" or id == "debug" then
-        return true
+local function set_visible(nodes, visible)
+    for _, node in ipairs(nodes) do
+        gui.set_enabled(node, visible)
     end
+end
 
-    if self.busy then
-        return false
+local function create_selector(self)
+    self.selector_nodes = {}
+    local background = gui.new_box_node(vmath.vector3(640, 360, 0), vmath.vector3(1280, 720, 0))
+    gui.set_color(background, vmath.vector4(0.035, 0.05, 0.075, 1))
+    self.selector_nodes[#self.selector_nodes + 1] = background
+    self.selector_nodes[#self.selector_nodes + 1] = text_node(vmath.vector3(640, 665, 0), "SpriteLoop Examples", vmath.vector3(700, 48, 0), TEXT_COLOR)
+    self.selector_nodes[#self.selector_nodes + 1] = text_node(vmath.vector3(640, 625, 0), "Choose a test collection", vmath.vector3(500, 30, 0), vmath.vector4(0.6, 0.7, 0.8, 1))
+
+    for i, level in ipairs(LEVELS) do
+        local column = (i - 1) % 4
+        local row = math.floor((i - 1) / 4)
+        local x = 178 + column * 308
+        local y = 455 - row * 245
+        local card = button(self, "level_" .. level.id, vmath.vector3(x, y, 0), vmath.vector3(278, 205, 0), "", "ui_select_scene", { scene = level.id })
+        gui.set_color(card.box, vmath.vector4(0.08, 0.11, 0.16, 1))
+        gui.set_enabled(card.label, false)
+        local thumb = gui.new_box_node(vmath.vector3(x, y + 35, 0), vmath.vector3(250, 105, 0))
+        gui.set_color(thumb, level.color)
+        local title = text_node(vmath.vector3(x, y - 40, 0), level.title, vmath.vector3(248, 28, 0))
+        local description = text_node(vmath.vector3(x, y - 70, 0), level.description, vmath.vector3(248, 34, 0), vmath.vector4(0.67, 0.73, 0.8, 1))
+        gui.set_line_break(description, true)
+        self.selector_nodes[#self.selector_nodes + 1] = card.box
+        self.selector_nodes[#self.selector_nodes + 1] = thumb
+        self.selector_nodes[#self.selector_nodes + 1] = title
+        self.selector_nodes[#self.selector_nodes + 1] = description
+        card.extra_nodes = { thumb, title, description }
     end
+end
 
-    if id == "add" or id == "reset" or id == "center" or id == "mode" or id == "previous_mode" then
-        return is_benchmark_active(self)
-    elseif id == "bench" then
-        return not is_benchmark_active(self)
-    elseif id == "skins" then
-        return not is_skins_active(self)
-    elseif id == "consume_events" then
-        return not is_consume_events_active(self)
-    elseif id == "listen_events" then
-        return not is_listen_events_active(self)
-    elseif id == "lua_api_test" then
-        return not is_lua_api_test_active(self)
-    elseif id == "empty_part" then
-        return not is_empty_part_active(self)
+local function create_navigation(self)
+    self.nav_nodes = {}
+    local bar = gui.new_box_node(vmath.vector3(640, 34, 0), vmath.vector3(1280, 68, 0))
+    gui.set_color(bar, vmath.vector4(0.035, 0.05, 0.075, 0.96))
+    self.nav_nodes[#self.nav_nodes + 1] = bar
+    for _, item in ipairs({
+        { "previous", 100, "< Previous", "ui_previous_scene" },
+        { "levels", 640, "Levels", "ui_show_selector" },
+        { "next", 1180, "Next >", "ui_next_scene" },
+    }) do
+        local value = button(self, item[1], vmath.vector3(item[2], 34, 0), vmath.vector3(170, 44, 0), item[3], item[4])
+        self.nav_nodes[#self.nav_nodes + 1] = value.box
+        self.nav_nodes[#self.nav_nodes + 1] = value.label
     end
-    return true
 end
 
-local function button_visible(self, id)
-    return self.debug_gui_visible or id == "profiler" or id == "debug"
+local function create_debug(self)
+    self.always_nodes = {}
+    local profiler_button = button(self, "profiler", vmath.vector3(1180, 690, 0), vmath.vector3(175, 40, 0), "Profiler OFF", nil)
+    local debug_button = button(self, "debug", vmath.vector3(990, 690, 0), vmath.vector3(175, 40, 0), "Hide debug", nil)
+    self.profiler_button = profiler_button
+    self.debug_button = debug_button
+    self.always_nodes = { profiler_button.box, profiler_button.label, debug_button.box, debug_button.label }
+
+    self.debug_nodes = {}
+    local panel = gui.new_box_node(vmath.vector3(300, 465, 0), vmath.vector3(565, 345, 0))
+    gui.set_color(panel, vmath.vector4(0.025, 0.035, 0.05, 0.90))
+    self.debug_node = text_node(vmath.vector3(35, 625, 0), "", vmath.vector3(520, 300, 0), TEXT_COLOR)
+    gui.set_pivot(self.debug_node, gui.PIVOT_NW)
+    gui.set_line_break(self.debug_node, true)
+    self.debug_nodes = { panel, self.debug_node }
 end
 
-local function toggle_profiler(self)
-    self.profiler_enabled = not self.profiler_enabled
-    profiler.enable_ui(self.profiler_enabled)
-end
-
-local function toggle_debug_gui(self)
-    self.debug_gui_visible = not self.debug_gui_visible
-end
-
-local function benchmark_mode_text(self)
-    local state = self.benchmark
-    if state and state.active then
-        return string.format("%d/%d %s", state.mode_index or 1, state.mode_count or 1, state.mode or "unknown")
-    end
-    return "inactive"
-end
-
-local function refresh_buttons(self)
-    local labels = {
-        profiler = self.profiler_enabled and "Profiler ON" or "Profiler OFF",
-        debug = self.debug_gui_visible and "Hide UI" or "Show UI",
-        toggle = self.scene ~= "none" and "Unload" or "Load Demo",
-        bench = "Load Bench",
-        skins = "Load Skins",
-        lua_api_test = "Lua API Test",
-        empty_part = "Empty Part",
-        consume_events = "Consume Events",
-        listen_events = "Listen Events",
-        add = string.format("+%d Instances", self.benchmark.step_robots or 500),
-        reset = "Reset Instances",
-        center = "One Center",
-        mode = "Next Bench",
-        previous_mode = "Prev Bench",
+local function create_benchmark_controls(self)
+    self.benchmark_nodes = {}
+    local controls = {
+        { "bench_prev", 1180, 620, "Prev mode", "ui_benchmark_previous_mode" },
+        { "bench_next", 1180, 570, "Next mode", "ui_benchmark_next_mode" },
+        { "bench_add", 1180, 520, "+500", "ui_benchmark_add" },
+        { "bench_reset", 1180, 470, "Reset", "ui_benchmark_reset" },
     }
-
-    for _, button in ipairs(BUTTONS) do
-        local visible = button_visible(self, button.id)
-        gui.set_enabled(self.button_nodes[button.id], visible)
-        gui.set_enabled(self.button_text_nodes[button.id], visible)
-        set_button(self, button, labels[button.id], button_enabled(self, button.id))
+    for _, item in ipairs(controls) do
+        local value = button(self, item[1], vmath.vector3(item[2], item[3], 0), vmath.vector3(125, 40, 0), item[4], item[5])
+        self.benchmark_nodes[#self.benchmark_nodes + 1] = value.box
+        self.benchmark_nodes[#self.benchmark_nodes + 1] = value.label
     end
-end
-
-local function refresh_resolution(self, width, height)
-    gui.set_text(self.resolution_text_node, current_resolution_text(width, height))
-end
-
-local function refresh_runtime_resolution(self)
-    gui.set_text(self.resolution_text_node, read_current_resolution_text())
 end
 
 local function refresh(self)
-    for _, id in ipairs(DEBUG_NODES) do
-        gui.set_enabled(gui.get_node(id), self.debug_gui_visible)
-    end
-
-    refresh_buttons(self)
-
-    gui.set_text(self.bench_mode_text_node, benchmark_mode_text(self))
-    refresh_runtime_resolution(self)
-
-    if not self.debug_gui_visible then
-        return
-    end
-
-    local text = string.format(
-        "SpriteLoop debug\nscene: %s\nstate: %s%s\nfps: %.1f\nloads: %d  unloads: %d\nprofiler: %s\nbench mode:\n\nButtons work on mobile/web.\nKeys: Space add  B mode  R reset\nMiddle click: destroy one demo instance\nP: toggle profiler  G: hide/show this text\n\n%s\n\n%s",
-        self.scene,
-        self.state,
-        self.busy and " (busy)" or "",
-        self.fps,
-        self.loads,
-        self.unloads,
-        self.profiler_enabled and "on" or "off",
+    local in_selector = self.scene == "none"
+    set_visible(self.selector_nodes, in_selector)
+    set_visible(self.nav_nodes, not in_selector)
+    set_visible(self.benchmark_nodes, self.scene == "benchmark")
+    set_visible(self.debug_nodes, self.scene == "benchmark" and self.debug_visible)
+    set_visible(self.always_nodes, not in_selector)
+    gui.set_enabled(self.status_node, not in_selector and self.debug_visible)
+    gui.set_text(self.status_node, string.format("%s  |  %s%s  |  %.1f fps", self.scene, self.state, self.busy and "..." or "", self.fps))
+    gui.set_text(self.profiler_button.label, self.profiler and "Profiler ON" or "Profiler OFF")
+    gui.set_text(self.debug_button.label, self.debug_visible and "Hide debug" or "Show debug")
+    gui.set_text(self.debug_node, table.concat({
+        "SpriteLoop debug",
+        string.format("scene: %s", self.scene),
+        string.format("proxy: %s%s  loads/unloads: %d/%d", self.state, self.busy and " (busy)" or "", self.loads, self.unloads),
         cache_text(),
-        benchmark_text(self))
-    gui.set_text(self.text_node, text)
+        "",
+        benchmark_text(self.benchmark),
+        "",
+        "Keys: P profiler, G debug, Space add, B mode, R reset",
+    }, "\n"))
 
-end
-
-local function window_callback(self, event, data)
-    data = data or {}
-    if event == window.WINDOW_EVENT_RESIZED and data.width and data.height then
-        refresh_resolution(self, data.width, data.height)
-    else
-        refresh_runtime_resolution(self)
+    for _, value in ipairs(self.buttons) do
+        local enabled = not self.busy
+        gui.set_color(value.box, enabled and (value.id:sub(1, 6) == "level_" and vmath.vector4(0.08, 0.11, 0.16, 1) or BUTTON_COLOR) or DISABLED_COLOR)
     end
 end
 
 function init(self)
-    self.text_node = gui.get_node("debug_text")
-    self.bench_mode_text_node = gui.get_node("bench_mode_text")
-    self.resolution_text_node = gui.get_node("resolution_text")
-    self.button_nodes = {}
-    self.button_text_nodes = {}
-    for _, button in ipairs(BUTTONS) do
-        self.button_nodes[button.id] = gui.get_node(button.box)
-        self.button_text_nodes[button.id] = gui.get_node(button.text)
+    -- Static nodes are an editor preview. Runtime nodes are generated from LEVELS.
+    for _, id in ipairs({ "preview_background", "preview_title", "preview_subtitle", "preview_demo", "preview_demo_text", "preview_skins", "preview_skins_text", "preview_events", "preview_events_text", "preview_api", "preview_api_text", "preview_empty", "preview_empty_text", "preview_explorer", "preview_explorer_text", "preview_bench", "preview_bench_text" }) do
+        gui.set_enabled(gui.get_node(id), false)
     end
-    self.state = "starting"
+    self.buttons = {}
     self.scene = "none"
+    self.state = "selector"
     self.busy = false
-    self.loads = 0
-    self.unloads = 0
-    self.elapsed = 0
-    self.fps_elapsed = 0
-    self.fps_frames = 0
-    self.fps = 0
-    self.profiler_enabled = false
-    self.debug_gui_visible = true
+    self.fps, self.fps_frames, self.fps_elapsed = 0, 0, 0
+    self.debug_visible = true
+    self.profiler = false
+    self.loads, self.unloads = 0, 0
     self.benchmark = { active = false }
-    self.console_stats_sample = 0
-    profiler.enable_ui(false)
-    if window and window.set_listener then
-        window.set_listener(window_callback)
-    end
+    create_selector(self)
+    create_navigation(self)
+    create_benchmark_controls(self)
+    create_debug(self)
+    self.status_node = text_node(vmath.vector3(270, 690, 0), "", vmath.vector3(520, 28, 0), vmath.vector4(0.75, 0.82, 0.9, 1))
     msg.post(".", "acquire_input_focus")
     refresh(self)
 end
 
 function final(_self)
-    if window and window.set_listener then
-        window.set_listener(nil)
-    end
     msg.post(".", "release_input_focus")
 end
 
 function update(self, dt)
-    self.elapsed = self.elapsed + dt
     self.fps_elapsed = self.fps_elapsed + dt
     self.fps_frames = self.fps_frames + 1
-
-    if self.fps_frames >= FPS_SAMPLE_COUNT and self.fps_elapsed > 0 then
+    if self.fps_elapsed >= 0.5 then
         self.fps = self.fps_frames / self.fps_elapsed
-        self.fps_frames = 0
-        self.fps_elapsed = 0
-    end
-
-    if self.elapsed >= 0.25 then
-        self.elapsed = 0
+        self.fps_frames, self.fps_elapsed = 0, 0
         refresh(self)
     end
 end
 
 function on_input(self, action_id, action)
-    if not action.pressed then
+    if action_id == TOGGLE_PROFILER and action.pressed then
+        self.profiler = not self.profiler
+        profiler.enable_ui(self.profiler)
+        refresh(self)
+        return true
+    end
+    if action_id == TOGGLE_DEBUG_GUI and action.pressed then
+        self.debug_visible = not self.debug_visible
+        refresh(self)
+        return true
+    end
+    if action_id ~= TOUCH or not action.pressed or self.busy then
         return
     end
-
-    if action_id == TOUCH then
-        for _, button in ipairs(BUTTONS) do
-            if button_visible(self, button.id) then
-                local box_node = self.button_nodes[button.id]
-                local text_node = self.button_text_nodes[button.id]
-                if gui.pick_node(box_node, action.x, action.y) or gui.pick_node(text_node, action.x, action.y) then
-                    if button_enabled(self, button.id) then
-                        if button.action == "toggle_profiler" then
-                            toggle_profiler(self)
-                            refresh(self)
-                        elseif button.action == "toggle_debug" then
-                            toggle_debug_gui(self)
-                            refresh(self)
-                        else
-                            msg.post(ROOT_CONTROLLER, button.message)
-                        end
-                    end
-                    return true
-                end
+    for _, value in ipairs(self.buttons) do
+        if gui.is_enabled(value.box) and gui.pick_node(value.box, action.x, action.y) then
+            if value.id == "profiler" then
+                self.profiler = not self.profiler
+                profiler.enable_ui(self.profiler)
+                refresh(self)
+            elseif value.id == "debug" then
+                self.debug_visible = not self.debug_visible
+                refresh(self)
+            elseif value.message then
+                msg.post(ROOT, value.message, value.payload or {})
             end
+            return true
         end
-    elseif action_id == TOGGLE_PROFILER then
-        toggle_profiler(self)
-        refresh(self)
-        return true
-    elseif action_id == TOGGLE_DEBUG_GUI then
-        toggle_debug_gui(self)
-        refresh(self)
-        return true
     end
 end
 
@@ -524,12 +265,6 @@ function on_message(self, message_id, message)
         refresh(self)
     elseif message_id == hash("benchmark_state") then
         self.benchmark = message
-        if message.active then
-            self.console_stats_sample = (self.console_stats_sample or 0) + 1
-            if message.reason ~= "sample" or self.console_stats_sample % 4 == 0 then
-                print(console_stats_line(message))
-            end
-        end
         refresh(self)
     end
 end

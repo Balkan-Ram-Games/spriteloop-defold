@@ -23,6 +23,12 @@ function M.play_anim(url, animation_id, options)
     return call("play_anim", url, animation_id, options)
 end
 
+-- Replaces a component's package with an arbitrary .spla byte string at runtime.
+-- This is intended for tools and preview workflows; path is used for diagnostics.
+function M.load_bytes(url, path, bytes)
+    return call("load_bytes", url, path, bytes)
+end
+
 -- Stops animation playback on the component at url.
 function M.stop_anim(url)
     return call("stop_anim", url)

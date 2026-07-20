@@ -110,6 +110,26 @@ void push_package_skin_tables(lua_State* lua_state, const spriteloop::SplaPackag
     lua_setfield(lua_state, -2, "variants");
 }
 
+void push_package_animation_table(lua_State* lua_state,
+                                  const spriteloop::SplaPackage& package)
+{
+    lua_newtable(lua_state);
+    for (std::size_t i = 0; i < package.animations.size(); ++i) {
+        const spriteloop::SplaAnimation& animation = package.animations[i];
+        lua_newtable(lua_state);
+        lua_pushstring(lua_state, animation.id.c_str());
+        lua_setfield(lua_state, -2, "id");
+        lua_pushstring(lua_state, animation.name.c_str());
+        lua_setfield(lua_state, -2, "name");
+        lua_pushnumber(lua_state, animation.fps);
+        lua_setfield(lua_state, -2, "fps");
+        lua_pushinteger(lua_state, static_cast<lua_Integer>(animation.frames.size()));
+        lua_setfield(lua_state, -2, "frame_count");
+        lua_rawseti(lua_state, -2, static_cast<int>(i + 1));
+    }
+    lua_setfield(lua_state, -2, "animations");
+}
+
 void push_playback_events(lua_State* lua_state,
                           const std::vector<spriteloop::SplaPlaybackEvent>& events)
 {
@@ -502,6 +522,7 @@ int get_info(lua_State* lua_state)
     lua_pushinteger(lua_state, instance->skin_state.skin_index);
     lua_setfield(lua_state, -2, "skin_index");
     push_package_skin_tables(lua_state, instance->package);
+    push_package_animation_table(lua_state, instance->package);
     lua_pushinteger(lua_state, static_cast<lua_Integer>(instance->image_resources.size()));
     lua_setfield(lua_state, -2, "image_resource_count");
     lua_pushinteger(lua_state, instance->package.canvas_width);
@@ -597,6 +618,42 @@ spla_defold::SplaDefoldComponent* check_component(lua_State* lua_state, int inde
     }
 
     return component;
+}
+
+// Lua: spriteloop_native.load_bytes(url, path, bytes) -> true.
+// Replaces the component instance while preserving its game-object transform and visibility.
+int component_load_bytes(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    const char* path = luaL_checkstring(lua_state, 2);
+    size_t byte_count = 0;
+    const char* bytes = luaL_checklstring(lua_state, 3, &byte_count);
+
+    std::string error;
+    spla_defold::SplaDefoldInstance* replacement =
+        spla_defold::create_instance_from_memory(
+            path, reinterpret_cast<const std::uint8_t*>(bytes), byte_count, error);
+    if (replacement == nullptr) {
+        return luaL_error(lua_state, "failed to load SpriteLoop package '%s': %s",
+                          path, error.c_str());
+    }
+
+    if (component->instance != nullptr) {
+        replacement->game_object = component->instance->game_object;
+        replacement->local_position = component->instance->local_position;
+        replacement->local_rotation = component->instance->local_rotation;
+        replacement->local_scale = component->instance->local_scale;
+        replacement->visible = component->instance->visible;
+        spla_defold::destroy_instance(component->instance, dmGraphics::GetInstalledContext());
+    } else {
+        replacement->game_object = component->game_object;
+        replacement->visible = component->visible;
+    }
+    component->instance = replacement;
+    component->package_path = path;
+    lua_pushboolean(lua_state, 1);
+    return 1;
 }
 
 // Reads the optional play options table:
@@ -852,6 +909,7 @@ int component_get_info(lua_State* lua_state)
     lua_pushinteger(lua_state, instance->skin_state.skin_index);
     lua_setfield(lua_state, -2, "skin_index");
     push_package_skin_tables(lua_state, package);
+    push_package_animation_table(lua_state, package);
     lua_pushinteger(lua_state, static_cast<lua_Integer>(image_resources.size()));
     lua_setfield(lua_state, -2, "image_resource_count");
     lua_pushinteger(lua_state,
@@ -1042,6 +1100,7 @@ int component_get_cache_info(lua_State* lua_state)
 
 // Component-oriented Lua module table.
 const luaL_reg component_module_methods[] = {
+    {"load_bytes", component_load_bytes},
     {"play_anim", component_play_anim},
     {"stop_anim", component_stop_anim},
     {"set_time", component_set_time},

@@ -1,0 +1,176 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local COMPONENT = "/preview#preview"
+local GUI = "#gui"
+local FILTERS = { "SpriteLoop packages", "*.spla", "All files", "*" }
+
+local function basename(path)
+    return path:match("([^/\\]+)$") or path
+end
+
+local function send_state(self, status)
+    local info = self.loaded and spriteloop.get_info(COMPONENT) or nil
+    msg.post(GUI, "explorer_state", {
+        loaded = self.loaded,
+        status = status or self.status,
+        path = self.path or "",
+        filename = self.path and basename(self.path) or "No external package loaded",
+        name = info and info.name or "",
+        part_count = info and info.part_count or 0,
+        animation_count = info and info.animation_count or 0,
+        skin_count = info and info.skin_count or 0,
+        variant_count = info and info.variant_count or 0,
+        canvas_width = info and info.canvas_width or 0,
+        canvas_height = info and info.canvas_height or 0,
+        animation_name = info and (info.animation_name or info.animation_id) or "",
+        skin_name = self.skins[self.skin_index] and (self.skins[self.skin_index].name or self.skins[self.skin_index].id) or "default",
+        frame_index = info and info.frame_index or 0,
+        frame_count = info and info.frame_count or 0,
+        playing = info and info.playing or false,
+    })
+end
+
+local function fit_preview(info)
+    local width = math.max(info.canvas_width or 1, 1)
+    local height = math.max(info.canvas_height or 1, 1)
+    local scale = math.min(720 / width, 500 / height, 1.5)
+    go.set_scale(vmath.vector3(scale, scale, 1), "/preview")
+end
+
+local function play_animation(self)
+    local animation = self.animations[self.animation_index]
+    if animation then
+        spriteloop.play_anim(COMPONENT, animation.id, { loop = true })
+        self.playing = true
+    end
+end
+
+local function load_file(self, path)
+    local file, open_error = io.open(path, "rb")
+    if not file then
+        self.status = "Unable to open file: " .. tostring(open_error)
+        send_state(self)
+        return
+    end
+    local bytes = file:read("*a")
+    file:close()
+    if not bytes then
+        self.status = "Unable to read selected file"
+        send_state(self)
+        return
+    end
+
+    local ok, load_error = pcall(spriteloop.load_bytes, COMPONENT, path, bytes)
+    if not ok then
+        self.status = "Load failed: " .. tostring(load_error)
+        send_state(self)
+        return
+    end
+
+    self.loaded = true
+    self.path = path
+    self.status = "Loaded " .. basename(path)
+    local info = spriteloop.get_info(COMPONENT)
+    spriteloop.set_visible(COMPONENT, true)
+    self.animations = info.animations or {}
+    self.skins = info.skins or {}
+    self.animation_index = 1
+    self.skin_index = 0
+    fit_preview(info)
+    play_animation(self)
+    send_state(self)
+end
+
+local function open_dialog(self)
+    if self.dialog then
+        return
+    end
+    self.status = "Choose a .spla package..."
+    send_state(self)
+    self.dialog = defpfd.open_file("Open SpriteLoop package", self.path or "", FILTERS)
+end
+
+local function change_animation(self, offset)
+    if #self.animations == 0 then return end
+    self.animation_index = ((self.animation_index - 1 + offset) % #self.animations) + 1
+    play_animation(self)
+    send_state(self, "Animation " .. self.animation_index .. " / " .. #self.animations)
+end
+
+local function change_skin(self, offset)
+    if #self.skins == 0 then return end
+    if self.skin_index == 0 then
+        self.skin_index = offset > 0 and 1 or #self.skins
+    else
+        self.skin_index = ((self.skin_index - 1 + offset) % #self.skins) + 1
+    end
+    local skin = self.skins[self.skin_index]
+    spriteloop.set_skin(COMPONENT, skin.id)
+    send_state(self, "Skin " .. self.skin_index .. " / " .. #self.skins)
+end
+
+function init(self)
+    self.dialog = nil
+    self.loaded = false
+    self.path = nil
+    self.animations = {}
+    self.skins = {}
+    self.animation_index = 1
+    self.skin_index = 0
+    self.playing = false
+    self.status = "Select any .spla file from your computer"
+    self.sample_elapsed = 0
+    spriteloop.set_visible(COMPONENT, false)
+    send_state(self)
+end
+
+function final(self)
+    if self.dialog then
+        self.dialog:kill()
+        self.dialog = nil
+    end
+end
+
+function update(self, dt)
+    if self.dialog and self.dialog:ready(0) then
+        local result = self.dialog:result()
+        self.dialog = nil
+        if result and result[1] and result[1] ~= "" then
+            load_file(self, result[1])
+        else
+            self.status = "Selection cancelled"
+            send_state(self)
+        end
+    end
+    if self.loaded then
+        self.sample_elapsed = self.sample_elapsed + dt
+        if self.sample_elapsed >= 0.2 then
+            self.sample_elapsed = 0
+            send_state(self)
+        end
+    end
+end
+
+function on_message(self, message_id)
+    if message_id == hash("explorer_open") then
+        open_dialog(self)
+    elseif message_id == hash("explorer_reload") and self.path then
+        load_file(self, self.path)
+    elseif message_id == hash("explorer_previous_animation") then
+        change_animation(self, -1)
+    elseif message_id == hash("explorer_next_animation") then
+        change_animation(self, 1)
+    elseif message_id == hash("explorer_previous_skin") then
+        change_skin(self, -1)
+    elseif message_id == hash("explorer_next_skin") then
+        change_skin(self, 1)
+    elseif message_id == hash("explorer_toggle_playback") and self.loaded then
+        if self.playing then
+            spriteloop.stop_anim(COMPONENT)
+            self.playing = false
+        else
+            play_animation(self)
+        end
+        send_state(self)
+    end
+end

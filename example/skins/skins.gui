@@ -6,7 +6,7 @@ fonts {
 nodes {
   position {
     x: 18.0
-    y: 18.0
+    y: 100.0
   }
   size {
     x: 450.0
@@ -30,7 +30,7 @@ nodes {
 nodes {
   position {
     x: 582.0
-    y: 124.0
+    y: 184.0
   }
   size {
     x: 176.0
@@ -52,7 +52,7 @@ nodes {
 nodes {
   position {
     x: 582.0
-    y: 124.0
+    y: 184.0
   }
   size {
     x: 166.0
@@ -76,7 +76,7 @@ nodes {
 nodes {
   position {
     x: 782.0
-    y: 124.0
+    y: 184.0
   }
   size {
     x: 176.0
@@ -98,7 +98,7 @@ nodes {
 nodes {
   position {
     x: 782.0
-    y: 124.0
+    y: 184.0
   }
   size {
     x: 166.0
@@ -122,7 +122,7 @@ nodes {
 nodes {
   position {
     x: 982.0
-    y: 124.0
+    y: 184.0
   }
   size {
     x: 176.0
@@ -144,7 +144,7 @@ nodes {
 nodes {
   position {
     x: 982.0
-    y: 124.0
+    y: 184.0
   }
   size {
     x: 166.0
@@ -168,7 +168,7 @@ nodes {
 nodes {
   position {
     x: 1182.0
-    y: 124.0
+    y: 184.0
   }
   size {
     x: 176.0
@@ -190,7 +190,7 @@ nodes {
 nodes {
   position {
     x: 1182.0
-    y: 124.0
+    y: 184.0
   }
   size {
     x: 166.0
@@ -214,7 +214,7 @@ nodes {
 nodes {
   position {
     x: 1182.0
-    y: 182.0
+    y: 242.0
   }
   size {
     x: 176.0
@@ -236,7 +236,7 @@ nodes {
 nodes {
   position {
     x: 1182.0
-    y: 182.0
+    y: 242.0
   }
   size {
     x: 166.0
@@ -260,7 +260,7 @@ nodes {
 nodes {
   position {
     x: 582.0
-    y: 66.0
+    y: 126.0
   }
   size {
     x: 176.0
@@ -282,7 +282,7 @@ nodes {
 nodes {
   position {
     x: 582.0
-    y: 66.0
+    y: 126.0
   }
   size {
     x: 166.0
@@ -306,7 +306,7 @@ nodes {
 nodes {
   position {
     x: 782.0
-    y: 66.0
+    y: 126.0
   }
   size {
     x: 176.0
@@ -328,7 +328,7 @@ nodes {
 nodes {
   position {
     x: 782.0
-    y: 66.0
+    y: 126.0
   }
   size {
     x: 166.0
@@ -352,7 +352,7 @@ nodes {
 nodes {
   position {
     x: 982.0
-    y: 66.0
+    y: 126.0
   }
   size {
     x: 176.0
@@ -374,7 +374,7 @@ nodes {
 nodes {
   position {
     x: 982.0
-    y: 66.0
+    y: 126.0
   }
   size {
     x: 166.0
@@ -398,7 +398,7 @@ nodes {
 nodes {
   position {
     x: 1182.0
-    y: 66.0
+    y: 126.0
   }
   size {
     x: 176.0
@@ -420,7 +420,7 @@ nodes {
 nodes {
   position {
     x: 1182.0
-    y: 66.0
+    y: 126.0
   }
   size {
     x: 166.0
