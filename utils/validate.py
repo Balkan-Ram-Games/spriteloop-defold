@@ -104,7 +104,7 @@ def main() -> int:
         command.append("--architectures=wasm-web")
     if args.defold_sdk:
         command.append(f"--defoldsdk={args.defold_sdk}")
-    command.extend(["clean", "build"])
+    command.extend(["resolve", "clean", "build"])
 
     build_dir = repo_root / "build"
     if build_dir.exists():
