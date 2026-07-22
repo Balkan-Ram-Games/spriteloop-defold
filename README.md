@@ -204,6 +204,12 @@ spriteloop.clear_variants(url)
 - `clear_variant()` returns `true` when the part resolves.
 - `clear_variants()` removes every manual part override.
 
+The **Default** option shown for a part in SpriteLoop is not an exported
+variant. It means that the part has no manual variant override. Use
+`clear_variant()` to select this state for one part, or `clear_variants()` to
+restore it for every part. A real variant may still use `default` as its name,
+key, or ID.
+
 Failed animation, skin, part, or variant lookups log a Defold warning while
 still returning `false`.
 
