@@ -167,9 +167,10 @@ full, SpriteLoop drops the oldest event, keeps the newest event, increments
 
 ## Skins and Part Variants
 
-A SpriteLoop component can select a default skin in the Defold editor. Runtime
-scripts can change the active skin and override individual part variants through
-the component-oriented Lua API:
+A SpriteLoop component selects the exported `default` skin by default. You can
+select another initial skin in the Defold editor. Runtime scripts can change the
+active skin and override individual part variants through the component-oriented
+Lua API:
 
 ```lua
 local spriteloop = require "spriteloop.spriteloop"

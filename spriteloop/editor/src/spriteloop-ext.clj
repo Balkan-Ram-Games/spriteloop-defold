@@ -537,9 +537,7 @@
 
 ;; Graph output: skin options used by the standalone form view.
 (g/defnk produce-skin-options [skin-ids]
-  (into [["" "Base"]]
-        (map (fn [id] [id id]))
-        skin-ids))
+  (mapv (fn [id] [id id]) skin-ids))
 
 ;; Graph output: Defold-editor-owned texture for the composed preview image.
 ;; _node-id is included in the texture id to keep component previews independent.
@@ -879,10 +877,10 @@
                              (validate-id-in-package _node-id :default-animation animation-ids default-animation "Default Animation")))
             (dynamic ext-edit-type (g/constantly {:type g/Str})))
   (property default-skin g/Str
-            (default "")
+            (default "default")
             (dynamic edit-type (g/fnk [skin-ids package-sha1]
                                  (if (seq skin-ids)
-                                   (assoc (properties/->choicebox (into [""] skin-ids))
+                                   (assoc (properties/->choicebox skin-ids)
                                           :package-sha1 package-sha1)
                                    {:type g/Str})))
             (dynamic error (g/fnk [_node-id skin-ids default-skin]
