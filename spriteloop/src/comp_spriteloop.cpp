@@ -28,6 +28,7 @@ namespace {
 
 constexpr const char* max_count_property = "spriteloop.max_count";
 constexpr const char* max_pending_events_property = "spriteloop.max_pending_events";
+constexpr const char* default_skin_id = "default";
 const dmhash_t position_property = dmHashString64("position");
 const dmhash_t rotation_property = dmHashString64("rotation");
 const dmhash_t scale_property = dmHashString64("scale");
@@ -1092,8 +1093,10 @@ dmGameObject::CreateResult component_create(const dmGameObject::ComponentCreateP
     component->autoplay = resource->ddf->m_Autoplay;
 
     if (load_component_package(context, component, package_path)) {
-        if (!component->default_skin.empty() &&
-            !set_instance_skin(*component->instance, component->default_skin)) {
+        const std::string initial_skin =
+            component->default_skin.empty() ? default_skin_id : component->default_skin;
+        if (!set_instance_skin(*component->instance, initial_skin) &&
+            !component->default_skin.empty()) {
             dmLogWarning("SpriteLoop default skin '%s' was not found in '%s'",
                          component->default_skin.c_str(),
                          component->package_path.c_str());

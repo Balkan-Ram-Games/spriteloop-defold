@@ -1,5 +1,6 @@
 package: "/example/assets/robot_idle.spla"
 default_animation: "idle"
+default_skin: "default"
 playback_rate: 1.0
 loop: true
 visible: true

@@ -16,6 +16,14 @@ function init(self)
     local info = spriteloop.get_info(COMPONENT)
     expect("get_info has skins", (info.skin_count or 0) > 0, true)
     expect("get_info has variants", (info.variant_count or 0) > 0, true)
+    local default_skin_index = -1
+    for index, skin in ipairs(info.skins or {}) do
+        if skin.id == "default" then
+            default_skin_index = index - 1
+            break
+        end
+    end
+    expect("blank component skin selects package default", info.skin_index, default_skin_index)
     expect("get_info event queue limit", info.max_pending_events, 256)
     expect("get_info pending events", info.pending_event_count, 0)
     expect("get_info dropped events", info.dropped_event_count, 0)
