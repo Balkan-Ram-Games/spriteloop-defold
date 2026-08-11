@@ -179,6 +179,16 @@ function M.clear_variants(handle)
     end
 end
 
+-- Returns the current component-local transform for a part id, key, or name.
+-- options.origin may be "pivot" (default) or the base-image "center".
+function M.get_part_transform(handle, part_id, options)
+    if native and native.get_part_transform then
+        return native.get_part_transform(handle, part_id, options)
+    end
+
+    return nil
+end
+
 -- Sets a whole-character runtime RGB tint multiplier.
 function M.set_tint(handle, r, g, b)
     if native and native.set_tint then

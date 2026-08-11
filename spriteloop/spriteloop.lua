@@ -167,6 +167,12 @@ function M.clear_variants(url)
     return call("clear_variants", url)
 end
 
+-- Returns the current component-local transform for a part id, key, or name.
+-- options.origin may be "pivot" (default) or the base-image "center".
+function M.get_part_transform(url, part_id_key_or_name, options)
+    return call("get_part_transform", url, part_id_key_or_name, options)
+end
+
 -- Sets a whole-character runtime RGB tint multiplier.
 function M.set_tint(url, r, g, b)
     return call("set_tint", url, r, g, b)

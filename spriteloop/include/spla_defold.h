@@ -155,6 +155,24 @@ struct SplaDefoldRenderStats {
     std::uint64_t bytes_uploaded = 0;
 };
 
+struct SplaDefoldPartTransform {
+    float x = 0.0f;
+    float y = 0.0f;
+    float rotation_degrees = 0.0f;
+    float scale_x = 1.0f;
+    float scale_y = 1.0f;
+    float skew_x = 0.0f;
+    float skew_y = 0.0f;
+    float opacity = 1.0f;
+};
+
+enum class SplaDefoldPartTransformStatus {
+    ok,
+    part_not_found,
+    frame_not_available,
+    part_not_in_frame,
+};
+
 // Raw bytes for a built .spla package resource.
 //
 // Bob copies .spla packages referenced by SpriteLoop components into the build. The runtime
@@ -219,6 +237,11 @@ bool set_instance_variant(SplaDefoldInstance& instance,
                           const std::string& variant_id);
 bool clear_instance_variant(SplaDefoldInstance& instance, const std::string& part_id);
 void clear_instance_variants(SplaDefoldInstance& instance);
+SplaDefoldPartTransformStatus get_instance_part_transform(
+    const SplaDefoldInstance& instance,
+    const std::string& part_id,
+    bool use_base_image_center,
+    SplaDefoldPartTransform& transform);
 void set_instance_tint(SplaDefoldInstance& instance, float r, float g, float b);
 void clear_instance_tint(SplaDefoldInstance& instance);
 

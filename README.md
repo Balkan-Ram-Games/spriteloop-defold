@@ -197,6 +197,7 @@ local changed = spriteloop.set_skin(url, skin_id_or_name)
 local changed = spriteloop.set_variant(url, part_key_or_name, variant_key_or_name)
 local changed = spriteloop.clear_variant(url, part_key_or_name)
 spriteloop.clear_variants(url)
+local transform = spriteloop.get_part_transform(url, part_key_or_name)
 ```
 
 - `set_skin()` returns `true` when the skin ID or name exists.
@@ -220,6 +221,32 @@ Manual part variants take precedence over the active skin. Clearing an override
 restores the variant selected by the active skin, or the part's base image when
 the skin does not override it. Changing skins does not clear manual part
 overrides.
+
+### Part transforms
+
+Query the current resolved transform of any image or Empty Part by id, runtime
+key, or display name:
+
+```lua
+local transform = spriteloop.get_part_transform("#player", "right_hand")
+local centered = spriteloop.get_part_transform("#player", "right_hand", {
+    origin = "center",
+})
+```
+
+The returned table contains `position` and `scale` vectors, rotation in degrees,
+a skew vector in degrees, and opacity. Coordinates are centered, Y-up
+SpriteLoop-component-local values before the component, game object, or
+standalone handle transform is applied. The default origin is the authored part
+pivot. `origin = "center"` returns the transformed center of the base image
+rectangle; it intentionally does not follow variant or sprite-state dimensions.
+For Empty Parts, pivot and center return the same position.
+
+The values match the discrete frame currently rendered. Missing parts or parts
+not present in that frame return `nil` and log a warning. Use an Empty Part when
+an attachment needs a custom location rather than an existing image-part pivot.
+The standalone API provides the same query as
+`spla.get_part_transform(handle, part, options)`.
 
 Use `get_info()` to discover the skins and variants available in the loaded
 package:

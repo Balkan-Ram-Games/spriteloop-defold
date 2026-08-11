@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
@@ -435,6 +436,65 @@ void clear_instance_variants(SplaDefoldInstance& instance)
 {
     instance.skin_state.variant_overrides_by_part.clear();
     rebuild_instance_skin(instance);
+}
+
+SplaDefoldPartTransformStatus get_instance_part_transform(
+    const SplaDefoldInstance& instance,
+    const std::string& part_id,
+    bool use_base_image_center,
+    SplaDefoldPartTransform& result)
+{
+    const spriteloop::SplaPackage& package = instance_package(instance);
+    const int part_index = spriteloop::find_part_index_by_id_key_or_name(package, part_id);
+    if (part_index < 0) {
+        return SplaDefoldPartTransformStatus::part_not_found;
+    }
+
+    const spriteloop::SplaFrame* frame = instance.player != nullptr
+        ? instance.player->current_frame()
+        : nullptr;
+    if (frame == nullptr) {
+        return SplaDefoldPartTransformStatus::frame_not_available;
+    }
+
+    const auto frame_part = std::find_if(
+        frame->parts.begin(), frame->parts.end(),
+        [part_index](const spriteloop::SplaFramePart& candidate) {
+            return candidate.part_index == part_index;
+        });
+    if (frame_part == frame->parts.end()) {
+        return SplaDefoldPartTransformStatus::part_not_in_frame;
+    }
+
+    const spriteloop::SplaPart& part = package.parts[static_cast<std::size_t>(part_index)];
+    const spriteloop::SplaTransform& transform = frame_part->transform;
+    result.x = transform.x - static_cast<float>(package.canvas_width) * 0.5f;
+    result.y = static_cast<float>(package.canvas_height) * 0.5f - transform.y;
+    result.rotation_degrees = -transform.rotation_degrees;
+    result.scale_x = transform.scale_x;
+    result.scale_y = transform.scale_y;
+    result.skew_x = -transform.skew_x;
+    result.skew_y = -transform.skew_y;
+    result.opacity = transform.opacity;
+
+    if (use_base_image_center && !part.transform_only) {
+        constexpr float pi = 3.14159265358979323846f;
+        const float local_x = (static_cast<float>(part.width) * 0.5f - part.pivot.x) *
+                              transform.scale_x;
+        const float local_y = (part.pivot.y - static_cast<float>(part.height) * 0.5f) *
+                              transform.scale_y;
+        const float skew_x = std::tan(-transform.skew_x * pi / 180.0f);
+        const float skew_y = std::tan(-transform.skew_y * pi / 180.0f);
+        const float skewed_x = local_x + skew_x * local_y;
+        const float skewed_y = skew_y * local_x + local_y;
+        const float radians = -transform.rotation_degrees * pi / 180.0f;
+        const float cos_r = std::cos(radians);
+        const float sin_r = std::sin(radians);
+        result.x += skewed_x * cos_r - skewed_y * sin_r;
+        result.y += skewed_x * sin_r + skewed_y * cos_r;
+    }
+
+    return SplaDefoldPartTransformStatus::ok;
 }
 
 void set_instance_tint(SplaDefoldInstance& instance, float r, float g, float b)

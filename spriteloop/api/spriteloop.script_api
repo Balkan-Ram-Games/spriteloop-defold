@@ -200,6 +200,24 @@
     - name: url
       type: [string, hash, url]
       desc: SpriteLoop component URL.
+  - name: get_part_transform
+    type: function
+    desc: Returns the current resolved component-local transform of an image or Empty Part.
+    parameters:
+    - name: url
+      type: [string, hash, url]
+      desc: SpriteLoop component URL.
+    - name: part_id
+      type: string
+      desc: Part id, key, or name. Exact ids are matched before keys and names.
+    - name: options
+      type: table
+      optional: true
+      desc: Optional origin setting. Use origin "pivot" (default) or "center" for the transformed base-image center.
+    returns:
+    - name: transform
+      type: table
+      desc: Table with position, rotation, scale, skew, and opacity, or nil when the part is unavailable.
   - name: debug_destroy_component
     type: function
     desc: Debug helper that releases one SpriteLoop component runtime instance.

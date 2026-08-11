@@ -5,6 +5,7 @@
 #include <dmsdk/sdk.h>
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <utility>
@@ -192,6 +193,75 @@ void log_missing_variant(const spla_defold::SplaDefoldInstance& instance,
                  variant_id_key_or_name,
                  part_id_key_or_name,
                  instance_log_path(instance));
+}
+
+bool read_part_transform_center_origin(lua_State* lua_state, int index, const char* api_name)
+{
+    if (lua_isnoneornil(lua_state, index)) {
+        return false;
+    }
+    if (!lua_istable(lua_state, index)) {
+        luaL_error(lua_state, "SpriteLoop %s options must be a table", api_name);
+        return false;
+    }
+
+    lua_getfield(lua_state, index, "origin");
+    if (lua_isnil(lua_state, -1)) {
+        lua_pop(lua_state, 1);
+        return false;
+    }
+    if (!lua_isstring(lua_state, -1)) {
+        luaL_error(lua_state, "SpriteLoop %s options.origin must be \"pivot\" or \"center\"",
+                   api_name);
+        return false;
+    }
+    const char* origin = lua_tostring(lua_state, -1);
+    const bool use_center = std::strcmp(origin, "center") == 0;
+    const bool use_pivot = std::strcmp(origin, "pivot") == 0;
+    lua_pop(lua_state, 1);
+    if (!use_center && !use_pivot) {
+        luaL_error(lua_state, "SpriteLoop %s options.origin must be \"pivot\" or \"center\"",
+                   api_name);
+        return false;
+    }
+    return use_center;
+}
+
+int push_part_transform(lua_State* lua_state,
+                        const spla_defold::SplaDefoldInstance& instance,
+                        const char* part_id,
+                        bool use_center)
+{
+    spla_defold::SplaDefoldPartTransform transform;
+    const spla_defold::SplaDefoldPartTransformStatus status =
+        spla_defold::get_instance_part_transform(instance, part_id, use_center, transform);
+    if (status != spla_defold::SplaDefoldPartTransformStatus::ok) {
+        if (status == spla_defold::SplaDefoldPartTransformStatus::part_not_found) {
+            log_missing_part(instance, part_id);
+        } else if (status == spla_defold::SplaDefoldPartTransformStatus::frame_not_available) {
+            dmLogWarning("SpriteLoop has no current frame in '%s'", instance_log_path(instance));
+        } else {
+            dmLogWarning("SpriteLoop part '%s' is not present in the current frame in '%s'",
+                         part_id, instance_log_path(instance));
+        }
+        lua_pushnil(lua_state);
+        return 1;
+    }
+
+    lua_newtable(lua_state);
+    dmScript::PushVector3(lua_state, dmVMath::Vector3(transform.x, transform.y, 0.0f));
+    lua_setfield(lua_state, -2, "position");
+    lua_pushnumber(lua_state, transform.rotation_degrees);
+    lua_setfield(lua_state, -2, "rotation");
+    dmScript::PushVector3(lua_state,
+                          dmVMath::Vector3(transform.scale_x, transform.scale_y, 1.0f));
+    lua_setfield(lua_state, -2, "scale");
+    dmScript::PushVector3(lua_state,
+                          dmVMath::Vector3(transform.skew_x, transform.skew_y, 0.0f));
+    lua_setfield(lua_state, -2, "skew");
+    lua_pushnumber(lua_state, transform.opacity);
+    lua_setfield(lua_state, -2, "opacity");
+    return 1;
 }
 
 void log_set_variant_failure(const spla_defold::SplaDefoldInstance& instance,
@@ -474,6 +544,16 @@ int clear_variants(lua_State* lua_state)
     return 0;
 }
 
+int get_part_transform(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldInstance* instance = check_instance(lua_state, 1);
+    const char* part_id = luaL_checkstring(lua_state, 2);
+    const bool use_center =
+        read_part_transform_center_origin(lua_state, 3, "get_part_transform");
+    return push_part_transform(lua_state, *instance, part_id, use_center);
+}
+
 int set_tint(lua_State* lua_state)
 {
     DM_LUA_STACK_CHECK(lua_state, 0);
@@ -599,6 +679,7 @@ const luaL_reg module_methods[] = {
     {"set_variant", set_variant},
     {"clear_variant", clear_variant},
     {"clear_variants", clear_variants},
+    {"get_part_transform", get_part_transform},
     {"set_tint", set_tint},
     {"clear_tint", clear_tint},
     {"get_info", get_info},
@@ -835,6 +916,16 @@ int component_clear_variants(lua_State* lua_state)
     spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
     spla_defold::clear_instance_variants(*component->instance);
     return 0;
+}
+
+int component_get_part_transform(lua_State* lua_state)
+{
+    DM_LUA_STACK_CHECK(lua_state, 1);
+    spla_defold::SplaDefoldComponent* component = check_component(lua_state, 1);
+    const char* part_id = luaL_checkstring(lua_state, 2);
+    const bool use_center =
+        read_part_transform_center_origin(lua_state, 3, "get_part_transform");
+    return push_part_transform(lua_state, *component->instance, part_id, use_center);
 }
 
 int component_set_tint(lua_State* lua_state)
@@ -1112,6 +1203,7 @@ const luaL_reg component_module_methods[] = {
     {"set_variant", component_set_variant},
     {"clear_variant", component_clear_variant},
     {"clear_variants", component_clear_variants},
+    {"get_part_transform", component_get_part_transform},
     {"set_tint", component_set_tint},
     {"clear_tint", component_clear_tint},
     {"debug_destroy_component", component_debug_destroy_component},

@@ -31,6 +31,10 @@ local function expect(label, actual, expected)
     print(string.format("SpriteLoop Lua API test ok: %s -> %s", label, tostring(actual)))
 end
 
+local function expect_near(label, actual, expected)
+    expect(label, math.abs(actual - expected) < 0.001, true)
+end
+
 function init(self)
     tests_run = 0
     tests_passed = 0
@@ -78,6 +82,46 @@ function init(self)
     expect("play animation with events disabled",
         spriteloop.play_anim(COMPONENT, "idle", { emit_events = false }), true)
     expect("missing animation", spriteloop.play_anim(COMPONENT, "__missing_animation__"), false)
+
+    spriteloop.set_frame(COMPONENT, 0, { emit_events = false })
+    local body_transform = spriteloop.get_part_transform(COMPONENT, "body_top")
+    expect("part transform by name", body_transform ~= nil, true)
+    expect_near("part pivot x uses centered Defold coordinates", body_transform.position.x, 59)
+    expect_near("part pivot y uses centered Defold coordinates", body_transform.position.y, 117.833)
+    expect_near("part rotation uses Defold direction", body_transform.rotation, 0)
+    expect_near("part signed scale x", body_transform.scale.x, 1)
+    expect_near("part signed scale y", body_transform.scale.y, 1)
+    expect_near("part skew x", body_transform.skew.x, 0)
+    expect_near("part skew y", body_transform.skew.y, 0)
+    expect_near("part opacity", body_transform.opacity, 1)
+    local body_by_id = spriteloop.get_part_transform(COMPONENT, "4_group_38_4", {
+        origin = "pivot",
+    })
+    expect_near("part transform by id", body_by_id.position.y, body_transform.position.y)
+    local body_center = spriteloop.get_part_transform(COMPONENT, "body_top", {
+        origin = "center",
+    })
+    expect_near("center equals centered body pivot x", body_center.position.x, body_transform.position.x)
+    expect_near("center equals centered body pivot y", body_center.position.y, body_transform.position.y)
+
+    local arm_pivot = spriteloop.get_part_transform(COMPONENT, "arm_back")
+    local arm_center = spriteloop.get_part_transform(COMPONENT, "arm_back", {
+        origin = "center",
+    })
+    expect("off-center image center differs from pivot",
+        math.abs(arm_center.position.x - arm_pivot.position.x) > 0.001, true)
+    expect_near("off-center image center x", arm_center.position.x, -115.323)
+    expect_near("off-center image center y", arm_center.position.y, 4.528)
+
+    spriteloop.set_frame(COMPONENT, 1, { emit_events = false })
+    local moved_body = spriteloop.get_part_transform(COMPONENT, "body_top")
+    expect_near("part transform follows current frame", moved_body.position.y, 116.606362)
+    expect("missing part transform returns nil",
+        spriteloop.get_part_transform(COMPONENT, "__missing_part__"), nil)
+    expect("part transform rejects non-table options",
+        pcall(spriteloop.get_part_transform, COMPONENT, "body_top", "center"), false)
+    expect("part transform rejects unknown origin",
+        pcall(spriteloop.get_part_transform, COMPONENT, "body_top", { origin = "visual" }), false)
 
     expect("set skin by id/name", spriteloop.set_skin(COMPONENT, "blue_robot"), true)
     expect("missing skin", spriteloop.set_skin(COMPONENT, "__missing_skin__"), false)
@@ -139,6 +183,12 @@ function init(self)
     spriteloop.consume_events(EVENT_COMPONENT)
 
     local variant_handle = spla.load("/example/assets/robot_idle_skins.spla")
+    expect("low-level play for part transform", spla.play(variant_handle, "idle"), true)
+    spla.set_frame(variant_handle, 0, { emit_events = false })
+    local low_level_transform = spla.get_part_transform(variant_handle, "body_top")
+    expect("low-level part transform", low_level_transform ~= nil, true)
+    expect_near("low-level part transform x", low_level_transform.position.x, 59)
+    expect_near("low-level part transform y", low_level_transform.position.y, 117.833)
     expect("low-level set variant",
         spla.set_variant(variant_handle, "body_top", "torso_blue"), true)
     expect("low-level reset variant with default",
@@ -146,6 +196,26 @@ function init(self)
     expect("low-level reset variant with Default",
         spla.set_variant(variant_handle, "body_top", "Default"), true)
     spla.destroy(variant_handle)
+
+    local keyed_handle = spla.load("/example/assets/ranger_idle.spla")
+    expect("low-level play for keyed part transform", spla.play(keyed_handle, "idle"), true)
+    spla.set_frame(keyed_handle, 0, { emit_events = false })
+    local keyed_transform = spla.get_part_transform(keyed_handle, "right_hand")
+    expect("part transform by runtime key", keyed_transform ~= nil, true)
+    expect_near("part rotation sign conversion", keyed_transform.rotation, -349.807)
+    local empty_pivot = spla.get_part_transform(keyed_handle, "empty")
+    local empty_center = spla.get_part_transform(keyed_handle, "empty", { origin = "center" })
+    expect("Empty Part transform by runtime key", empty_pivot ~= nil, true)
+    expect_near("Empty Part pivot x", empty_pivot.position.x, 109.053)
+    expect_near("Empty Part pivot y", empty_pivot.position.y, 24.751)
+    expect_near("Empty Part center equals pivot x", empty_center.position.x, empty_pivot.position.x)
+    expect_near("Empty Part center equals pivot y", empty_center.position.y, empty_pivot.position.y)
+    spla.set_frame(keyed_handle, 1, { emit_events = false })
+    local skewed_transform = spla.get_part_transform(keyed_handle, "arrow")
+    expect_near("part scale x", skewed_transform.scale.x, 0.976091)
+    expect_near("part scale y", skewed_transform.scale.y, 0.976091)
+    expect_near("part skew sign conversion", skewed_transform.skew.x, 2.691364)
+    spla.destroy(keyed_handle)
 
     local handle = spla.load("/example/events/clockheart.spla")
     local handle_info = spla.get_info(handle)
