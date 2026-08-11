@@ -1,0 +1,51 @@
+script: "/example/tests/lua_api_test.gui_script"
+fonts {
+  name: "system_font"
+  font: "/builtins/fonts/default.font"
+}
+nodes {
+  position { x: 20.0 y: 700.0 }
+  size { x: 430.0 y: 126.0 }
+  color { x: 0.07 y: 0.1 z: 0.14 w: 0.94 }
+  type: TYPE_BOX
+  id: "panel"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+}
+nodes {
+  position { x: 38.0 y: 680.0 }
+  size { x: 394.0 y: 26.0 }
+  color { x: 0.92 y: 0.96 z: 1.0 w: 1.0 }
+  type: TYPE_TEXT
+  text: "SpriteLoop Lua API Tests"
+  font: "system_font"
+  id: "title"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+}
+nodes {
+  position { x: 38.0 y: 646.0 }
+  size { x: 394.0 y: 26.0 }
+  color { x: 0.95 y: 0.78 z: 0.32 w: 1.0 }
+  type: TYPE_TEXT
+  text: "Running tests..."
+  font: "system_font"
+  id: "summary"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+}
+nodes {
+  position { x: 38.0 y: 614.0 }
+  size { x: 394.0 y: 24.0 }
+  color { x: 0.67 y: 0.75 z: 0.84 w: 1.0 }
+  type: TYPE_TEXT
+  text: "Waiting for results"
+  font: "system_font"
+  id: "detail"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+}

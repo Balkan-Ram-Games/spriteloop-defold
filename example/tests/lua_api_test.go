@@ -2,6 +2,10 @@ components {
   id: "test"
   component: "/example/tests/lua_api_test.script"
 }
+components {
+  id: "results"
+  component: "/example/tests/lua_api_test.gui"
+}
 embedded_components {
   id: "robot"
   type: "spriteloop"

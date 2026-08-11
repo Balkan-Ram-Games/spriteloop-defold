@@ -3,16 +3,37 @@ local spla = require "spriteloop.spla"
 
 local COMPONENT = "#robot"
 local EVENT_COMPONENT = "#event_robot"
+local RESULTS_GUI = "#results"
+
+local tests_run = 0
+local tests_passed = 0
 
 local function expect(label, actual, expected)
+    tests_run = tests_run + 1
     if actual ~= expected then
+        msg.post(RESULTS_GUI, "test_progress", {
+            done = true,
+            failed = tests_run - tests_passed,
+            label = label,
+            passed = tests_passed,
+            total = tests_run,
+        })
         error(string.format("SpriteLoop Lua API test failed: %s expected %s got %s",
             label, tostring(expected), tostring(actual)))
     end
+    tests_passed = tests_passed + 1
+    msg.post(RESULTS_GUI, "test_progress", {
+        failed = 0,
+        label = label,
+        passed = tests_passed,
+        total = tests_run,
+    })
     print(string.format("SpriteLoop Lua API test ok: %s -> %s", label, tostring(actual)))
 end
 
 function init(self)
+    tests_run = 0
+    tests_passed = 0
     local info = spriteloop.get_info(COMPONENT)
     expect("get_info has skins", (info.skin_count or 0) > 0, true)
     expect("get_info has variants", (info.variant_count or 0) > 0, true)
@@ -154,5 +175,12 @@ function init(self)
     expect("low-level suppressed events", #spla.consume_events(handle), 0)
     spla.destroy(handle)
 
+    msg.post(RESULTS_GUI, "test_progress", {
+        done = true,
+        failed = 0,
+        label = "All Lua API tests passed",
+        passed = tests_passed,
+        total = tests_run,
+    })
     print("SpriteLoop Lua API test passed")
 end

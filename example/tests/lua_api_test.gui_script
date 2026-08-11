@@ -1,0 +1,32 @@
+local RUNNING_COLOR = vmath.vector4(0.95, 0.78, 0.32, 1.0)
+local PASSED_COLOR = vmath.vector4(0.35, 0.9, 0.55, 1.0)
+local FAILED_COLOR = vmath.vector4(1.0, 0.35, 0.35, 1.0)
+
+function init(self)
+    self.summary = gui.get_node("summary")
+    self.detail = gui.get_node("detail")
+end
+
+function on_message(self, message_id, message)
+    if message_id ~= hash("test_progress") then
+        return
+    end
+
+    local passed = message.passed or 0
+    local total = message.total or 0
+    local failed = message.failed or 0
+    if message.done then
+        if failed == 0 then
+            gui.set_text(self.summary, string.format("Passed: %d / %d", passed, total))
+            gui.set_color(self.summary, PASSED_COLOR)
+        else
+            gui.set_text(self.summary,
+                string.format("Passed: %d / %d   Failed: %d", passed, total, failed))
+            gui.set_color(self.summary, FAILED_COLOR)
+        end
+    else
+        gui.set_text(self.summary, string.format("Running: %d passed", passed))
+        gui.set_color(self.summary, RUNNING_COLOR)
+    end
+    gui.set_text(self.detail, message.label or "")
+end
