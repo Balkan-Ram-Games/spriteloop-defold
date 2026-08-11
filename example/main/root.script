@@ -6,6 +6,7 @@ local PROXIES = {
     listen_events = "#listen_events_proxy",
     lua_api_test = "#lua_api_test_proxy",
     empty_part = "#empty_part_proxy",
+    part_transform = "#part_transform_proxy",
     explorer = "#explorer_proxy",
 }
 
@@ -17,6 +18,7 @@ local SCENE_NAMES = {
     listen_events = "listen events",
     lua_api_test = "lua api test",
     empty_part = "empty part",
+    part_transform = "part transforms",
     explorer = "SPLA explorer",
 }
 
@@ -27,6 +29,7 @@ local SCENE_ORDER = {
     "listen_events",
     "lua_api_test",
     "empty_part",
+    "part_transform",
     "explorer",
     "bench",
 }

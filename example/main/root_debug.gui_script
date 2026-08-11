@@ -11,6 +11,7 @@ local LEVELS = {
     { id = "listen_events", title = "Listen Events", description = "Observe animation\nevent streams", color = vmath.vector4(0.18, 0.55, 0.68, 1) },
     { id = "lua_api_test", title = "Lua API Test", description = "Exercise the public\nscripting API", color = vmath.vector4(0.72, 0.42, 0.18, 1) },
     { id = "empty_part", title = "Empty Part", description = "Missing and empty-part\nbehaviour", color = vmath.vector4(0.48, 0.48, 0.52, 1) },
+    { id = "part_transform", title = "Part Transforms", description = "Track animated part\npivots and centers", color = vmath.vector4(0.3, 0.55, 0.72, 1) },
     { id = "explorer", title = "SPLA Explorer", description = "Open any local .spla\nwithout rebuilding", color = vmath.vector4(0.18, 0.62, 0.64, 1) },
     { id = "bench", title = "Benchmarks", description = "Render and playback\nstress tests", color = vmath.vector4(0.72, 0.22, 0.25, 1) },
 }
@@ -18,6 +19,10 @@ local LEVELS = {
 local BUTTON_COLOR = vmath.vector4(0.10, 0.14, 0.19, 0.96)
 local DISABLED_COLOR = vmath.vector4(0.22, 0.24, 0.27, 0.75)
 local TEXT_COLOR = vmath.vector4(0.94, 0.97, 1, 1)
+local SELECTOR_COLUMNS = 5
+local SELECTOR_COLUMN_SPACING = 252
+local SELECTOR_CARD_SIZE = vmath.vector3(228, 205, 0)
+local SELECTOR_TEXT_WIDTH = 202
 
 local function format_bytes(bytes)
     return string.format("%.2f MB", (bytes or 0) / (1024 * 1024))
@@ -90,17 +95,20 @@ local function create_selector(self)
     self.selector_nodes[#self.selector_nodes + 1] = text_node(vmath.vector3(640, 625, 0), "Choose a test collection", vmath.vector3(500, 30, 0), vmath.vector4(0.6, 0.7, 0.8, 1))
 
     for i, level in ipairs(LEVELS) do
-        local column = (i - 1) % 4
-        local row = math.floor((i - 1) / 4)
-        local x = 178 + column * 308
+        local row = math.floor((i - 1) / SELECTOR_COLUMNS)
+        local column = (i - 1) % SELECTOR_COLUMNS
+        local remaining = #LEVELS - row * SELECTOR_COLUMNS
+        local columns_in_row = math.min(SELECTOR_COLUMNS, remaining)
+        local row_start_x = 640 - (columns_in_row - 1) * SELECTOR_COLUMN_SPACING * 0.5
+        local x = row_start_x + column * SELECTOR_COLUMN_SPACING
         local y = 455 - row * 245
-        local card = button(self, "level_" .. level.id, vmath.vector3(x, y, 0), vmath.vector3(278, 205, 0), "", "ui_select_scene", { scene = level.id })
+        local card = button(self, "level_" .. level.id, vmath.vector3(x, y, 0), SELECTOR_CARD_SIZE, "", "ui_select_scene", { scene = level.id })
         gui.set_color(card.box, vmath.vector4(0.08, 0.11, 0.16, 1))
         gui.set_enabled(card.label, false)
-        local thumb = gui.new_box_node(vmath.vector3(x, y + 35, 0), vmath.vector3(250, 105, 0))
+        local thumb = gui.new_box_node(vmath.vector3(x, y + 35, 0), vmath.vector3(204, 105, 0))
         gui.set_color(thumb, level.color)
-        local title = text_node(vmath.vector3(x, y - 40, 0), level.title, vmath.vector3(248, 28, 0))
-        local description = text_node(vmath.vector3(x, y - 70, 0), level.description, vmath.vector3(248, 34, 0), vmath.vector4(0.67, 0.73, 0.8, 1))
+        local title = text_node(vmath.vector3(x, y - 40, 0), level.title, vmath.vector3(SELECTOR_TEXT_WIDTH, 28, 0))
+        local description = text_node(vmath.vector3(x, y - 70, 0), level.description, vmath.vector3(SELECTOR_TEXT_WIDTH, 34, 0), vmath.vector4(0.67, 0.73, 0.8, 1))
         gui.set_line_break(description, true)
         self.selector_nodes[#self.selector_nodes + 1] = card.box
         self.selector_nodes[#self.selector_nodes + 1] = thumb

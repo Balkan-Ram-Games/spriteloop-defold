@@ -31,6 +31,10 @@ components {
   component: "/example/empty_part/empty_part.collectionproxy"
 }
 components {
+  id: "part_transform_proxy"
+  component: "/example/part_transform/part_transform.collectionproxy"
+}
+components {
   id: "explorer_proxy"
   component: "/example/explorer/explorer.collectionproxy"
 }

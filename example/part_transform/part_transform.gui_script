@@ -1,0 +1,35 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local ROBOT = "/robot#robot"
+local ROBOT_POSITION = vmath.vector3(640, 310, 0)
+local ROBOT_SCALE = 0.55
+
+local function component_to_screen(position)
+    return ROBOT_POSITION + position * ROBOT_SCALE
+end
+
+local function follow_part(node, part, options)
+    local transform = spriteloop.get_part_transform(ROBOT, part, options)
+    if not transform then
+        gui.set_enabled(node, false)
+        return
+    end
+
+    gui.set_enabled(node, true)
+    gui.set_position(node, component_to_screen(transform.position))
+end
+
+function init(self)
+    self.pivot_marker = gui.get_node("pivot_marker")
+    self.center_marker = gui.get_node("center_marker")
+    self.body_marker = gui.get_node("body_marker")
+    spriteloop.play_anim(ROBOT, "idle", { loop = true })
+end
+
+function update(self, _dt)
+    -- The returned positions are local to the SpriteLoop component. This demo
+    -- applies the component scale and owning game object's screen position.
+    follow_part(self.pivot_marker, "hand")
+    follow_part(self.center_marker, "hand", { origin = "center" })
+    follow_part(self.body_marker, "body_top")
+end

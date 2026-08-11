@@ -1,0 +1,72 @@
+script: "/example/part_transform/part_transform.gui_script"
+fonts {
+  name: "system_font"
+  font: "/builtins/fonts/default.font"
+}
+nodes {
+  position { x: 20.0 y: 620.0 }
+  size { x: 590.0 y: 92.0 }
+  color { x: 0.07 y: 0.1 z: 0.14 w: 0.9 }
+  type: TYPE_BOX
+  id: "panel"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+}
+nodes {
+  position { x: 36.0 y: 602.0 }
+  size { x: 560.0 y: 24.0 }
+  color { x: 0.92 y: 0.96 z: 1.0 w: 1.0 }
+  type: TYPE_TEXT
+  text: "get_part_transform() follows the current rendered frame"
+  font: "system_font"
+  id: "title"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+}
+nodes {
+  position { x: 36.0 y: 574.0 }
+  size { x: 560.0 y: 20.0 }
+  color { x: 0.3 y: 1.0 z: 0.48 w: 1.0 }
+  type: TYPE_TEXT
+  text: "green = hand pivot    orange = hand base-image center"
+  font: "system_font"
+  id: "hand_legend"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+}
+nodes {
+  position { x: 36.0 y: 550.0 }
+  size { x: 560.0 y: 20.0 }
+  color { x: 0.35 y: 0.7 z: 1.0 w: 1.0 }
+  type: TYPE_TEXT
+  text: "blue = body_top pivot"
+  font: "system_font"
+  id: "body_legend"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+}
+nodes {
+  size { x: 12.0 y: 12.0 }
+  color { x: 0.3 y: 1.0 z: 0.48 w: 1.0 }
+  type: TYPE_BOX
+  id: "pivot_marker"
+  pivot: PIVOT_CENTER
+}
+nodes {
+  size { x: 12.0 y: 12.0 }
+  color { x: 1.0 y: 0.55 z: 0.16 w: 1.0 }
+  type: TYPE_BOX
+  id: "center_marker"
+  pivot: PIVOT_CENTER
+}
+nodes {
+  size { x: 12.0 y: 12.0 }
+  color { x: 0.35 y: 0.7 z: 1.0 w: 1.0 }
+  type: TYPE_BOX
+  id: "body_marker"
+  pivot: PIVOT_CENTER
+}

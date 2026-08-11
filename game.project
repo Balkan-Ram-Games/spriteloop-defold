@@ -45,3 +45,6 @@ clear_color_red = 0.3
 clear_color_green = 0.3
 clear_color_blue = 0.3
 
+[collection_proxy]
+max_count = 10
+
