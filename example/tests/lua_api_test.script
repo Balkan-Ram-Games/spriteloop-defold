@@ -38,6 +38,7 @@ end
 function init(self)
     tests_run = 0
     tests_passed = 0
+    expect("native extension version", spla.version(), "0.13.0-alpha")
     local info = spriteloop.get_info(COMPONENT)
     expect("get_info has skins", (info.skin_count or 0) > 0, true)
     expect("get_info has variants", (info.variant_count or 0) > 0, true)

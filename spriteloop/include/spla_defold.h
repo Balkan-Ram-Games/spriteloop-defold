@@ -20,7 +20,7 @@
 #define SPLA_DEFOLD_MODULE_NAME "spla_native"
 #define SPLA_DEFOLD_COMPONENT_MODULE_NAME "spriteloop_native"
 #define SPLA_DEFOLD_COMPONENT_TYPE "spriteloopc"
-#define SPLA_DEFOLD_VERSION "0.1.0"
+#define SPLA_DEFOLD_VERSION "0.13.0-alpha"
 
 // Shared runtime declarations for the Defold adapter.
 //

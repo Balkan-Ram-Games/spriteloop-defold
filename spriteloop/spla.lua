@@ -27,7 +27,7 @@ function M.version()
         return native.version()
     end
 
-    return "0.1.0-lua-placeholder"
+    return "0.13.0-alpha-lua-placeholder"
 end
 
 -- Loads a .spla package from a Defold resource path.

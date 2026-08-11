@@ -1,6 +1,6 @@
 # SpriteLoop for Defold
 
-[![Defold extension version](https://img.shields.io/badge/Defold%20extension-v0.12.0--alpha-4f7cff?style=for-the-badge)](https://github.com/Balkan-Ram-Games/spriteloop-defold/releases/tag/v0.12.0-alpha)
+[![Defold extension version](https://img.shields.io/badge/Defold%20extension-v0.13.0--alpha-4f7cff?style=for-the-badge)](https://github.com/Balkan-Ram-Games/spriteloop-defold/releases/tag/v0.13.0-alpha)
 
 > For SpriteLoop desktop app bugs and feature requests, use the
 > [SpriteLoop app issue tracker](https://github.com/Balkan-Ram-Games/spriteloop-app/issues).
@@ -16,7 +16,7 @@ and a small example project.
 Add a tagged GitHub archive URL to your Defold project dependencies:
 
 ```text
-https://github.com/Balkan-Ram-Games/spriteloop-defold/archive/refs/tags/v0.12.0-alpha.zip
+https://github.com/Balkan-Ram-Games/spriteloop-defold/archive/refs/tags/v0.13.0-alpha.zip
 ```
 
 Then fetch libraries from the Defold editor. The archive exposes the extension
