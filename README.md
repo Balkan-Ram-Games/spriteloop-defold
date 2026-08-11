@@ -201,15 +201,17 @@ spriteloop.clear_variants(url)
 
 - `set_skin()` returns `true` when the skin ID or name exists.
 - `set_variant()` returns `true` when the part resolves and the variant resolves
-  to a variant belonging to that part.
+  to a variant belonging to that part. Pass `"default"` (case-insensitive) to
+  clear that part's manual override.
 - `clear_variant()` returns `true` when the part resolves.
 - `clear_variants()` removes every manual part override.
 
-The **Default** option shown for a part in SpriteLoop is not an exported
+The **Default** option shown for a part in SpriteLoop is not normally an exported
 variant. It means that the part has no manual variant override. Use
-`clear_variant()` to select this state for one part, or `clear_variants()` to
-restore it for every part. A real variant may still use `default` as its name,
-key, or ID.
+`set_variant(url, part, "default")` or `clear_variant()` to select this state for
+one part, and `clear_variants()` to restore it for every part. Real variant
+lookup happens first. If a variant actually uses `default` as its name, key, or
+ID, that variant is selected instead; use `clear_variant()` to reset that part.
 
 Failed animation, skin, part, or variant lookups log a Defold warning while
 still returning `false`.

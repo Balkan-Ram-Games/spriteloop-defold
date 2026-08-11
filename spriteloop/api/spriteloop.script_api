@@ -164,7 +164,7 @@
       desc: True when the skin id or name exists.
   - name: set_variant
     type: function
-    desc: Overrides one part variant.
+    desc: Overrides one part variant. Pass "default" to clear the part's manual variant override.
     parameters:
     - name: url
       type: [string, hash, url]
@@ -174,11 +174,11 @@
       desc: Part id, key, or name. Exact ids are matched before keys and names.
     - name: variant_id
       type: string
-      desc: Variant id, key, or name for the selected part. Exact ids are matched before keys and names.
+      desc: Variant id, key, or name for the selected part. Exact ids are matched before keys and names. If a real variant matches "default", it is selected instead of clearing the override.
     returns:
     - name: changed
       type: boolean
-      desc: True when the part and variant resolve to a matching pair.
+      desc: True when the part and variant resolve to a matching pair, or when "default" successfully clears the override.
   - name: clear_variant
     type: function
     desc: Clears one part variant override.

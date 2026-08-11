@@ -5,6 +5,7 @@
 #include <dmsdk/dlib/log.h>
 
 #include <algorithm>
+#include <cctype>
 #include <memory>
 #include <string>
 #include <utility>
@@ -17,6 +18,23 @@
 namespace spla_defold {
 
 namespace {
+
+bool ascii_case_insensitive_equal(const std::string& left, const char* right)
+{
+    const std::size_t right_size = std::char_traits<char>::length(right);
+    if (left.size() != right_size) {
+        return false;
+    }
+
+    for (std::size_t i = 0; i < left.size(); ++i) {
+        const unsigned char left_character = static_cast<unsigned char>(left[i]);
+        const unsigned char right_character = static_cast<unsigned char>(right[i]);
+        if (std::tolower(left_character) != std::tolower(right_character)) {
+            return false;
+        }
+    }
+    return true;
+}
 
 // Returns the process-local list of live SpriteLoop instances.
 std::vector<SplaDefoldInstance*>& live_instances()
@@ -378,9 +396,15 @@ bool set_instance_variant(SplaDefoldInstance& instance,
 {
     const spriteloop::SplaPackage& package = instance_package(instance);
     const int part_index = spriteloop::find_part_index_by_id_key_or_name(package, part_id);
+    if (part_index < 0) {
+        return false;
+    }
     const int variant_index = spriteloop::find_variant_index_by_id_key_or_name_for_part(
         package, part_index, variant_id);
-    if (part_index < 0 || variant_index < 0) {
+    if (variant_index < 0) {
+        if (ascii_case_insensitive_equal(variant_id, "default")) {
+            return clear_instance_variant(instance, part_id);
+        }
         return false;
     }
 

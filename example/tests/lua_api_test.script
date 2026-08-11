@@ -63,6 +63,16 @@ function init(self)
 
     expect("set variant by part and variant names",
         spriteloop.set_variant(COMPONENT, "body_top", "torso_blue"), true)
+    expect("reset variant with lowercase default",
+        spriteloop.set_variant(COMPONENT, "body_top", "default"), true)
+    expect("set variant before display-case reset",
+        spriteloop.set_variant(COMPONENT, "body_top", "torso_blue"), true)
+    expect("reset variant with display-case Default",
+        spriteloop.set_variant(COMPONENT, "body_top", "Default"), true)
+    expect("reset variant by internal part id",
+        spriteloop.set_variant(COMPONENT, "4_group_38_4", "default"), true)
+    expect("default does not hide a missing part",
+        spriteloop.set_variant(COMPONENT, "__missing_part__", "default"), false)
     expect("missing variant part",
         spriteloop.set_variant(COMPONENT, "__missing_part__", "torso_blue"), false)
     expect("missing variant for part",
@@ -106,6 +116,15 @@ function init(self)
     expect("preserved event frame", events[1].frame, 0)
     spriteloop.stop_anim(EVENT_COMPONENT)
     spriteloop.consume_events(EVENT_COMPONENT)
+
+    local variant_handle = spla.load("/example/assets/robot_idle_skins.spla")
+    expect("low-level set variant",
+        spla.set_variant(variant_handle, "body_top", "torso_blue"), true)
+    expect("low-level reset variant with default",
+        spla.set_variant(variant_handle, "body_top", "default"), true)
+    expect("low-level reset variant with Default",
+        spla.set_variant(variant_handle, "body_top", "Default"), true)
+    spla.destroy(variant_handle)
 
     local handle = spla.load("/example/events/clockheart.spla")
     local handle_info = spla.get_info(handle)

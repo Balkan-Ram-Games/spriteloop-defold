@@ -152,6 +152,7 @@ function M.set_skin(url, skin_id_or_name)
 end
 
 -- Overrides one part to render a specific variant id, key, or name.
+-- Pass "default" to clear the part's manual variant override.
 function M.set_variant(url, part_id_key_or_name, variant_id_key_or_name)
     return call("set_variant", url, part_id_key_or_name, variant_id_key_or_name)
 end

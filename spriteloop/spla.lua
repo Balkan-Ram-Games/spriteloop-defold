@@ -154,6 +154,7 @@ function M.set_skin(handle, skin_id)
 end
 
 -- Overrides one part to render a specific variant id, key, or name.
+-- Pass "default" to clear the part's manual variant override.
 function M.set_variant(handle, part_id, variant_id)
     if native and native.set_variant then
         return native.set_variant(handle, part_id, variant_id)
