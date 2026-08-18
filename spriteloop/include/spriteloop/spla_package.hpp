@@ -30,6 +30,18 @@ struct SplaTransform {
     SplaColor tint;
 };
 
+struct SplaMeshVertex {
+    float x = 0.0f;
+    float y = 0.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+};
+
+struct SplaMesh {
+    std::vector<SplaMeshVertex> vertices;
+    std::vector<std::uint32_t> indices;
+};
+
 struct SplaPart {
     std::string id;
     std::string key;
@@ -39,6 +51,7 @@ struct SplaPart {
     int width = 0;
     int height = 0;
     SplaVec2 pivot;
+    SplaMesh mesh;
     int draw_order = 0;
     bool visible = true;
 };
