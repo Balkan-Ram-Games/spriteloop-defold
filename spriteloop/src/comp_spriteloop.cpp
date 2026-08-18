@@ -90,7 +90,7 @@ struct SpriteLoopWorld {
     std::vector<SplaDefoldComponent*> components;
     std::vector<dmRender::RenderObject> render_objects;
     std::vector<SpriteLoopVertex> vertex_data;
-    std::vector<uint32_t> quad_index_pattern;
+    std::vector<uint32_t> index_data;
     std::vector<RenderSignatureEntry> previous_signature;
     std::vector<RenderSignatureEntry> current_signature;
     std::vector<RenderBatchRange> previous_batch_ranges;
@@ -103,7 +103,6 @@ struct SpriteLoopWorld {
     dmGraphics::HVertexDeclaration vertex_declaration = 0;
     dmGraphics::HVertexBuffer vertex_buffer = 0;
     dmGraphics::HIndexBuffer index_buffer = 0;
-    uint32_t current_quad_count = 0;
     uint32_t current_index_count = 0;
     bool previous_buffers_valid = false;
     bool reuse_frame_candidate = false;
@@ -123,6 +122,7 @@ struct ComponentGeometryCache {
     dmVMath::Quat local_rotation;
     dmVMath::Vector3 local_scale;
     std::vector<SpriteLoopVertex> vertices;
+    std::vector<uint32_t> indices;
 };
 
 struct PreparedComponentGeometry {
@@ -433,34 +433,6 @@ void reject_reuse(SpriteLoopWorld* world, uint32_t SplaDefoldRenderStats::*reaso
     world->reuse_reject_recorded = true;
 }
 
-void ensure_quad_index_pattern(SpriteLoopWorld* world, uint32_t quad_count)
-{
-    if (world == nullptr) {
-        return;
-    }
-
-    const uint32_t old_quad_count =
-        static_cast<uint32_t>(world->quad_index_pattern.size() / 6);
-    if (old_quad_count >= quad_count) {
-        return;
-    }
-
-    world->quad_index_pattern.resize(static_cast<std::size_t>(quad_count) * 6);
-    for (uint32_t quad = old_quad_count; quad < quad_count; ++quad) {
-        const uint32_t base_vertex = quad * 4;
-        const uint32_t base_index = quad * 6;
-        // Baked quads are TL, TR, BR, BL. Keep triangles CCW to match Defold 1.13+
-        // built-in 2D components when projects enable back-face culling.
-        world->quad_index_pattern[base_index + 0] = base_vertex + 0;
-        world->quad_index_pattern[base_index + 1] = base_vertex + 2;
-        world->quad_index_pattern[base_index + 2] = base_vertex + 1;
-        world->quad_index_pattern[base_index + 3] = base_vertex + 0;
-        world->quad_index_pattern[base_index + 4] = base_vertex + 3;
-        world->quad_index_pattern[base_index + 5] = base_vertex + 2;
-    }
-    ++world->frame_stats.index_pattern_rebuilds;
-}
-
 RenderSignatureEntry signature_entry_from_prepared(
     const PreparedComponentGeometry& prepared)
 {
@@ -529,6 +501,7 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
         cache.local_rotation = instance.local_rotation;
         cache.local_scale = instance.local_scale;
         cache.vertices.clear();
+        cache.indices = baked_frame->indices;
         cache.vertices.reserve(baked_frame->vertices.size());
 
         for (const SplaDefoldBakedVertex& baked_vertex : baked_frame->vertices) {
@@ -538,15 +511,15 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
         cache.valid = true;
     }
 
-    const uint32_t vertex_count = static_cast<uint32_t>((cache.vertices.size() / 4) * 4);
+    const uint32_t vertex_count = static_cast<uint32_t>(cache.vertices.size());
     prepared.component = component;
     prepared.material = component->resource->material->m_Material;
     prepared.texture = atlas_texture;
     prepared.animation = animation;
     prepared.frame_index = frame_index;
     prepared.vertex_count = vertex_count;
-    prepared.index_count = (vertex_count / 4) * 6;
-    prepared.valid = prepared.vertex_count > 0;
+    prepared.index_count = static_cast<uint32_t>(cache.indices.size());
+    prepared.valid = prepared.vertex_count > 0 && prepared.index_count > 0;
     return prepared;
 }
 
@@ -568,12 +541,20 @@ bool copy_prepared_vertices_to_slot(SpriteLoopWorld* world,
         std::min<std::size_t>(prepared.vertex_count, cache.vertices.size());
     const std::size_t vertex_start = slot.vertex_start;
     if (vertex_count == 0 ||
-        vertex_start + vertex_count > world->vertex_data.size()) {
+        vertex_start + vertex_count > world->vertex_data.size() ||
+        slot.index_start + cache.indices.size() > world->index_data.size()) {
         return false;
     }
 
     std::copy(cache.vertices.begin(), cache.vertices.begin() + vertex_count,
               world->vertex_data.begin() + vertex_start);
+    for (std::size_t i = 0; i < cache.indices.size(); ++i) {
+        const uint32_t local_index = cache.indices[i];
+        if (local_index >= vertex_count) {
+            return false;
+        }
+        world->index_data[slot.index_start + i] = slot.vertex_start + local_index;
+    }
     ++world->frame_stats.slot_vertex_copies;
     ++world->frame_stats.vertex_bulk_copies;
     ++world->frame_stats.dirty_slots;
@@ -586,7 +567,7 @@ void rebuild_slot_layout(SpriteLoopWorld* world,
     world->render_slots.clear();
     world->slot_lookup.clear();
     world->vertex_data.clear();
-    world->current_quad_count = 0;
+    world->index_data.clear();
     world->current_index_count = 0;
     ++world->frame_stats.slot_layout_rebuilds;
 }
@@ -618,7 +599,7 @@ void append_slot_layout_batch(SpriteLoopWorld* world,
     }
 
     world->vertex_data.resize(vertex_cursor);
-    world->current_quad_count = vertex_cursor / 4;
+    world->index_data.resize(index_cursor);
     world->current_index_count = index_cursor;
 }
 
@@ -713,7 +694,6 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
         world->current_signature.clear();
         world->current_batch_ranges.clear();
         world->current_slot_indices.clear();
-        world->current_quad_count = 0;
         world->current_index_count = 0;
         world->reuse_frame_used = false;
         world->reuse_reject_recorded = false;
@@ -846,8 +826,6 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
             world->frame_stats.quads_generated += slot.index_count / 6;
             world->frame_stats.vertices_generated += slot.vertex_count;
         }
-        world->current_quad_count =
-            static_cast<uint32_t>(world->vertex_data.size() / 4);
         world->current_index_count =
             world->render_slots.empty()
                 ? 0
@@ -874,7 +852,6 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
                 world->previous_signature = world->current_signature;
                 world->previous_batch_ranges = world->current_batch_ranges;
             } else {
-                ensure_quad_index_pattern(world, world->current_quad_count);
                 const uint32_t vertex_bytes =
                     static_cast<uint32_t>(world->vertex_data.size() * sizeof(SpriteLoopVertex));
                 const uint32_t index_bytes =
@@ -889,7 +866,7 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
                 world->frame_stats.bytes_uploaded += vertex_bytes;
                 if (upload_index_buffer) {
                     dmGraphics::SetIndexBufferData(
-                        world->index_buffer, index_bytes, world->quad_index_pattern.data(),
+                        world->index_buffer, index_bytes, world->index_data.data(),
                         dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
                     ++world->frame_stats.index_uploads;
                     if (layout_rebuilt) {

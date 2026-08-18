@@ -47,6 +47,7 @@ struct SplaBakedVertex {
 
 struct SplaBakedFrame {
     std::vector<SplaBakedVertex> vertices;
+    std::vector<std::uint32_t> indices;
 };
 
 struct SplaBakedAnimation {
