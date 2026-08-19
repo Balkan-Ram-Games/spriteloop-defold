@@ -47,6 +47,7 @@ struct SplaBakedVertex {
 
 struct SplaBakedFrame {
     std::vector<SplaBakedVertex> vertices;
+    // Explicit triangle topology. Legacy quad baking emits six indices per four vertices.
     std::vector<std::uint32_t> indices;
 };
 
