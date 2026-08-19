@@ -254,6 +254,7 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
 // Packs decoded image resources into one Defold atlas texture.
 // On success CPU pixel buffers are released and per-part atlas regions are stored.
 bool upload_image_resources(dmGraphics::HContext graphics_context,
+                            const spriteloop::SplaPackage& package,
                             std::vector<SplaDefoldImageResource>& resources,
                             dmGraphics::HTexture& atlas_texture,
                             int& atlas_width,

@@ -184,7 +184,8 @@ SplaDefoldInstance* create_instance_from_memory(const char* path,
         return nullptr;
     }
     instance->image_map = spriteloop::build_part_image_map_by_asset(instance->package);
-    if (!upload_image_resources(dmGraphics::GetInstalledContext(), instance->image_resources,
+    if (!upload_image_resources(dmGraphics::GetInstalledContext(), instance->package,
+                                instance->image_resources,
                                 instance->atlas_texture, instance->atlas_width,
                                 instance->atlas_height, instance->atlas_texture_bytes, error)) {
         return nullptr;
@@ -226,7 +227,8 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
         return nullptr;
     }
     resource->image_map = spriteloop::build_part_image_map_by_asset(resource->package);
-    if (!upload_image_resources(dmGraphics::GetInstalledContext(), resource->image_resources,
+    if (!upload_image_resources(dmGraphics::GetInstalledContext(), resource->package,
+                                resource->image_resources,
                                 resource->atlas_texture, resource->atlas_width,
                                 resource->atlas_height, resource->atlas_texture_bytes, error)) {
         return nullptr;

@@ -4,6 +4,8 @@
 
 #include <dmsdk/sdk.h>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -79,6 +81,33 @@ const spriteloop::SplaAsset* find_asset(const spriteloop::SplaPackage& package,
     return nullptr;
 }
 
+int required_atlas_padding(const spriteloop::SplaPackage& package)
+{
+    float maximum = 0.0f;
+    for (const spriteloop::SplaPart& part : package.parts) {
+        if (part.mesh.vertices.empty()) {
+            continue;
+        }
+        float image_width = static_cast<float>(std::max(1, part.width));
+        float image_height = static_cast<float>(std::max(1, part.height));
+        for (const spriteloop::SplaVariant& variant : package.variants) {
+            if (variant.part_index == static_cast<int>(&part - package.parts.data())) {
+                image_width = std::max(image_width, static_cast<float>(variant.width));
+                image_height = std::max(image_height, static_cast<float>(variant.height));
+            }
+        }
+        for (const spriteloop::SplaMeshVertex& vertex : part.mesh.vertices) {
+            maximum = std::max(maximum, std::max(
+                std::max(0.0f, -vertex.u) * image_width,
+                std::max(0.0f, vertex.u - 1.0f) * image_width));
+            maximum = std::max(maximum, std::max(
+                std::max(0.0f, -vertex.v) * image_height,
+                std::max(0.0f, vertex.v - 1.0f) * image_height));
+        }
+    }
+    return std::max(1, static_cast<int>(std::ceil(maximum)) + 1);
+}
+
 } // namespace
 
 // Builds CPU-side image resources for every unique part or variant image in a parsed package.
@@ -144,6 +173,7 @@ bool build_image_resources(const spriteloop::SplaPackage& package,
 // graphics_context is the active Defold graphics context, resources are updated with texture
 // handles, and error describes the first upload failure.
 bool upload_image_resources(dmGraphics::HContext graphics_context,
+                            const spriteloop::SplaPackage& package,
                             std::vector<SplaDefoldImageResource>& resources,
                             dmGraphics::HTexture& atlas_texture,
                             int& atlas_width,
@@ -194,7 +224,7 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
     }
 
     spriteloop::SplaAtlasOptions options;
-    options.padding = 1;
+    options.padding = required_atlas_padding(package);
     auto atlas_result = spriteloop::pack_rgba_atlas(atlas_images, options);
     if (!atlas_result) {
         error = "failed to pack SpriteLoop atlas: " + atlas_result.error().message;
