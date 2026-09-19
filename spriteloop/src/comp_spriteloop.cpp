@@ -1201,29 +1201,6 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    struct RenderBatchOrder {
-        dmRender::HMaterial material = 0;
-        dmGraphics::HTexture texture = 0;
-        uint32_t minor_order = 0;
-    };
-    std::vector<RenderBatchOrder> batch_orders;
-
-    auto minor_order_for_batch = [&batch_orders](dmRender::HMaterial material,
-                                                 dmGraphics::HTexture texture) {
-        for (const RenderBatchOrder& order : batch_orders) {
-            if (order.material == material && order.texture == texture) {
-                return order.minor_order;
-            }
-        }
-
-        RenderBatchOrder order;
-        order.material = material;
-        order.texture = texture;
-        order.minor_order = static_cast<uint32_t>(batch_orders.size());
-        batch_orders.push_back(order);
-        return order.minor_order;
-    };
-
     world->render_objects.reserve(visible_count);
 
     dmRender::RenderListEntry* render_list =
@@ -1245,7 +1222,10 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
         write_ptr->m_BatchKey = render_batch_key(material, texture);
         write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(material);
         write_ptr->m_Dispatch = dispatch;
-        write_ptr->m_MinorOrder = minor_order_for_batch(material, texture);
+        // Minor order has higher priority than world depth in Defold's sort key.
+        // Keep it uniform so different package textures can interleave by Z.
+        // Material/texture batching is already represented by m_BatchKey.
+        write_ptr->m_MinorOrder = 0;
         write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
         write_ptr->m_Visibility = dmRender::VISIBILITY_FULL;
         ++write_ptr;
