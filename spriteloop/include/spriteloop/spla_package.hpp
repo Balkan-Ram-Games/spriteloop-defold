@@ -101,8 +101,10 @@ struct SplaFramePart {
     bool has_next_state = false;
     float state_mix = 0.0f;
     // Optional deformed local positions. When present, the count matches the
-    // owning part mesh and static mesh UVs/indices remain in use.
+    // owning part mesh and static mesh UVs remain in use.
     std::vector<SplaVec2> vertices;
+    // Optional permutation of static triangle ordinals, in painter order.
+    std::vector<std::uint32_t> triangle_order;
 };
 
 struct SplaEvent {
