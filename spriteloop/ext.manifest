@@ -24,6 +24,9 @@ platforms:
   wasm-web:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]
+  wasm_pthread-web:
+    context:
+      flags: ["-std=c++17", "-Wno-unused-private-field"]
   arm64-android:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]
