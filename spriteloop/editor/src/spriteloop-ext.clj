@@ -58,56 +58,72 @@
   (vec2 texcoord0)
   (vec4 color))
 
-(shader/defshader outline-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader outline-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
+;; read-shader is available in Defold 1.12.2 onward. Unlike the removed
+;; defshader/make-shader API, it supplies attribute reflection before drawing.
+;; The paths identify the inline sources and keep the editor shader caches apart.
+(defn- make-preview-shader [name vertex-source fragment-source uniforms]
+  (let [sources {(str name ".vp") vertex-source
+                 (str name ".fp") fragment-source}]
+    (shader/read-shader ::spriteloop-shader (keys sources)
+                        {:coordinate-space :coordinate-space-local
+                         :uniforms (assoc uniforms "view_proj" :view-proj)}
+                        sources)))
 
 (def outline-shader
-  (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
-
-(shader/defshader pick-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec3 position)
-  (defn void main []
-    (setq gl_Position (* view_proj (vec4 position 1.0)))))
-
-(shader/defshader pick-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
+  (make-preview-shader
+    "spriteloop-outline"
+    "#version 140
+     uniform vertex_uniforms { mat4 view_proj; };
+     in vec3 position;
+     in vec4 color;
+     out vec4 var_color;
+     void main() {
+       gl_Position = view_proj * vec4(position, 1.0);
+       var_color = color;
+     }"
+    "#version 140
+     in vec4 var_color;
+     out vec4 frag_color;
+     void main() { frag_color = var_color; }"
+    {}))
 
 (def pick-shader
-  (shader/make-shader ::pick-shader pick-vertex-shader pick-fragment-shader {"view_proj" :view-proj "id" :id}))
-
-(shader/defshader preview-vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (attribute vec4 color)
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)
-    (setq var_color color)))
-
-(shader/defshader preview-fragment-shader
-  (uniform sampler2D texture_sampler)
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor (* (texture2D texture_sampler var_texcoord0) var_color))))
+  (make-preview-shader
+    "spriteloop-pick"
+    "#version 140
+     uniform vertex_uniforms { mat4 view_proj; };
+     in vec3 position;
+     void main() { gl_Position = view_proj * vec4(position, 1.0); }"
+    "#version 140
+     uniform fragment_uniforms { vec4 id; };
+     out vec4 frag_color;
+     void main() { frag_color = id; }"
+    {"id" :id}))
 
 (def preview-shader
-  (shader/make-shader ::preview-shader preview-vertex-shader preview-fragment-shader))
+  (make-preview-shader
+    "spriteloop-preview"
+    "#version 140
+     uniform vertex_uniforms { mat4 view_proj; };
+     in vec3 position;
+     in vec2 texcoord0;
+     in vec4 color;
+     out vec2 var_texcoord0;
+     out vec4 var_color;
+     void main() {
+       gl_Position = view_proj * vec4(position, 1.0);
+       var_texcoord0 = texcoord0;
+       var_color = color;
+     }"
+    "#version 140
+     uniform sampler2D texture_sampler;
+     in vec2 var_texcoord0;
+     in vec4 var_color;
+     out vec4 frag_color;
+     void main() {
+       frag_color = texture(texture_sampler, var_texcoord0) * var_color;
+     }"
+    {}))
 
 (def ^:private preview-texture-params
   {:min-filter GL/GL_LINEAR
@@ -840,19 +856,28 @@
     (validate-id-in-package _node-id :default-skin skin-ids default-skin "Default Skin")))
 
 ;; Loads a .spriteloop DDF file into graph node properties.
-;; _project is unused, self is the node id, _resource resolves referenced resources, and data is
-;; the protobuf map read by the editor.
-(defn- load-spriteloop [_project self _resource data]
-  (let [resolve-resource #(workspace/resolve-resource _resource %)]
-    (gu/set-properties-from-pb-map self @spriteloop-desc-cls data
-      package (resolve-resource (:package :or ""))
-      default-animation :default-animation
-      default-skin :default-skin
-      playback-rate :playback-rate
-      loop :loop
-      visible :visible
-      autoplay :autoplay
-      material (resolve-resource (:material :or default-material)))))
+;; Both editor APIs delegate here so embedded and standalone components resolve
+;; their references relative to the owning resource.
+(defn- load-spriteloop-properties [self data resolve-resource]
+  (gu/set-properties-from-pb-map self @spriteloop-desc-cls data
+    package (resolve-resource (:package :or ""))
+    default-animation :default-animation
+    default-skin :default-skin
+    playback-rate :playback-rate
+    loop :loop
+    visible :visible
+    autoplay :autoplay
+    material (resolve-resource (:material :or default-material))))
+
+;; Defold 1.14.0 passes shared load options and node information; older editors
+;; pass project, node id, owner resource, and protobuf data separately.
+(defn- load-spriteloop
+  ([{:keys [resolve-resource-fn]} {:keys [node-id owner-resource source-value]}]
+   (load-spriteloop-properties node-id source-value
+                              #(resolve-resource-fn owner-resource %)))
+  ([_project self owner-resource data]
+   (load-spriteloop-properties self data
+                              #(workspace/resolve-resource owner-resource %))))
 
 ;; Editor graph node for one .spriteloop resource.
 ;; Properties become inspector fields, outputs feed the scene, save data, and Bob build graph.

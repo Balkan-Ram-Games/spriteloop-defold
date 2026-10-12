@@ -28,6 +28,15 @@ fetch the extension files without errors, but already-loaded editor resources ma
 not recognize the newly registered custom component type until the editor starts
 again.
 
+### Editor compatibility
+
+The editor plugin is validated with Defold 1.13.2 and 1.14.0. It uses the
+shader reflection pipeline available since 1.12.2 and accepts both the older
+resource loader arguments and the shared load context introduced in 1.14.0.
+
+Older editors may require rebuilding `pluginSpla.jar` with their matching Bob
+version: the current generated protobuf classes cannot load in Defold 1.12.2.
+
 ## Use
 
 Create a SpriteLoop component and point its package field at a `.spla` file in
