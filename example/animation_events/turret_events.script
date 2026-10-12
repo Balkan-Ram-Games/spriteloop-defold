@@ -1,0 +1,19 @@
+local spriteloop = require "spriteloop.spriteloop"
+local projectiles = require "example.shared.projectiles"
+
+function init(self)
+    self.shots = 0
+    spriteloop.play_anim("#animation", "shoot", { loop = true })
+end
+
+function update(self, dt)
+    for _, event in ipairs(spriteloop.consume_events("#animation")) do
+        if event.name == "shoot" then
+            projectiles.fire("#animation", "gun", vmath.vector3(0, 256, 0), -1)
+            self.shots = self.shots + 1
+            msg.post("/character#instructions", "example_status", {
+                text = "Turret shoot events: " .. self.shots, secondary = true,
+            })
+        end
+    end
+end

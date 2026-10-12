@@ -1,47 +1,40 @@
 local PROXIES = {
-    demo = "#main_proxy",
-    bench = "#bench_proxy",
-    skins = "#skins_proxy",
-    consume_events = "#consume_events_proxy",
-    listen_events = "#listen_events_proxy",
-    lua_api_test = "#lua_api_test_proxy",
-    empty_part = "#empty_part_proxy",
-    part_transform = "#part_transform_proxy",
+    basic = "#basic_proxy",
+    character = "#character_proxy",
+    customization = "#customization_proxy",
+    animation_events = "#animation_events_proxy",
+    event_listeners = "#event_listeners_proxy",
+    muzzle_transform = "#muzzle_transform_proxy",
+    pixel_art = "#pixel_art_proxy",
     explorer = "#explorer_proxy",
+    lua_api_test = "#lua_api_test_proxy",
 }
 
 local SCENE_NAMES = {
-    demo = "demo",
-    bench = "benchmark",
-    skins = "skins",
-    consume_events = "consume events",
-    listen_events = "listen events",
-    lua_api_test = "lua api test",
-    empty_part = "empty part",
-    part_transform = "part transforms",
-    explorer = "SPLA explorer",
+    basic = "Basic Playback",
+    character = "Character",
+    customization = "Skins & Variants",
+    animation_events = "Animation Events",
+    event_listeners = "Event Listeners",
+    muzzle_transform = "Part Transforms",
+    pixel_art = "Pixel Art Material",
+    explorer = "SPLA Explorer",
+    lua_api_test = "API Tests (Dev)",
 }
 
 local SCENE_ORDER = {
-    "demo",
-    "skins",
-    "consume_events",
-    "listen_events",
-    "lua_api_test",
-    "empty_part",
-    "part_transform",
+    "basic",
+    "character",
+    "customization",
+    "animation_events",
+    "event_listeners",
+    "muzzle_transform",
+    "pixel_art",
     "explorer",
-    "bench",
+    "lua_api_test",
 }
 
 local DEBUG_GUI = "#debug_gui"
-local BENCH_CONTROLLER = "bench:/controller#controller"
-
-local BENCHMARK_RESET = hash("benchmark_reset")
-local BENCHMARK_ADD = hash("benchmark_add")
-local BENCHMARK_NEXT_MODE = hash("benchmark_next_mode")
-local BENCHMARK_PREVIOUS_MODE = hash("benchmark_previous_mode")
-
 local function scene_label(scene)
     return SCENE_NAMES[scene] or "none"
 end
@@ -57,6 +50,7 @@ local function post_debug(self, state)
 end
 
 local function load_scene(self, scene)
+    msg.post("@render:", "use_stretch_projection", { near = -1, far = 1 })
     self.busy = true
     self.loading_scene = scene
     post_debug(self, "loading")
@@ -75,6 +69,7 @@ local function unload_active_scene(self)
 end
 
 local function switch_scene(self, scene)
+    if not PROXIES[scene] then return end
     if self.busy then
         return
     end
@@ -124,10 +119,6 @@ local function show_selector(self)
     end
 end
 
-local function post_benchmark(message_id)
-    msg.post(BENCH_CONTROLLER, message_id)
-end
-
 local function toggle_active_scene(self)
     if self.busy then
         return
@@ -136,20 +127,8 @@ local function toggle_active_scene(self)
     if self.active_scene then
         unload_active_scene(self)
     else
-        switch_scene(self, "demo")
+        switch_scene(self, "basic")
     end
-end
-
-local function post_benchmark_if_active(self, message_id)
-    if self.active_scene == "bench" and not self.busy then
-        post_benchmark(message_id)
-    end
-end
-
-local function configure_benchmark()
-    msg.post(BENCH_CONTROLLER, "benchmark_set_debug_gui", {
-        debug_gui = msg.url(nil, "/root", "debug_gui"),
-    })
 end
 
 function init(self)
@@ -165,26 +144,6 @@ function init(self)
     post_debug(self, "selector")
 end
 
-function on_input(self, action_id, action)
-    if not action.pressed then
-        return
-    end
-
-    if action_id == BENCHMARK_RESET then
-        post_benchmark_if_active(self, "benchmark_reset")
-        return true
-    elseif action_id == BENCHMARK_ADD then
-        post_benchmark_if_active(self, "benchmark_add")
-        return true
-    elseif action_id == BENCHMARK_NEXT_MODE then
-        post_benchmark_if_active(self, "benchmark_next_mode")
-        return true
-    elseif action_id == BENCHMARK_PREVIOUS_MODE then
-        post_benchmark_if_active(self, "benchmark_previous_mode")
-        return true
-    end
-end
-
 function on_message(self, message_id, _message, sender)
     if message_id == hash("proxy_loaded") then
         self.active_scene = self.loading_scene
@@ -192,9 +151,6 @@ function on_message(self, message_id, _message, sender)
         self.busy = false
         self.loads = self.loads + 1
         msg.post(sender, "enable")
-        if self.active_scene == "bench" then
-            configure_benchmark()
-        end
         post_debug(self, "loaded")
         print("Loaded " .. scene_label(self.active_scene) .. " collection proxy")
     elseif message_id == hash("proxy_unloaded") then
@@ -228,27 +184,5 @@ function on_message(self, message_id, _message, sender)
         scene_offset(self, 1)
     elseif message_id == hash("ui_previous_scene") then
         scene_offset(self, -1)
-    elseif message_id == hash("ui_load_benchmark") then
-        switch_scene(self, "bench")
-    elseif message_id == hash("ui_load_skins") then
-        switch_scene(self, "skins")
-    elseif message_id == hash("ui_load_consume_events") then
-        switch_scene(self, "consume_events")
-    elseif message_id == hash("ui_load_listen_events") then
-        switch_scene(self, "listen_events")
-    elseif message_id == hash("ui_load_lua_api_test") then
-        switch_scene(self, "lua_api_test")
-    elseif message_id == hash("ui_load_empty_part") then
-        switch_scene(self, "empty_part")
-    elseif message_id == hash("ui_benchmark_add") then
-        post_benchmark_if_active(self, "benchmark_add")
-    elseif message_id == hash("ui_benchmark_reset") then
-        post_benchmark_if_active(self, "benchmark_reset")
-    elseif message_id == hash("ui_benchmark_one_centered") then
-        post_benchmark_if_active(self, "benchmark_one_centered")
-    elseif message_id == hash("ui_benchmark_next_mode") then
-        post_benchmark_if_active(self, "benchmark_next_mode")
-    elseif message_id == hash("ui_benchmark_previous_mode") then
-        post_benchmark_if_active(self, "benchmark_previous_mode")
     end
 end

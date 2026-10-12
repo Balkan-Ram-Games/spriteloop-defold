@@ -1,0 +1,12 @@
+name: "empty_part"
+instances {
+  id: "ranger"
+  prototype: "/example/tests/empty_part/ranger_empty_part.go"
+  position {
+    x: 640.0
+    y: 280.0
+  }
+}
+scale_along_z: 0
+
+instances { id: "camera" prototype: "/example/shared/camera.go" position { x: 640 y: 360 z: 10 } }

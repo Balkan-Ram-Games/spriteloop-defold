@@ -1,0 +1,43 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local function refresh(self)
+    msg.post("#instructions", "example_status", {
+        text = string.format("Skin: %s | Gun: %s", self.skin,
+            self.gun and (self.gun .. " (manual override)") or (self.skin .. " (from skin)")),
+    })
+end
+
+function init(self)
+    spriteloop.set_skin("#animation", "red")
+    spriteloop.play_anim("#animation", "idle_armed", { loop = true })
+    msg.post("#instructions", "instructions", {
+        title = "Skins & Variants - character equipment",
+        controls = "1 / 2: red / blue skin | 3 / 4: red / blue gun only | R: restore the skin's gun",
+        source = "Gun overrides survive skin changes. R clears the override. See example/customization/customization.script",
+    })
+    self.skin, self.gun = "red", nil
+    refresh(self)
+    msg.post(".", "acquire_input_focus")
+end
+
+function final(self)
+    msg.post(".", "release_input_focus")
+end
+
+function on_input(self, action_id, action)
+    if not action.pressed then return end
+    if action_id == hash("skin_red") or action_id == hash("skin_blue") then
+        local skin = action_id == hash("skin_red") and "red" or "blue"
+        spriteloop.set_skin("#animation", skin)
+        self.skin = skin
+    elseif action_id == hash("gun_red") or action_id == hash("gun_blue") then
+        self.gun = action_id == hash("gun_red") and "red" or "blue"
+        local variant = self.gun == "blue" and "gun2" or "gun1"
+        assert(spriteloop.set_variant("#animation", "gun0", variant), "Missing gun variant")
+    elseif action_id == hash("restart") then
+        spriteloop.clear_variants("#animation")
+        self.gun = nil
+    else return end
+    refresh(self)
+    return true
+end

@@ -1,0 +1,11 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+function init(self)
+    local info = spriteloop.get_info("#animation")
+    spriteloop.play_anim("#animation", info.animations[1].id, { loop = true })
+    msg.post("#instructions", "instructions", {
+        title = "Pixel Art Material - nearest texture filtering",
+        controls = "A single animated dragon using the pixel-art material and a normal scene camera",
+        source = "example/pixel_art/dragon.spriteloop",
+    })
+end

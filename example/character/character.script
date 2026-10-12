@@ -1,0 +1,93 @@
+-- Adapted from SpriteLoop_DefoldGameJam2026: movement, skins and authored events.
+local spriteloop = require "spriteloop.spriteloop"
+local OFFSET = vmath.vector3(0, 254.5, 0)
+
+local function play(self, name, loop)
+    if self.animation ~= name then
+        spriteloop.play_anim("#animation", name, { loop = loop })
+        self.animation = name
+    end
+end
+
+local function fire()
+    local marker = spriteloop.get_part_transform("#animation", "gun_point")
+    if not marker then return end
+    -- Part positions are component-local. Include the component's offset before
+    -- applying the game object's world transform (including its facing scale).
+    go.update_world_transform()
+    local point = marker.position + OFFSET
+    local world = go.get_world_transform() * vmath.vector4(point.x, point.y, point.z, 1)
+    local direction = go.get_scale().x < 0 and -1 or 1
+    factory.create("#bullet_factory", vmath.vector3(world.x, world.y, 0.1), nil,
+        { velocity = vmath.vector3(direction * 500, 0, 0) }, 0.055)
+end
+
+function init(self)
+    self.keys = {}
+    self.animation = nil
+    spriteloop.set_skin("#animation", "red")
+    play(self, "idle_armed", true)
+    msg.post("#instructions", "instructions", {
+        title = "Character - movement and event-driven shooting",
+        controls = "WASD: move | Space: shoot while standing | 1 / 2: red / blue weapon skin",
+        source = "example/character/character.script",
+    })
+    msg.post(".", "acquire_input_focus")
+end
+
+function final(self)
+    msg.post(".", "release_input_focus")
+end
+
+function update(self, dt)
+    local dx = (self.keys.right and 1 or 0) - (self.keys.left and 1 or 0)
+    local dy = (self.keys.up and 1 or 0) - (self.keys.down and 1 or 0)
+    local moving = dx ~= 0 or dy ~= 0
+    -- Cancel first, so a queued event from an interrupted shot cannot fire.
+    if moving then self.shooting = false end
+    for _, event in ipairs(spriteloop.consume_events("#animation")) do
+        if event.name == "shoot" and self.shooting then fire() end
+    end
+    if self.shooting then
+        self.remaining = self.remaining - dt
+        if self.remaining <= 0 then self.shooting = false end
+    end
+    if moving then
+        local length = math.sqrt(dx * dx + dy * dy)
+        local position = go.get_position()
+        position.x = math.max(110, math.min(1170, position.x + dx / length * 300 * dt))
+        position.y = math.max(100, math.min(430, position.y + dy / length * 300 * dt))
+        go.set_position(position)
+        if dx ~= 0 then
+            local scale = go.get_scale()
+            scale.x = math.abs(scale.x) * (dx < 0 and -1 or 1)
+            -- go.set_scale() rejects negative axes; the scale property supports
+            -- mirroring and keeps the muzzle's world transform consistent.
+            go.set(".", "scale", scale)
+        end
+    end
+    if not self.shooting then play(self, moving and "run_armed" or "idle_armed", true) end
+end
+
+function on_input(self, action_id, action)
+    for _, name in ipairs({ "left", "right", "up", "down" }) do
+        if action_id == hash(name) then
+            if action.pressed then self.keys[name] = true end
+            if action.released then self.keys[name] = false end
+            return true
+        end
+    end
+    if action_id == hash("fire") and action.pressed and not self.shooting then
+        if self.keys.left or self.keys.right or self.keys.up or self.keys.down then return true end
+        spriteloop.consume_events("#animation")
+        self.shooting, self.remaining = true, 0.6
+        play(self, "shoot", false)
+        return true
+    elseif action_id == hash("skin_red") and action.pressed then
+        spriteloop.set_skin("#animation", "red")
+        return true
+    elseif action_id == hash("skin_blue") and action.pressed then
+        spriteloop.set_skin("#animation", "blue")
+        return true
+    end
+end

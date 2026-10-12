@@ -16,14 +16,14 @@ shared_state = 1
 width = 1280
 height = 720
 high_dpi = 1
-vsync = 0
+vsync = 1
 fullscreen = 0
 
 [collection]
-max_instances = 6000
+max_instances = 512
 
 [spriteloop]
-max_count = 6000
+max_count = 512
 
 [android]
 input_method = HiddenInputField
@@ -38,7 +38,7 @@ use_fixed_timestep = 1
 scale_mode = stretch
 
 [sprite]
-max_count = 6000
+max_count = 512
 
 [render]
 clear_color_red = 0.3
@@ -47,4 +47,3 @@ clear_color_blue = 0.3
 
 [collection_proxy]
 max_count = 10
-

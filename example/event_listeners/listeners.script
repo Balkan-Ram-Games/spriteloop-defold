@@ -1,0 +1,48 @@
+local spriteloop = require "spriteloop.spriteloop"
+local projectiles = require "example.shared.projectiles"
+
+local function subscribe(self)
+    self.listener = spriteloop.listen("#animation", "shoot", function(event)
+        self.count = self.count + 1
+        projectiles.fire("#animation", "gun", vmath.vector3(0, 256, 0), -1)
+        msg.post("#instructions", "example_status", {
+            text = string.format("Listener received %d events | Last: %s at frame %s",
+                self.count, event.name, tostring(event.frame)),
+        })
+    end)
+end
+
+function init(self)
+    self.count = 0
+    subscribe(self)
+    spriteloop.play_anim("#animation", "shoot", { loop = true })
+    msg.post("#instructions", "instructions", {
+        title = "Event Listeners - turret shooting callback",
+        controls = "Space: unsubscribe / subscribe | Leaving the scene removes its listener",
+        source = "example/event_listeners/listeners.script",
+    })
+    msg.post(".", "acquire_input_focus")
+end
+
+function update(self, dt)
+    -- dispatch_events consumes the queue and calls the registered Lua listeners.
+    spriteloop.dispatch_events("#animation")
+end
+
+function final(self)
+    if self.listener then spriteloop.unlisten("#animation", self.listener) end
+    msg.post(".", "release_input_focus")
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("fire") and action.pressed then
+        if self.listener then
+            spriteloop.unlisten("#animation", self.listener)
+            self.listener = nil
+        else subscribe(self) end
+        msg.post("#instructions", "example_status", {
+            text = self.listener and "Subscribed - waiting for shoot event" or "Unsubscribed - animation keeps playing",
+        })
+        return true
+    end
+end

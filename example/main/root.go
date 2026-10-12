@@ -1,44 +1,11 @@
-components {
-  id: "controller"
-  component: "/example/main/root.script"
-}
-components {
-  id: "main_proxy"
-  component: "/example/main/main.collectionproxy"
-}
-components {
-  id: "bench_proxy"
-  component: "/example/bench/bench.collectionproxy"
-}
-components {
-  id: "skins_proxy"
-  component: "/example/skins/skins.collectionproxy"
-}
-components {
-  id: "consume_events_proxy"
-  component: "/example/events/consume_events.collectionproxy"
-}
-components {
-  id: "listen_events_proxy"
-  component: "/example/events/listen_events.collectionproxy"
-}
-components {
-  id: "lua_api_test_proxy"
-  component: "/example/tests/lua_api_test.collectionproxy"
-}
-components {
-  id: "empty_part_proxy"
-  component: "/example/empty_part/empty_part.collectionproxy"
-}
-components {
-  id: "part_transform_proxy"
-  component: "/example/part_transform/part_transform.collectionproxy"
-}
-components {
-  id: "explorer_proxy"
-  component: "/example/explorer/explorer.collectionproxy"
-}
-components {
-  id: "debug_gui"
-  component: "/example/main/root_debug.gui"
-}
+components { id: "controller" component: "/example/main/root.script" }
+components { id: "debug_gui" component: "/example/main/root_debug.gui" }
+components { id: "basic_proxy" component: "/example/basic/basic.collectionproxy" }
+components { id: "character_proxy" component: "/example/character/character.collectionproxy" }
+components { id: "customization_proxy" component: "/example/customization/customization.collectionproxy" }
+components { id: "animation_events_proxy" component: "/example/animation_events/animation_events.collectionproxy" }
+components { id: "event_listeners_proxy" component: "/example/event_listeners/event_listeners.collectionproxy" }
+components { id: "muzzle_transform_proxy" component: "/example/muzzle_transform/muzzle_transform.collectionproxy" }
+components { id: "pixel_art_proxy" component: "/example/pixel_art/pixel_art.collectionproxy" }
+components { id: "explorer_proxy" component: "/example/explorer/explorer.collectionproxy" }
+components { id: "lua_api_test_proxy" component: "/example/tests/lua_api_test.collectionproxy" }

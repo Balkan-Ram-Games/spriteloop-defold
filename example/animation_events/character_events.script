@@ -1,0 +1,26 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+function init(self)
+    self.steps = 0
+    self.flash = 0
+    spriteloop.play_anim("#animation", "run", { loop = true })
+    msg.post("#instructions", "instructions", {
+        title = "Animation Events - consume authored events in update()",
+        controls = "Character: step events play footsteps and flash | Turret: shoot events spawn bullets",
+        source = "example/animation_events/character_events.script + turret_events.script",
+    })
+end
+
+function update(self, dt)
+    self.flash = math.max(0, self.flash - dt)
+    for _, event in ipairs(spriteloop.consume_events("#animation")) do
+        if event.name == "step" then
+            self.steps = self.steps + 1
+            self.flash = 0.1
+            sound.play("#footstep", { gain = 0.3 })
+        end
+    end
+    if self.flash > 0 then spriteloop.set_tint("#animation", 0.5, 1, 0.5)
+    else spriteloop.clear_tint("#animation") end
+    msg.post("#instructions", "example_status", { text = "Character step events: " .. self.steps })
+end

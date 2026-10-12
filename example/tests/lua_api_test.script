@@ -218,7 +218,7 @@ function init(self)
     expect_near("part skew sign conversion", skewed_transform.skew.x, 2.691364)
     spla.destroy(keyed_handle)
 
-    local handle = spla.load("/example/events/clockheart.spla")
+    local handle = spla.load("/example/tests/assets/clockheart.spla")
     local handle_info = spla.get_info(handle)
     expect("low-level event queue limit", handle_info.max_pending_events, 256)
     expect("low-level default tint red", handle_info.tint_r, 1)

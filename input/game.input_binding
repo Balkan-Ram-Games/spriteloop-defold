@@ -2,27 +2,27 @@ mouse_trigger {
   input: MOUSE_BUTTON_1
   action: "touch"
 }
-mouse_trigger {
-  input: MOUSE_BUTTON_2
-  action: "destroy_robot"
-}
 key_trigger {
   input: KEY_P
   action: "toggle_profiler"
 }
-key_trigger {
-  input: KEY_G
-  action: "toggle_debug_gui"
-}
-key_trigger {
-  input: KEY_R
-  action: "benchmark_reset"
-}
-key_trigger {
-  input: KEY_SPACE
-  action: "benchmark_add"
-}
-key_trigger {
-  input: KEY_B
-  action: "benchmark_next_mode"
-}
+key_trigger { input: KEY_A action: "left" }
+
+key_trigger { input: KEY_D action: "right" }
+
+key_trigger { input: KEY_W action: "up" }
+
+key_trigger { input: KEY_S action: "down" }
+
+key_trigger { input: KEY_SPACE action: "fire" }
+
+key_trigger { input: KEY_1 action: "skin_red" }
+
+key_trigger { input: KEY_2 action: "skin_blue" }
+
+key_trigger { input: KEY_R action: "restart" }
+key_trigger { input: KEY_UP action: "speed_up" }
+key_trigger { input: KEY_DOWN action: "speed_down" }
+key_trigger { input: KEY_3 action: "gun_red" }
+key_trigger { input: KEY_4 action: "gun_blue" }
+key_trigger { input: KEY_N action: "next_frame" }

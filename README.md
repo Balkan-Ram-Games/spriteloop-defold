@@ -314,6 +314,7 @@ x86_64-linux
 x86_64-osx
 arm64-osx
 wasm-web
+wasm_pthread-web
 arm64-android
 armv7-android
 arm64-ios
@@ -377,7 +378,13 @@ committed extension files and platform library are present, then runs Bob with
 full build log.
 
 If `spriteloop/pluginsrc/` or `spriteloop/commonsrc/spriteloop_ddf.proto`
-changes, rebuild the editor/Bob plugin jar before validating:
+changes, rebuild the editor/Bob plugin jar before validating. Use Bob matching
+the editor's exact engine revision: protobuf builder APIs can change even between
+builds with the same version label. A mismatched jar can produce a
+`getSrcBuilder` / `GeneratedMessageV3$Builder` error during HTML5 builds.
+Restart the editor after replacing the plugin jar so it reloads the Java classes.
+
+Rebuild command:
 
 ```sh
 python3 utils/build_spriteloop_plugin.py --bob path/to/bob.jar --platform x86_64-win32

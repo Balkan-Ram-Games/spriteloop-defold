@@ -1,0 +1,44 @@
+local function label(y, color)
+    local node = gui.new_text_node(vmath.vector3(640, y, 0), "")
+    gui.set_font(node, "system_font")
+    gui.set_size(node, vmath.vector3(1120, 35, 0))
+    gui.set_color(node, color)
+    return node
+end
+
+function init(self)
+    local panel = gui.new_box_node(vmath.vector3(640, 610, 0), vmath.vector3(1160, 140, 0))
+    gui.set_color(panel, vmath.vector4(0.04, 0.06, 0.09, 0.92))
+    self.title = label(660, vmath.vector4(1, 1, 1, 1))
+    self.controls = label(628, vmath.vector4(0.8, 0.9, 1, 1))
+    self.status = label(596, vmath.vector4(0.65, 0.9, 0.7, 1))
+    self.secondary = label(565, vmath.vector4(0.8, 0.8, 0.8, 1))
+    self.cross = {}
+    for _, style in ipairs({
+        { width = 28, height = 5, color = vmath.vector4(0, 0, 0, 1) },
+        { width = 5, height = 28, color = vmath.vector4(0, 0, 0, 1) },
+        { width = 24, height = 2, color = vmath.vector4(0.2, 1, 0.2, 1) },
+        { width = 2, height = 24, color = vmath.vector4(0.2, 1, 0.2, 1) },
+    }) do
+        local node = gui.new_box_node(vmath.vector3(), vmath.vector3(style.width, style.height, 0))
+        gui.set_color(node, style.color)
+        gui.set_enabled(node, false)
+        self.cross[#self.cross + 1] = node
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("instructions") then
+        gui.set_text(self.title, message.title or "")
+        gui.set_text(self.controls, message.controls or "")
+        gui.set_text(self.secondary, message.source or "")
+    elseif message_id == hash("example_status") then
+        gui.set_text(message.secondary and self.secondary or self.status, message.text or "")
+    elseif message_id == hash("muzzle_marker") then
+        -- A GUI cross keeps a useful size regardless of the actor's scale.
+        for _, node in ipairs(self.cross) do
+            gui.set_position(node, vmath.vector3(message.x, message.y, 0))
+            gui.set_enabled(node, true)
+        end
+    end
+end

@@ -1,0 +1,6 @@
+package: "/example/character/clockheart_gun.spla"
+default_animation: "idle_armed"
+default_skin: "red"
+material: "/spriteloop/spriteloop/materials/spriteloop.material"
+loop: true
+autoplay: false

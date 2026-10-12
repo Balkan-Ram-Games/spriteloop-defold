@@ -1,0 +1,23 @@
+name: "basic"
+instances {
+  id: "robot"
+  prototype: "/example/basic/robot.go"
+  position {
+    x: 640.0
+    y: 340.0
+  }
+  scale3 {
+    x: 0.5
+    y: 0.5
+  }
+}
+instances {
+  id: "camera"
+  prototype: "/example/shared/camera.go"
+  position {
+    x: 640.0
+    y: 360.0
+    z: 10.0
+  }
+}
+scale_along_z: 0

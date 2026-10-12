@@ -1,0 +1,4 @@
+package: "/example/assets/mesh_dragon_idle.spla"
+material: "/spriteloop/spriteloop/materials/spriteloop_nearest.material"
+autoplay: false
+loop: true

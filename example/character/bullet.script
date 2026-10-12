@@ -1,0 +1,19 @@
+go.property("velocity", vmath.vector3())
+go.property("visual", hash("red_bullet"))
+
+function init(self)
+    self.remaining = 2
+    sprite.play_flipbook("#sprite", self.visual)
+    -- Turret artwork faces left; the player bullet artwork faces right.
+    sprite.set_hflip("#sprite", self.visual == hash("turret_bullet") and self.velocity.x > 0
+        or self.visual ~= hash("turret_bullet") and self.velocity.x < 0)
+end
+
+function update(self, dt)
+    self.remaining = self.remaining - dt
+    if self.remaining <= 0 then
+        go.delete()
+        return
+    end
+    go.set_position(go.get_position() + self.velocity * dt)
+end

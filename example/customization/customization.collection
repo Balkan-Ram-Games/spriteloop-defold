@@ -1,0 +1,5 @@
+name: "customization"
+instances { id: "character" prototype: "/example/customization/character.go" position { x: 640 y: 220 } scale3 { x: 0.5 y: 0.5 z: 1 } }
+scale_along_z: 0
+
+instances { id: "camera" prototype: "/example/shared/camera.go" position { x: 640 y: 360 z: 10 } }

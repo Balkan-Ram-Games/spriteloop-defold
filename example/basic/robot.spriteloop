@@ -1,0 +1,3 @@
+package: "/example/assets/robot_idle_skins.spla"
+material: "/spriteloop/spriteloop/materials/spriteloop.material"
+autoplay: false

@@ -1,0 +1,6 @@
+name: "animation_events"
+instances { id: "character" prototype: "/example/animation_events/character.go" position { x: 350 y: 220 } scale3 { x: 0.4 y: 0.4 z: 1 } }
+instances { id: "turret" prototype: "/example/animation_events/turret.go" position { x: 920 y: 220 } scale3 { x: 0.4 y: 0.4 z: 1 } }
+scale_along_z: 0
+
+instances { id: "camera" prototype: "/example/shared/camera.go" position { x: 640 y: 360 z: 10 } }

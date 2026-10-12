@@ -1,0 +1,5 @@
+package: "/example/shared/turret.spla"
+default_animation: "idle"
+material: "/spriteloop/spriteloop/materials/spriteloop.material"
+autoplay: false
+loop: true

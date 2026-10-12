@@ -1,0 +1,52 @@
+local spriteloop = require "spriteloop.spriteloop"
+
+local function refresh(self)
+    msg.post("#instructions", "example_status", {
+        text = string.format("%s | Speed %.2fx | Frame %d / %d", self.paused and "Paused" or "Playing",
+            self.rate, spriteloop.get_info("#animation").frame_index + 1, self.frames),
+    })
+end
+
+function init(self)
+    self.rate, self.paused = 1, false
+    spriteloop.play_anim("#animation", "idle", { loop = true })
+    self.frames = spriteloop.get_info("#animation").animations[1].frame_count
+    msg.post("#instructions", "instructions", {
+        title = "Basic Playback - classic robot",
+        controls = "Space: pause / resume | N: pause + next frame | R: reset frame and speed | Up / Down: speed",
+        source = "example/basic/playback.script",
+    })
+    refresh(self)
+    msg.post(".", "acquire_input_focus")
+end
+
+function final(self)
+    msg.post(".", "release_input_focus")
+end
+
+function update(self, dt)
+    refresh(self)
+end
+
+function on_input(self, action_id, action)
+    if not action.pressed then return end
+    if action_id == hash("fire") then
+        self.paused = not self.paused
+    elseif action_id == hash("restart") then
+        self.rate, self.paused = 1, false
+        spriteloop.play_anim("#animation", "idle", { loop = true })
+        spriteloop.set_frame("#animation", 0, { emit_events = false })
+    elseif action_id == hash("next_frame") then
+        self.paused = true
+        spriteloop.set_playback_rate("#animation", 0)
+        local frame = spriteloop.get_info("#animation").frame_index
+        spriteloop.set_frame("#animation", (frame + 1) % self.frames, { emit_events = false })
+    elseif action_id == hash("speed_up") then
+        self.rate = math.min(3, self.rate + 0.25)
+    elseif action_id == hash("speed_down") then
+        self.rate = math.max(0.25, self.rate - 0.25)
+    else return end
+    spriteloop.set_playback_rate("#animation", self.paused and 0 or self.rate)
+    refresh(self)
+    return true
+end

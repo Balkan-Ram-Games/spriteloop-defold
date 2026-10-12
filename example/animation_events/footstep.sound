@@ -1,0 +1,4 @@
+sound: "/example/animation_events/footstep.ogg"
+looping: 0
+group: "master"
+gain: 1
