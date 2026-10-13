@@ -66,6 +66,9 @@ struct SplaDefoldInstance {
     int atlas_height = 0;
     std::size_t atlas_texture_bytes = 0;
     SplaDefoldBounds bounds;
+    // Default component geometry lives in shared_resource; customized and Lua-owned
+    // geometry lives in baked_animations. Access it through instance_baked_animations().
+    bool uses_shared_baked_animations = false;
     std::vector<SplaDefoldBakedAnimation> baked_animations;
     spriteloop::SplaPartImageMap image_map;
     spriteloop::SplaSkinState skin_state;

@@ -107,9 +107,28 @@ float clamp_tint_channel(float value)
 
 void rebuild_instance_baked_data(SplaDefoldInstance& instance)
 {
-    const spriteloop::SplaPackage& package = instance.shared_resource != nullptr
-                                                 ? instance.shared_resource->package
-                                                 : instance.package;
+    const spriteloop::SplaPackage& package = instance_package(instance);
+    // An explicitly selected skin with no part overrides is also the base geometry.
+    // Components select the named "default" skin during creation when it exists.
+    const bool uses_base_skin = instance.skin_state.skin_index == -1 ||
+        (instance.skin_state.skin_index >= 0 &&
+         instance.skin_state.skin_index < static_cast<int>(package.skins.size()) &&
+         package.skins[static_cast<std::size_t>(instance.skin_state.skin_index)].parts.empty());
+    // Empty overrides and cleared (-1) overrides both select the package defaults.
+    const bool use_shared_defaults = instance.shared_resource != nullptr &&
+        uses_base_skin &&
+        std::all_of(instance.skin_state.variant_overrides_by_part.begin(),
+                    instance.skin_state.variant_overrides_by_part.end(),
+                    [](int variant_index) { return variant_index < 0; });
+    if (use_shared_defaults) {
+        instance.bounds = instance.shared_resource->bounds;
+        // Release customized geometry when returning to the default state.
+        std::vector<SplaDefoldBakedAnimation>().swap(instance.baked_animations);
+        instance.uses_shared_baked_animations = true;
+        ++instance.skin_revision;
+        return;
+    }
+
     const std::vector<SplaDefoldImageResource>& resources =
         instance.shared_resource != nullptr ? instance.shared_resource->image_resources
                                             : instance.image_resources;
@@ -121,6 +140,7 @@ void rebuild_instance_baked_data(SplaDefoldInstance& instance)
     instance.bounds = spriteloop::calculate_baked_bounds(package, baked_images);
     instance.baked_animations =
         baked_animations_from_resources(package, resources, image_map, instance.skin_state);
+    instance.uses_shared_baked_animations = false;
     ++instance.skin_revision;
 }
 
@@ -372,13 +392,15 @@ const SplaDefoldBounds& instance_bounds(const SplaDefoldInstance& instance)
 const std::vector<SplaDefoldBakedAnimation>& instance_baked_animations(
     const SplaDefoldInstance& instance)
 {
-    return instance.baked_animations;
+    return instance.uses_shared_baked_animations
+        ? instance.shared_resource->baked_animations
+        : instance.baked_animations;
 }
 
 bool rebuild_instance_skin(SplaDefoldInstance& instance)
 {
     rebuild_instance_baked_data(instance);
-    return instance.baked_animations.size() == instance_package(instance).animations.size();
+    return instance_baked_animations(instance).size() == instance_package(instance).animations.size();
 }
 
 bool set_instance_skin(SplaDefoldInstance& instance, const std::string& skin_id)

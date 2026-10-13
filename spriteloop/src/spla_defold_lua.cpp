@@ -987,6 +987,10 @@ int component_get_info(lua_State* lua_state)
     lua_newtable(lua_state);
     lua_pushstring(lua_state, component->package_path.c_str());
     lua_setfield(lua_state, -2, "path");
+    lua_pushboolean(lua_state, instance->uses_shared_baked_animations);
+    lua_setfield(lua_state, -2, "uses_shared_baked_animations");
+    lua_pushinteger(lua_state, static_cast<lua_Integer>(instance->baked_animations.capacity()));
+    lua_setfield(lua_state, -2, "owned_baked_animation_capacity");
     lua_pushstring(lua_state, package.name.c_str());
     lua_setfield(lua_state, -2, "name");
     lua_pushinteger(lua_state, static_cast<lua_Integer>(package.parts.size()));
