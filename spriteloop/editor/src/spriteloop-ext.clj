@@ -34,6 +34,7 @@
            [java.awt.image BufferedImage RescaleOp]
            [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.nio ByteBuffer]
+           [java.util.zip ZipInputStream]
            [javax.imageio ImageIO]
            [javax.vecmath Matrix4d Point3d]))
 
@@ -86,11 +87,6 @@
 (defn- validate-property [prop-kw validate-fn node-id value]
   (validation/prop-error :fatal node-id prop-kw validate-fn value (validation/keyword->name prop-kw)))
 
-;; Validation helper used by required string fields.
-(defn- prop-empty? [value prop-name]
-  (when (empty? value)
-    (format "'%s' must be specified" prop-name)))
-
 ;; Validation helper for the required package path. Defold reports embedded
 ;; component validation against the owning .go file, so name SpriteLoop in the
 ;; message to make the failing component type clear.
@@ -137,14 +133,15 @@
 ;; The Bob command-line builder has a Java CopyBuilder for .spla files, but the editor build graph
 ;; is produced here, so referenced packages need an explicit build target as well.
 (defn- build-spla-package [resource _dep-resources user-data]
-  (with-open [out (ByteArrayOutputStream.)]
-    (io/copy (io/input-stream (:source-resource user-data)) out)
+  (with-open [in (io/input-stream (:source-resource user-data))
+              out (ByteArrayOutputStream.)]
+    (io/copy in out)
     {:resource resource
      :content (.toByteArray out)}))
 
 ;; Reads a named entry from a ZipInputStream and returns it as text.
 ;; zip-stream is consumed while scanning, so callers use it for one targeted lookup only.
-(defn- zip-entry-string [zip-stream entry-name]
+(defn- zip-entry-string [^ZipInputStream zip-stream entry-name]
   (loop [entry (.getNextEntry zip-stream)]
     (cond
       (nil? entry)
@@ -338,16 +335,14 @@
         (number-or (:zOffset frame-part) 0.0))
      (number-or (:drawOrder part) 0.0)]))
 
-;; Draws one frame part into the flattened Java2D preview image.
-;; graphics is the destination Graphics2D, entries contains zip entry bytes, parts-by-id maps part
-;; ids to manifest parts, variants-by-id maps runtime variants, skin is the selected preview skin,
-;; and frame-part contains the frame-local transform.
+;; Returns the frame part's RGB tint, clamped to the supported range.
 (defn- preview-tint [frame-part]
   (let [tint (:tint frame-part)]
     (if (and (sequential? tint) (= 3 (count tint)) (every? number? tint))
       (mapv #(max 0.0 (min 1.0 (double %))) tint)
       [1.0 1.0 1.0])))
 
+;; Applies the frame tint without modifying the decoded source image.
 (defn- tinted-preview-image [^BufferedImage image frame-part]
   (let [[r g b] (preview-tint frame-part)]
     (if (and (= 1.0 r) (= 1.0 g) (= 1.0 b))
@@ -362,39 +357,42 @@
                  argb
                  nil)))))
 
+;; Draws one frame part into the flattened Java2D preview image.
+;; entries contains ZIP entry bytes, parts-by-id and variants-by-id index the
+;; manifest, and frame-part supplies the transform, opacity and tint.
 (defn- draw-frame-part! [^java.awt.Graphics2D graphics entries parts-by-id variants-by-id skin frame-part]
   (when-let [part (get parts-by-id (:part frame-part))]
     (when-let [preview-image (preview-part-image part variants-by-id skin)]
       (when-let [asset-bytes (get entries (:asset preview-image))]
-      (when-let [source-image (ImageIO/read (ByteArrayInputStream. asset-bytes))]
-        (let [image (tinted-preview-image source-image frame-part)]
-        (let [pivot-x (number-or (:pivot-x preview-image) (* 0.5 (.getWidth image)))
-              pivot-y (number-or (:pivot-y preview-image) (* 0.5 (.getHeight image)))
-              tx (number-or (:x frame-part) 0.0)
-              ty (number-or (:y frame-part) 0.0)
-              scale-x (number-or (:scaleX frame-part) 1.0)
-              scale-y (number-or (:scaleY frame-part) 1.0)
-              skew-x (Math/tan (* (/ Math/PI 180.0) (number-or (:skewX frame-part) 0.0)))
-              skew-y (Math/tan (* (/ Math/PI 180.0) (number-or (:skewY frame-part) 0.0)))
-              opacity (max 0.0 (min 1.0 (number-or (:opacity frame-part) 1.0)))
-              radians (* (/ Math/PI 180.0) (- (number-or (:rotation frame-part) 0.0)))
-              cos-r (Math/cos radians)
-              sin-r (Math/sin radians)
-              local-a scale-x
-              local-b (* skew-y scale-x)
-              local-c (* skew-x scale-y)
-              local-d scale-y
-              m00 (+ (* cos-r local-a) (* sin-r local-b))
-              m10 (+ (* -1.0 sin-r local-a) (* cos-r local-b))
-              m01 (+ (* cos-r local-c) (* sin-r local-d))
-              m11 (+ (* -1.0 sin-r local-c) (* cos-r local-d))
-              m02 (- tx (* m00 pivot-x) (* m01 pivot-y))
-              m12 (- ty (* m10 pivot-x) (* m11 pivot-y))
-              transform (AffineTransform. m00 m10 m01 m11 m02 m12)
-              old-composite (.getComposite graphics)]
-          (.setComposite graphics (AlphaComposite/getInstance AlphaComposite/SRC_OVER (float opacity)))
-          (.drawImage graphics image transform nil)
-          (.setComposite graphics old-composite))))))))
+        (when-let [source-image (ImageIO/read (ByteArrayInputStream. asset-bytes))]
+          (let [^BufferedImage image (tinted-preview-image source-image frame-part)
+                pivot-x (number-or (:pivot-x preview-image) (* 0.5 (.getWidth image)))
+                pivot-y (number-or (:pivot-y preview-image) (* 0.5 (.getHeight image)))
+                tx (number-or (:x frame-part) 0.0)
+                ty (number-or (:y frame-part) 0.0)
+                scale-x (number-or (:scaleX frame-part) 1.0)
+                scale-y (number-or (:scaleY frame-part) 1.0)
+                skew-x (Math/tan (* (/ Math/PI 180.0) (number-or (:skewX frame-part) 0.0)))
+                skew-y (Math/tan (* (/ Math/PI 180.0) (number-or (:skewY frame-part) 0.0)))
+                opacity (max 0.0 (min 1.0 (number-or (:opacity frame-part) 1.0)))
+                radians (* (/ Math/PI 180.0) (- (number-or (:rotation frame-part) 0.0)))
+                cos-r (Math/cos radians)
+                sin-r (Math/sin radians)
+                local-a scale-x
+                local-b (* skew-y scale-x)
+                local-c (* skew-x scale-y)
+                local-d scale-y
+                m00 (+ (* cos-r local-a) (* sin-r local-b))
+                m10 (+ (* -1.0 sin-r local-a) (* cos-r local-b))
+                m01 (+ (* cos-r local-c) (* sin-r local-d))
+                m11 (+ (* -1.0 sin-r local-c) (* cos-r local-d))
+                m02 (- tx (* m00 pivot-x) (* m01 pivot-y))
+                m12 (- ty (* m10 pivot-x) (* m11 pivot-y))
+                transform (AffineTransform. m00 m10 m01 m11 m02 m12)
+                old-composite (.getComposite graphics)]
+            (.setComposite graphics (AlphaComposite/getInstance AlphaComposite/SRC_OVER (float opacity)))
+            (.drawImage graphics image transform nil)
+            (.setComposite graphics old-composite)))))))
 
 ;; Composes one transparent BufferedImage for the selected animation's first frame.
 ;; manifest is parsed JSON data, entries are raw .spla zip entries, default-animation is the
@@ -409,20 +407,20 @@
     (when (and width height frame)
       (let [parts-by-id (part-by-id manifest)
             variants-by-id (variant-by-id manifest)
-            image (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)]
-        (let [graphics (.createGraphics image)]
-          (try
-            (.setRenderingHint graphics RenderingHints/KEY_INTERPOLATION RenderingHints/VALUE_INTERPOLATION_BILINEAR)
-            (.setRenderingHint graphics RenderingHints/KEY_RENDERING RenderingHints/VALUE_RENDER_QUALITY)
-            (doseq [frame-part (sort-by #(preview-part-draw-order
-                                          (get parts-by-id (:part %))
-                                          variants-by-id
-                                          skin
-                                          %)
-                                        (:parts frame))]
-              (draw-frame-part! graphics entries parts-by-id variants-by-id skin frame-part))
-            (finally
-              (.dispose graphics))))
+            image (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
+            graphics (.createGraphics image)]
+        (try
+          (.setRenderingHint graphics RenderingHints/KEY_INTERPOLATION RenderingHints/VALUE_INTERPOLATION_BILINEAR)
+          (.setRenderingHint graphics RenderingHints/KEY_RENDERING RenderingHints/VALUE_RENDER_QUALITY)
+          (doseq [frame-part (sort-by #(preview-part-draw-order
+                                        (get parts-by-id (:part %))
+                                        variants-by-id
+                                        skin
+                                        %)
+                                      (:parts frame))]
+            (draw-frame-part! graphics entries parts-by-id variants-by-id skin frame-part))
+          (finally
+            (.dispose graphics)))
         image))))
 
 ;; Reads and composes the preview image for a .spla resource.
@@ -659,7 +657,7 @@
                              (assoc :type :choicebox
                                     :package-sha1 package-sha1
                                     :options skin-options
-                                         :from-string identity))]
+                                    :from-string identity))]
     {:navigation false
      :form-ops {:user-data {:node-id _node-id
                             :resource resource}
