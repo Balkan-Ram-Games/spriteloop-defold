@@ -2,17 +2,24 @@ name: Defold Extension CI
 
 on:
   workflow_dispatch:
+    inputs:
+      defold_version:
+        description: Defold version to validate with the checked-in pluginSpla.jar
+        required: true
+        default: "1.14.0"
+        type: choice
+        options:
+          - "1.14.0"
+          - "1.13.2"
 
 env:
-  DEFOLD_VERSION: "1.12.4"
-  DEFOLD_SDK: "402218d5544666871f07ecdfa21032a7fb59413f"
-  BOB_URL: "https://github.com/defold/defold/releases/download/1.12.4/bob.jar"
+  DEFOLD_VERSION: ${{ inputs.defold_version }}
   BUILD_SERVER: "https://build.defold.com"
   JAVA_TOOL_OPTIONS: "--enable-native-access=ALL-UNNAMED"
 
 jobs:
   bob-validate:
-    name: Bob validate ${{ matrix.platform }}
+    name: Bob validate ${{ inputs.defold_version }} / ${{ matrix.platform }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -39,7 +46,20 @@ jobs:
       - name: Download Bob
         run: |
           mkdir -p .artifacts/tools
-          curl -fsSL "$BOB_URL" -o .artifacts/tools/bob.jar
+          curl -fsSL "https://github.com/defold/defold/releases/download/${DEFOLD_VERSION}/bob.jar" -o .artifacts/tools/bob.jar
+
+      - name: Resolve matching native SDK from Bob
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from utils.build_spriteloop_plugin import read_defold_sdk
+
+          sdk = read_defold_sdk("java", Path(".artifacts/tools/bob.jar"), Path.cwd())
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"DEFOLD_SDK={sdk}\n")
+          print(f"Validating Defold {os.environ['DEFOLD_VERSION']} with SDK {sdk}")
+          PY
 
       - name: Bob build
         run: |
