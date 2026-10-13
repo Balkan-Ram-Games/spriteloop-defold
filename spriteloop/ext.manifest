@@ -36,6 +36,6 @@ platforms:
   arm64-ios:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]
-  x86_64-ios:
+  arm64_sim-ios:
     context:
       flags: ["-std=c++17", "-Wno-unused-private-field"]

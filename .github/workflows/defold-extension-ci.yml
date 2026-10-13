@@ -29,10 +29,11 @@ jobs:
           - x86_64-linux
           - x86_64-macos
           - wasm-web
+          - wasm_pthread-web
           - arm64-android
           - armv7-android
           - arm64-ios
-          - x86_64-ios
+          - arm64_sim-ios
 
     steps:
       - uses: actions/checkout@v6

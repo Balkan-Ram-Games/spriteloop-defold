@@ -327,7 +327,7 @@ wasm_pthread-web
 arm64-android
 armv7-android
 arm64-ios
-x86_64-ios
+arm64_sim-ios
 ```
 
 More Defold arc-platforms can be added by committing the matching library under
@@ -339,6 +339,10 @@ libraries still live under `x86_64-osx` and `arm64-osx`. This is expected.
 
 Defold's current WebAssembly HTML5 arc-platform is `wasm-web`; the older
 asm.js-style `js-web` platform is intentionally not shipped by this extension.
+
+The `arm64_sim-ios` library targets the iOS Simulator on Apple Silicon and
+replaces the legacy `x86_64-ios` artifact. The `arm64-ios` library targets
+physical iOS devices. Extension CI validates both iOS targets.
 
 ## Validate
 
@@ -361,6 +365,18 @@ For HTML5/WebAssembly validation, use Defold's WebAssembly platform name:
 python3 utils/validate.py --bob path/to/bob.jar --platform wasm-web
 ```
 
+For the threaded WebAssembly engine:
+
+```sh
+python3 utils/validate.py --bob path/to/bob.jar --platform wasm_pthread-web
+```
+
+The validation script selects Bob's `wasm-web` platform with the explicit
+`wasm_pthread-web` architecture and checks for the matching threaded SDK library.
+Extension CI builds both web architectures separately for the selected Defold
+version. These checks validate compilation and linking; they do not run the game
+in a browser.
+
 For Android validation, use Defold's Android arc-platform names:
 
 ```sh
@@ -368,11 +384,16 @@ python3 utils/validate.py --bob path/to/bob.jar --platform arm64-android
 python3 utils/validate.py --bob path/to/bob.jar --platform armv7-android
 ```
 
-For iOS validation, use Defold's iOS arc-platform names:
+For iOS device validation, use Defold's iOS device platform:
 
 ```sh
 python3 utils/validate.py --bob path/to/bob.jar --platform arm64-ios
-python3 utils/validate.py --bob path/to/bob.jar --platform x86_64-ios
+```
+
+For iOS Simulator validation:
+
+```sh
+python3 utils/validate.py --bob path/to/bob.jar --platform arm64_sim-ios
 ```
 
 On Windows, the same command works from PowerShell:

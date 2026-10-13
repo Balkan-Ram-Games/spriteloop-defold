@@ -96,12 +96,13 @@ def main() -> int:
         args.java,
         "-jar",
         str(bob),
-        f"--platform={args.platform}",
+        # Bob uses the HTML5 platform plus an explicit engine architecture.
+        f"--platform={'wasm-web' if args.platform == 'wasm_pthread-web' else args.platform}",
         f"--variant={args.variant}",
         f"--build-server={args.build_server}",
     ]
-    if args.platform == "wasm-web":
-        command.append("--architectures=wasm-web")
+    if args.platform in ("wasm-web", "wasm_pthread-web"):
+        command.append(f"--architectures={args.platform}")
     if args.defold_sdk:
         command.append(f"--defoldsdk={args.defold_sdk}")
     command.extend(["resolve", "clean", "build"])
