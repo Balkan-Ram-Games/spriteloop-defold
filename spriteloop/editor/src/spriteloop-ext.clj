@@ -8,7 +8,6 @@
             [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -20,9 +19,11 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.jogamp.opengl GL GL2]
@@ -46,84 +47,15 @@
 (def ^:private fallback-canvas-size [128.0 128.0])
 
 ;; Vertex layouts used by the editor scene passes.
-(vtx/defvertex color-vtx
-  (vec3 position)
-  (vec4 color))
-
-(vtx/defvertex position-vtx
-  (vec3 position))
-
 (vtx/defvertex preview-vtx
   (vec3 position)
   (vec2 texcoord0)
   (vec4 color))
 
-;; read-shader is available in Defold 1.12.2 onward. Unlike the removed
-;; defshader/make-shader API, it supplies attribute reflection before drawing.
-;; The paths identify the inline sources and keep the editor shader caches apart.
-(defn- make-preview-shader [name vertex-source fragment-source uniforms]
-  (let [sources {(str name ".vp") vertex-source
-                 (str name ".fp") fragment-source}]
-    (shader/read-shader ::spriteloop-shader (keys sources)
-                        {:coordinate-space :coordinate-space-local
-                         :uniforms (assoc uniforms "view_proj" :view-proj)}
-                        sources)))
-
-(def outline-shader
-  (make-preview-shader
-    "spriteloop-outline"
-    "#version 140
-     uniform vertex_uniforms { mat4 view_proj; };
-     in vec3 position;
-     in vec4 color;
-     out vec4 var_color;
-     void main() {
-       gl_Position = view_proj * vec4(position, 1.0);
-       var_color = color;
-     }"
-    "#version 140
-     in vec4 var_color;
-     out vec4 frag_color;
-     void main() { frag_color = var_color; }"
-    {}))
-
-(def pick-shader
-  (make-preview-shader
-    "spriteloop-pick"
-    "#version 140
-     uniform vertex_uniforms { mat4 view_proj; };
-     in vec3 position;
-     void main() { gl_Position = view_proj * vec4(position, 1.0); }"
-    "#version 140
-     uniform fragment_uniforms { vec4 id; };
-     out vec4 frag_color;
-     void main() { frag_color = id; }"
-    {"id" :id}))
-
+;; Vertices are already transformed into world space by gen-preview-vertex.
+;; This shared editor shader is available in Defold 1.13.2 and 1.14.0.
 (def preview-shader
-  (make-preview-shader
-    "spriteloop-preview"
-    "#version 140
-     uniform vertex_uniforms { mat4 view_proj; };
-     in vec3 position;
-     in vec2 texcoord0;
-     in vec4 color;
-     out vec2 var_texcoord0;
-     out vec4 var_color;
-     void main() {
-       gl_Position = view_proj * vec4(position, 1.0);
-       var_texcoord0 = texcoord0;
-       var_color = color;
-     }"
-    "#version 140
-     uniform sampler2D texture_sampler;
-     in vec2 var_texcoord0;
-     in vec4 var_color;
-     out vec4 frag_color;
-     void main() {
-       frag_color = texture(texture_sampler, var_texcoord0) * var_color;
-     }"
-    {}))
+  shaders/basic-texture-color-world-space)
 
 (def ^:private preview-texture-params
   {:min-filter GL/GL_LINEAR
@@ -563,50 +495,11 @@
                            preview-image
                            preview-texture-params)))
 
-;; Produces line segments for the centered rectangle bounds and origin marker.
-(defn- make-bounds-line-data [width height]
-  (let [origin-size (min 32.0 (max 8.0 (* 0.04 (max width height))))
-        half-width (* 0.5 width)
-        half-height (* 0.5 height)
-        min-x (- half-width)
-        min-y (- half-height)
-        max-x half-width
-        max-y half-height]
-    [[min-x min-y] [max-x min-y]
-     [max-x min-y] [max-x max-y]
-     [max-x max-y] [min-x max-y]
-     [min-x max-y] [min-x min-y]
-     [(- origin-size) 0.0] [origin-size 0.0]
-     [0.0 (- origin-size)] [0.0 origin-size]]))
-
-;; Emits a transformed colored line vertex for outline rendering.
-(defn- gen-outline-vertex [^Matrix4d world-transform ^Point3d point x y cr cg cb]
-  (.set point (double x) (double y) 0.0)
-  (.transform world-transform point)
-  (vector-of :float (.x point) (.y point) (.z point) cr cg cb 1.0))
-
-;; Emits a transformed position-only vertex for editor picking.
-(defn- gen-position-vertex [^Matrix4d world-transform ^Point3d point x y]
-  (.set point (double x) (double y) 0.0)
-  (.transform world-transform point)
-  (vector-of :float (.x point) (.y point) (.z point)))
-
 ;; Emits a transformed textured vertex for the static preview quad.
 (defn- gen-preview-vertex [^Matrix4d world-transform ^Point3d point x y u v]
   (.set point (double x) (double y) 0.0)
   (.transform world-transform point)
   (vector-of :float (.x point) (.y point) (.z point) u v 1.0 1.0 1.0 1.0))
-
-;; Produces two triangles that cover the component bounds for picking.
-(defn- make-bounds-triangle-data [width height]
-  (let [half-width (* 0.5 width)
-        half-height (* 0.5 height)
-        min-x (- half-width)
-        min-y (- half-height)
-        max-x half-width
-        max-y half-height]
-    [[min-x min-y] [max-x min-y] [max-x max-y]
-     [min-x min-y] [max-x max-y] [min-x max-y]]))
 
 ;; Produces two textured triangles for the preview image.
 ;; UVs match ImageIO's top-left image origin after Java2D composition.
@@ -619,31 +512,6 @@
         max-y half-height]
     [[min-x min-y 0.0 0.0] [max-x min-y 1.0 0.0] [max-x max-y 1.0 1.0]
      [min-x min-y 0.0 0.0] [max-x max-y 1.0 1.0] [min-x max-y 0.0 1.0]]))
-
-;; Packs outline vertices for all batched SpriteLoop renderables.
-(defn- gen-outline-vertex-buffer [renderables]
-  (let [vertex-count (* 12 (count renderables))
-        tmp-point (Point3d.)
-        ^VertexBuffer vbuf (->color-vtx vertex-count)
-        ^ByteBuffer buf (.buf vbuf)]
-    (doseq [renderable renderables]
-      (let [[cr cg cb] (colors/renderable-outline-color renderable)
-            ^Matrix4d world-transform (:world-transform renderable)
-            {:keys [width height]} (:user-data renderable)]
-        (doseq [[x y] (make-bounds-line-data width height)]
-          (vtx/buf-push-floats! buf (gen-outline-vertex world-transform tmp-point x y cr cg cb)))))
-    (vtx/flip! vbuf)))
-
-;; Packs one picking quad for the selected renderable.
-(defn- gen-pick-vertex-buffer [renderable]
-  (let [tmp-point (Point3d.)
-        ^VertexBuffer vbuf (->position-vtx 6)
-        ^ByteBuffer buf (.buf vbuf)
-        ^Matrix4d world-transform (:world-transform renderable)
-        {:keys [width height]} (:user-data renderable)]
-    (doseq [[x y] (make-bounds-triangle-data width height)]
-      (vtx/buf-push-floats! buf (gen-position-vertex world-transform tmp-point x y)))
-    (vtx/flip! vbuf)))
 
 ;; Packs one textured quad for the static preview renderable.
 (defn- gen-preview-vertex-buffer [renderable]
@@ -665,23 +533,21 @@
           preview-vertex-binding (vtx/use-with ::spriteloop-preview (gen-preview-vertex-buffer renderable) preview-shader)]
       (when gpu-texture
         (gl/with-gl-bindings gl render-args [preview-shader gpu-texture preview-vertex-binding]
+          (shader/set-samplers-by-index preview-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
 
-;; Draws the bounds rectangle and origin marker during the outline scene pass.
-(defn- render-spriteloop-outline [^GL2 gl render-args renderables _count]
-  (assert (= pass/outline (:pass render-args)))
-  (let [vertex-count (* 12 (count renderables))
-        outline-vertex-binding (vtx/use-with ::spriteloop-outline (gen-outline-vertex-buffer renderables) outline-shader)]
-    (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 vertex-count))))
-
-;; Draws the invisible selection quad used by editor picking.
+;; Uses Defold's alpha-tested selection shader with the same image and UVs as
+;; the preview. A component without a decoded preview remains selectable via
+;; its bounds by using the editor's white fallback texture.
 (defn- render-spriteloop-selection [^GL2 gl render-args renderables _count]
   (assert (= pass/selection (:pass render-args)))
   (doseq [renderable renderables]
-    (let [pick-vertex-binding (vtx/use-with ::spriteloop-pick (gen-pick-vertex-buffer renderable) pick-shader)
-          render-args (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))]
-      (gl/with-gl-bindings gl render-args [pick-shader pick-vertex-binding]
+    (let [selection-shader shaders/selection-uniform-world-space
+          gpu-texture (or (:gpu-texture (:user-data renderable)) texture/white-pixel)
+          vertex-binding (vtx/use-with ::spriteloop-pick (gen-preview-vertex-buffer renderable) selection-shader)
+          render-args (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform renderable))]
+      (gl/with-gl-bindings gl render-args [selection-shader gpu-texture vertex-binding]
+        (shader/set-samplers-by-index selection-shader gl 0 (:texture-units gpu-texture))
         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))))
 
 ;; Graph output: centered AABB for editor selection and framing.
@@ -698,11 +564,12 @@
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-spriteloop-selection
-                  :batch-key [pick-shader]
+                  :batch-key [shaders/selection-uniform-world-space preview-texture]
                   :select-batch-key _node-id
                   :tags #{:spriteloop}
                   :user-data {:width width
-                              :height height}
+                              :height height
+                              :gpu-texture preview-texture}
                   :passes [pass/selection]}
      :children (cond-> []
                  show-preview?
@@ -718,13 +585,7 @@
                  true
                  (conj {:node-id _node-id
                         :aabb aabb
-                        :renderable {:render-fn render-spriteloop-outline
-                                     :batch-key [outline-shader]
-                                     :tags #{:spriteloop :outline}
-                                     :select-batch-key _node-id
-                                     :user-data {:width width
-                                                 :height height}
-                                     :passes [pass/outline]}}))}))
+                        :renderable (render-util/make-aabb-outline-renderable #{:spriteloop})}))}))
 
 ;; Graph output: build targets for the compiled .spriteloopc resource and its raw .spla package.
 (g/defnk produce-build-targets [_node-id resource package package-sha1 save-value own-build-errors material-resource dep-build-targets]
