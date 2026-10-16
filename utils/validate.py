@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Validate the SpriteLoop Defold example project with Bob."""
 
+# Keep validation focused on building the example project with Bob.
+# Basic presence checks give early errors for essential artifacts.
+# Rely on compilation and linking to validate required declarations,
+# symbols, and compatibility; do not duplicate those checks by inspecting
+# header contents or maintaining exhaustive file inventories.
+# Add checks only for demonstrated failures that Bob's build cannot detect.
+
 from __future__ import annotations
 
 import argparse
