@@ -1,4 +1,5 @@
 #include "spla_defold.h"
+#include "spriteloop/spla_image.hpp"
 
 #include "stb/stb_image.h"
 
@@ -179,7 +180,8 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
                             int& atlas_width,
                             int& atlas_height,
                             std::size_t& atlas_texture_bytes,
-                            std::string& error)
+                            std::string& error,
+                            bool artwork_mipmaps)
 {
     if (graphics_context == 0) {
         error = "Defold graphics context is not available";
@@ -247,7 +249,7 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
     creation_params.m_Depth = 1;
     creation_params.m_OriginalDepth = 1;
     creation_params.m_LayerCount = 1;
-    creation_params.m_MipMapCount = 1;
+    creation_params.m_MipMapCount = artwork_mipmaps ? spriteloop::rgba_mip_level_count(atlas.width, atlas.height) : 1;
     creation_params.m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
 
     atlas_texture = dmGraphics::NewTexture(graphics_context, creation_params);
@@ -272,6 +274,34 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
     texture_params.m_SubUpdate = 0;
 
     dmGraphics::SetTexture(graphics_context, atlas_texture, texture_params);
+    std::size_t total_bytes = atlas.pixels.size();
+    if (artwork_mipmaps) {
+        // Read level zero directly instead of copying the entire base atlas.
+        const std::vector<uint8_t>* pixels = &atlas.pixels;
+        std::vector<uint8_t> previous_level;
+        int width = atlas.width;
+        int height = atlas.height;
+        for (uint8_t level = 1; level < creation_params.m_MipMapCount; ++level) {
+            auto mip = spriteloop::downsample_premultiplied_rgba(*pixels, width, height);
+            if (!mip) {
+                error = mip.error().message;
+                destroy_atlas_texture(graphics_context, atlas_texture);
+                return false;
+            }
+            auto next = std::move(mip).value();
+            width = std::max(1, width / 2);
+            height = std::max(1, height / 2);
+            texture_params.m_Data = next.data();
+            texture_params.m_DataSize = static_cast<uint32_t>(next.size());
+            texture_params.m_Width = static_cast<uint16_t>(width);
+            texture_params.m_Height = static_cast<uint16_t>(height);
+            texture_params.m_MipMap = level;
+            dmGraphics::SetTexture(graphics_context, atlas_texture, texture_params);
+            total_bytes += next.size();
+            previous_level.swap(next);
+            pixels = &previous_level;
+        }
+    }
     dmGraphics::SetTextureParams(graphics_context, atlas_texture,
                                  dmGraphics::TEXTURE_FILTER_LINEAR,
                                  dmGraphics::TEXTURE_FILTER_LINEAR,
@@ -280,7 +310,7 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
 
     atlas_width = atlas.width;
     atlas_height = atlas.height;
-    atlas_texture_bytes = atlas.pixels.size();
+    atlas_texture_bytes = total_bytes;
     for (std::size_t i = 0; i < resources.size(); ++i) {
         if (resources[i].atlas_region_index >= atlas.regions.size()) {
             error = "image resource has invalid atlas region: " + resources[i].asset_path;

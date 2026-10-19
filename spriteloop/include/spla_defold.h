@@ -273,7 +273,8 @@ bool upload_image_resources(dmGraphics::HContext graphics_context,
                             int& atlas_width,
                             int& atlas_height,
                             std::size_t& atlas_texture_bytes,
-                            std::string& error);
+                            std::string& error,
+                            bool artwork_mipmaps = false);
 
 // Releases one Defold atlas texture and clears its native handle.
 void destroy_atlas_texture(dmGraphics::HContext graphics_context,

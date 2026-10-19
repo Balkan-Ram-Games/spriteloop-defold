@@ -2,6 +2,7 @@
 
 #include "spriteloop/spla_atlas.hpp"
 #include "spriteloop/spla_baked.hpp"
+#include "spriteloop/spla_image.hpp"
 #include "spriteloop/spla_loader.hpp"
 #include "spriteloop/spla_mask.hpp"
 #include "spriteloop/spla_package.hpp"

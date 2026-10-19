@@ -97,7 +97,7 @@ dmGraphics::HTexture artwork_texture(State& state) {
     int width = 0, height = 0;
     std::size_t bytes = 0;
     if (!upload_image_resources(dmGraphics::GetInstalledContext(), *images.package,
-                               resources, images.artwork, width, height, bytes, error)) {
+                               resources, images.artwork, width, height, bytes, error, true)) {
         dmLogError("SpriteLoop mask: %s", error.c_str());
         return 0;
     }
@@ -395,11 +395,21 @@ bool render_component_masks(const SplaDefoldComponent* component) {
             if (batch.pass != id) continue;
             const auto texture = artwork ? artwork : batch.texture;
             const auto alpha = coverage ? coverage : texture;
+            // ESSL 100 cannot query textureSize in a shader. Supply the bound
+            // texture's dimensions for artwork, coverage and composite draws.
+            const dmVMath::Vector4 texture_size(
+                static_cast<float>(dmGraphics::GetTextureWidth(context, texture)),
+                static_cast<float>(dmGraphics::GetTextureHeight(context, texture)), 0, 0);
+            dmGraphics::SetConstantV4(context, &texture_size, 1,
+                dmGraphics::FindUniformLocation(state.program, "texture_size"));
             dmGraphics::EnableTexture(context, 0, 0, texture);
             dmGraphics::EnableTexture(context, 1, 0, alpha);
             const auto filter = state.nearest ? dmGraphics::TEXTURE_FILTER_NEAREST : dmGraphics::TEXTURE_FILTER_LINEAR;
+            // Only artwork uses mipmaps. Coverage and compositing stay at level zero.
+            const auto min_filter = !state.nearest && mode < 0.5f
+                ? dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR : filter;
             for (const auto handle : {texture, alpha})
-                dmGraphics::SetTextureParams(context, handle, filter, filter,
+                dmGraphics::SetTextureParams(context, handle, min_filter, filter,
                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, 1.0f);
             dmGraphics::SetSampler(context, dmGraphics::FindUniformLocation(state.program, "texture_sampler"), 0);
             dmGraphics::SetSampler(context, dmGraphics::FindUniformLocation(state.program, "coverage_sampler"), 1);
