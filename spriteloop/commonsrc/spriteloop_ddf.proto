@@ -28,4 +28,7 @@ message SpriteLoopDesc
     optional bool autoplay = 7 [default = true];
     // Skin id applied when the component instance is created.
     optional string default_skin = 8 [default = "default"];
+    // Internal native mask passes. Kept as resource dependencies so Bob and the
+    // editor package their platform shader variants without a custom render script.
+    optional string mask_material = 9 [(resource)=true, default="/spriteloop/masks/mask.material"];
 }

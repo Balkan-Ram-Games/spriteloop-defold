@@ -38,6 +38,7 @@ public:
     void clear_loop_override() noexcept;
 
     [[nodiscard]] bool is_playing() const noexcept;
+    [[nodiscard]] bool playback_events_enabled() const noexcept { return playback_events_enabled_; }
     [[nodiscard]] float time() const noexcept;
     [[nodiscard]] int current_frame_index() const noexcept;
     [[nodiscard]] bool effective_loop() const noexcept;

@@ -1,5 +1,6 @@
 #include "spla_defold.h"
 #include "spla_defold_lua.h"
+#include "spla_defold_masks.h"
 
 #include <dmsdk/sdk.h>
 
@@ -46,6 +47,7 @@ dmExtension::Result app_finalize_spla(dmExtension::AppParams* params)
 dmExtension::Result finalize_spla(dmExtension::Params* params)
 {
     (void)params;
+    spla_defold::destroy_all_component_masks();
     spla_defold::destroy_all_instances(dmGraphics::GetInstalledContext());
     spla_defold::destroy_all_shared_package_resources(dmGraphics::GetInstalledContext());
     dmLogInfo("Finalized %s extension", SPLA_DEFOLD_EXTENSION_NAME);

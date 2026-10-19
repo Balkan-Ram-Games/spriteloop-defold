@@ -12,12 +12,15 @@
 // resource type loads that DDF, preloads the configured material, and hands this structure to
 // component creation.
 namespace spla_defold {
+struct SplaPackageBytesResource;
 
 // Loaded component resource data shared by all component instances that reference the same
 // .spriteloopc asset.
 struct SpriteLoopResource {
     dmGameSystemDDF::SpriteLoopDesc* ddf = nullptr;
     dmGameSystem::MaterialResource* material = nullptr;
+    // Keep the engine resource loaded for hot reload and resource.set().
+    SplaPackageBytesResource* package_bytes = nullptr;
     std::string path;
 };
 

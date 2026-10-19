@@ -44,6 +44,7 @@ public class SpriteLoopBuilder extends ProtoBuilder<SpriteLoopDesc.Builder> {
             createSubTask(builder.getPackage(), "package", taskBuilder);
         }
         createSubTask(getMaterialSourcePath(builder), "material", taskBuilder);
+        createSubTask(builder.getMaskMaterial(), "mask_material", taskBuilder);
         return taskBuilder.build();
     }
 
@@ -60,6 +61,7 @@ public class SpriteLoopBuilder extends ProtoBuilder<SpriteLoopDesc.Builder> {
         }
         BuilderUtil.checkResource(this.project, resource, "material", material);
         builder.setMaterial(BuilderUtil.replaceExt(material, ".material", ".materialc"));
+        builder.setMaskMaterial(BuilderUtil.replaceExt(builder.getMaskMaterial(), ".material", ".materialc"));
         return builder;
     }
 }

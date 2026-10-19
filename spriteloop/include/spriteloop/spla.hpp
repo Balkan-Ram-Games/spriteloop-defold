@@ -3,6 +3,7 @@
 #include "spriteloop/spla_atlas.hpp"
 #include "spriteloop/spla_baked.hpp"
 #include "spriteloop/spla_loader.hpp"
+#include "spriteloop/spla_mask.hpp"
 #include "spriteloop/spla_package.hpp"
 #include "spriteloop/spla_player.hpp"
 #include "spriteloop/spla_result.hpp"

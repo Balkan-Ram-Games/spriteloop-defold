@@ -1,5 +1,6 @@
 #include "spla_defold.h"
 #include "res_spriteloop.h"
+#include "spla_defold_masks.h"
 
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include <dmsdk/dlib/hash.h>
@@ -44,6 +45,7 @@ struct SpriteLoopVertex {
     float g = 1.0f;
     float b = 1.0f;
     float a = 1.0f;
+    float texture_is_premultiplied = 0.0f;
 };
 
 // Shared component-type state created once when the component type is registered.
@@ -137,6 +139,22 @@ struct PreparedComponentGeometry {
     bool cache_hit = false;
 };
 
+bool masked(const SplaDefoldComponent* component)
+{
+    return package_has_masks(instance_package(*component->instance));
+}
+
+dmRender::HMaterial component_material(const SplaDefoldComponent* component)
+{
+    return component->resource->material->m_Material;
+}
+
+dmGraphics::HTexture component_texture(const SplaDefoldComponent* component)
+{
+    return masked(component) ? component_mask_texture(component)
+                             : instance_atlas_texture(*component->instance);
+}
+
 uint32_t render_batch_key(dmRender::HMaterial material,
                           dmGraphics::HTexture texture)
 {
@@ -176,6 +194,7 @@ void invalidate_uploaded_geometry(SpriteLoopWorld* world)
 // Removes a component pointer from a world without deleting the component itself.
 void remove_component(SpriteLoopWorld* world, SplaDefoldComponent* component)
 {
+    destroy_component_masks(component);
     if (world == nullptr || component == nullptr) {
         return;
     }
@@ -462,7 +481,8 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
     }
 
     const SplaDefoldInstance& instance = *component->instance;
-    dmGraphics::HTexture atlas_texture = instance_atlas_texture(instance);
+    if (masked(component) && !render_component_masks(component)) return prepared;
+    dmGraphics::HTexture atlas_texture = component_texture(component);
     if (atlas_texture == 0) {
         return prepared;
     }
@@ -470,7 +490,8 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
     const dmVMath::Matrix4& world_matrix = dmGameObject::GetWorldMatrix(instance.game_object);
     const spriteloop::SplaAnimation* animation = instance.player->current_animation();
     const int frame_index = instance.player->current_frame_index();
-    const SplaDefoldBakedFrame* baked_frame = current_baked_frame(instance);
+    const SplaDefoldBakedFrame* baked_frame = masked(component)
+        ? component_mask_frame(component) : current_baked_frame(instance);
     if (animation == nullptr || baked_frame == nullptr) {
         return prepared;
     }
@@ -505,15 +526,16 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
         cache.vertices.reserve(baked_frame->vertices.size());
 
         for (const SplaDefoldBakedVertex& baked_vertex : baked_frame->vertices) {
-            cache.vertices.push_back(
-                transform_baked_vertex(instance, world_matrix, baked_vertex));
+            SpriteLoopVertex vertex = transform_baked_vertex(instance, world_matrix, baked_vertex);
+            vertex.texture_is_premultiplied = masked(component) ? 1.0f : 0.0f;
+            cache.vertices.push_back(vertex);
         }
         cache.valid = true;
     }
 
     const uint32_t vertex_count = static_cast<uint32_t>(cache.vertices.size());
     prepared.component = component;
-    prepared.material = component->resource->material->m_Material;
+    prepared.material = component_material(component);
     prepared.texture = atlas_texture;
     prepared.animation = animation;
     prepared.frame_index = frame_index;
@@ -744,8 +766,11 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
                 continue;
             }
 
-            dmRender::HMaterial material = component->resource->material->m_Material;
-            dmGraphics::HTexture texture = instance_atlas_texture(*component->instance);
+            if (masked(component) && !render_component_masks(component)) {
+                continue;
+            }
+            dmRender::HMaterial material = component_material(component);
+            dmGraphics::HTexture texture = component_texture(component);
             if (texture == 0 || material == 0) {
                 can_reuse_complete_batch = false;
                 reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_signature_entry);
@@ -989,6 +1014,48 @@ bool load_component_package(SpriteLoopContext* context,
     return true;
 }
 
+// Engine callback for both hot reload and resource.set(). Work is performed only
+// on reload, not by polling every component on every frame.
+void resource_reloaded(const dmResource::ResourceReloadedParams* params)
+{
+    auto* world = static_cast<SpriteLoopWorld*>(params->m_UserData);
+    void* reloaded = dmResource::GetResource(params->m_Resource);
+    for (auto* component : world->components) {
+        auto* resource = component->resource;
+        const bool descriptor_changed = reloaded == resource;
+        const bool package_changed = reloaded == resource->package_bytes &&
+            component->instance && component->instance->shared_resource;
+        if (!descriptor_changed && !package_changed) continue;
+        auto* bytes = resource->package_bytes;
+        if (!bytes) continue;
+        std::string error;
+        auto* shared = acquire_shared_package_resource(resource->ddf->m_Package,
+            bytes->bytes.data(), bytes->bytes.size(), error);
+        auto* replacement = create_instance_from_shared_resource(shared);
+        if (!replacement) {
+            dmLogError("SpriteLoop reload failed for '%s': %s; keeping previous instance",
+                       resource->path.c_str(), error.c_str());
+            continue;
+        }
+        auto* previous = component->instance;
+        if (previous) {
+            restore_reloaded_instance_state(*previous, *replacement,
+                resource->ddf->m_DefaultAnimation, resource->ddf->m_DefaultSkin);
+        } else {
+            replacement->game_object = component->game_object;
+            replacement->visible = component->visible;
+        }
+        // Release mask images while their old package is still alive. Clear
+        // uploaded batches too: pointers/texture handles may be recycled later.
+        invalidate_component_render_data(component);
+        component->instance = replacement;
+        component->package_path = resource->ddf->m_Package;
+        component->default_animation = non_empty_or_default(resource->ddf->m_DefaultAnimation, "idle");
+        component->default_skin = non_empty_or_default(resource->ddf->m_DefaultSkin, "default");
+        destroy_instance(previous, world->context->graphics_context);
+    }
+}
+
 // Component callback: creates SpriteLoop's per-collection storage.
 // params supplies component type context and max instance count; params.m_World receives the
 // SpriteLoopWorld pointer that will hold all SpriteLoop components in this collection context.
@@ -997,6 +1064,7 @@ dmGameObject::CreateResult component_new_world(
 {
     SpriteLoopWorld* world = new SpriteLoopWorld;
     world->context = static_cast<SpriteLoopContext*>(params.m_Context);
+    dmResource::RegisterResourceReloadedCallback(world->context->factory, resource_reloaded, world);
     world->components.reserve(params.m_MaxComponentInstances == 0xFFFFFFFF
                                   ? world->context->max_components_per_world
                                   : params.m_MaxComponentInstances);
@@ -1007,6 +1075,8 @@ dmGameObject::CreateResult component_new_world(
     dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT,
                                 false);
     dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "texture_is_premultiplied", 1,
+                                dmGraphics::TYPE_FLOAT, false);
     world->vertex_declaration =
         dmGraphics::NewVertexDeclaration(world->context->graphics_context, stream_declaration);
     world->vertex_buffer = dmGraphics::NewVertexBuffer(
@@ -1024,6 +1094,7 @@ dmGameObject::CreateResult component_delete_world(
     const dmGameObject::ComponentDeleteWorldParams& params)
 {
     SpriteLoopWorld* world = static_cast<SpriteLoopWorld*>(params.m_World);
+    dmResource::UnregisterResourceReloadedCallback(world->context->factory, resource_reloaded, world);
     dmGraphics::DeleteVertexDeclaration(world->vertex_declaration);
     dmGraphics::DeleteVertexBuffer(world->vertex_buffer);
     dmGraphics::DeleteIndexBuffer(world->index_buffer);
@@ -1056,6 +1127,7 @@ dmGameObject::CreateResult component_create(const dmGameObject::ComponentCreateP
     }
 
     SplaDefoldComponent* component = new SplaDefoldComponent;
+    component->world = world;
     component->resource = resource;
     component->game_object = params.m_Instance;
     component->package_path = package_path;
@@ -1215,8 +1287,11 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
             continue;
         }
 
-        dmRender::HMaterial material = component->resource->material->m_Material;
-        dmGraphics::HTexture texture = instance_atlas_texture(*component->instance);
+        if (masked(component) && !submit_component_masks(component, context->factory, render_context)) {
+            continue;
+        }
+        dmRender::HMaterial material = component_material(component);
+        dmGraphics::HTexture texture = component_texture(component);
         write_ptr->m_WorldPosition = component_render_sort_position(component);
         write_ptr->m_UserData = i;
         write_ptr->m_BatchKey = render_batch_key(material, texture);
@@ -1293,6 +1368,13 @@ dmGameObject::Result component_type_destroy(const dmGameObject::ComponentTypeCre
 }
 
 } // namespace
+
+void invalidate_component_render_data(SplaDefoldComponent* component)
+{
+    destroy_component_masks(component);
+    geometry_cache().erase(component);
+    invalidate_uploaded_geometry(static_cast<SpriteLoopWorld*>(component->world));
+}
 
 } // namespace spla_defold
 

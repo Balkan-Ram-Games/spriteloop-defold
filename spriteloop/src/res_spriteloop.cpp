@@ -68,6 +68,10 @@ void release_resources(dmResource::HFactory factory, SpriteLoopResource* resourc
         dmResource::Release(factory, resource->material);
         resource->material = nullptr;
     }
+    if (resource->package_bytes != nullptr) {
+        dmResource::Release(factory, resource->package_bytes);
+        resource->package_bytes = nullptr;
+    }
     if (resource->ddf != nullptr) {
         dmDDF::FreeMessage(resource->ddf);
         resource->ddf = nullptr;
@@ -78,6 +82,9 @@ void release_resources(dmResource::HFactory factory, SpriteLoopResource* resourc
 // The material must be world-space because component rendering emits world-space vertices.
 dmResource::Result acquire_resources(dmResource::HFactory factory, SpriteLoopResource* resource)
 {
+    if (resource->ddf->m_Package == nullptr || resource->ddf->m_Package[0] == '\0') {
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
     const std::string material_path = compiled_material_path_or_default(resource->ddf);
     dmResource::Result result =
         dmResource::Get(factory, material_path.c_str(), reinterpret_cast<void**>(&resource->material));
@@ -92,7 +99,8 @@ dmResource::Result acquire_resources(dmResource::HFactory factory, SpriteLoopRes
         return dmResource::RESULT_NOT_SUPPORTED;
     }
 
-    return dmResource::RESULT_OK;
+    return dmResource::Get(factory, resource->ddf->m_Package,
+        reinterpret_cast<void**>(&resource->package_bytes));
 }
 
 // Bob/engine preload callback.
@@ -155,20 +163,25 @@ dmResource::Result resource_recreate(const dmResource::ResourceRecreateParams* p
     dmGameSystemDDF::SpriteLoopDesc* desc = nullptr;
     dmDDF::Result result = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &desc);
     if (result != dmDDF::RESULT_OK) {
-        dmLogError("Could not reload SpriteLoop component resource '%s'", params->m_Filename);
+        dmLogError("Could not reload SpriteLoop component resource '%s'",
+                   params->m_Filename ? params->m_Filename : "<resource.set>");
         return dmResource::RESULT_FORMAT_ERROR;
     }
 
+    SpriteLoopResource replacement;
+    replacement.ddf = desc;
+    dmResource::Result acquire_result = acquire_resources(params->m_Factory, &replacement);
+    if (acquire_result != dmResource::RESULT_OK) {
+        release_resources(params->m_Factory, &replacement);
+        return acquire_result;
+    }
     SpriteLoopResource* resource =
         static_cast<SpriteLoopResource*>(dmResource::GetResource(params->m_Resource));
     release_resources(params->m_Factory, resource);
-    resource->ddf = desc;
-    dmResource::Result acquire_result = acquire_resources(params->m_Factory, resource);
-    if (acquire_result != dmResource::RESULT_OK) {
-        dmDDF::FreeMessage(resource->ddf);
-        resource->ddf = nullptr;
-    }
-    return acquire_result;
+    resource->ddf = replacement.ddf;
+    resource->material = replacement.material;
+    resource->package_bytes = replacement.package_bytes;
+    return dmResource::RESULT_OK;
 }
 
 // Registers callbacks for the spriteloopc resource type.

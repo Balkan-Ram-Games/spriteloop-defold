@@ -32,6 +32,9 @@ struct SplaBakedImage {
     bool has_pivot = false;
     float rotation_degrees = 0.0f;
     int z_offset = 0;
+    SplaMeshFit mesh_fit = SplaMeshFit::fitted;
+    float offset_x = 0.0f;
+    float offset_y = 0.0f;
 };
 
 struct SplaBakedVertex {
@@ -45,10 +48,31 @@ struct SplaBakedVertex {
     float a = 1.0f;
 };
 
+struct SplaBakedDraw {
+    int part_index = -1;
+    std::size_t index_start = 0;
+    std::size_t index_count = 0;
+    int mask_source_part_index = -1;
+    float mask_padding = 0.0f;
+};
+
+struct SplaBakedMaskSource {
+    int part_index = -1;
+    // Atlas UVs match artwork; sample an alpha atlas eroded before packing.
+    // Colors are white, alpha is state weight, independent of artwork opacity/tint.
+    std::vector<SplaBakedVertex> vertices;
+    std::vector<std::uint32_t> indices;
+};
+
 struct SplaBakedFrame {
     std::vector<SplaBakedVertex> vertices;
     // Explicit triangle topology. Legacy quad baking emits six indices per four vertices.
     std::vector<std::uint32_t> indices;
+    // Ordered ranges, including empty ranges that preserve group boundaries.
+    // Consecutive equal (source, padding) ranges form a mask group.
+    // An absent source in mask_sources means zero coverage, never unmasked fallback.
+    std::vector<SplaBakedDraw> draws;
+    std::vector<SplaBakedMaskSource> mask_sources;
 };
 
 struct SplaBakedAnimation {
@@ -97,6 +121,9 @@ SplaBounds calculate_baked_bounds(const SplaPackage& package,
 
 std::vector<SplaBakedAnimation> build_baked_animations(
     const SplaPackage& package,
+    // Pre-resolved images: zero dimensions mean hidden/unavailable. Use the
+    // package-aware build_baked_images_from_atlas overload to apply skin visibility.
+    // Use the atlas/image-map overload below for sprite-state crossfades.
     const std::vector<SplaBakedImage>& images);
 
 std::vector<SplaBakedAnimation> build_baked_animations(

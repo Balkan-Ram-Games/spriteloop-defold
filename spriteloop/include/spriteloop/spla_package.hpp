@@ -54,7 +54,12 @@ struct SplaPart {
     SplaMesh mesh;
     int draw_order = 0;
     bool visible = true;
+    // Resolved part reference; -1 means ordinary, unmasked artwork.
+    int mask_source_part_index = -1;
+    float mask_padding = 0.0f;
 };
+
+enum class SplaMeshFit { fitted, contain };
 
 struct SplaVariant {
     std::string id;
@@ -68,6 +73,7 @@ struct SplaVariant {
     float offset_y = 0.0f;
     float rotation_degrees = 0.0f;
     int z_offset = 0;
+    SplaMeshFit mesh_fit = SplaMeshFit::fitted;
 };
 
 struct SplaSkinPartOverride {

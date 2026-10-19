@@ -1,4 +1,5 @@
 #include "spla_defold.h"
+#include "spriteloop/spla_loader.hpp"
 
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/resource/resource.h>
@@ -47,7 +48,17 @@ dmResource::Result resource_recreate(const dmResource::ResourceRecreateParams* p
         return dmResource::RESULT_RESOURCE_NOT_FOUND;
     }
 
-    resource->path = params->m_Filename != nullptr ? params->m_Filename : "";
+    // SetResource supplies no filename. Keep the original path for cache identity.
+    auto parsed = spriteloop::load_package_from_memory(
+        static_cast<const std::uint8_t*>(params->m_Buffer), params->m_BufferSize, resource->path);
+    std::string error;
+    std::vector<SplaDefoldImageResource> images;
+    if (!parsed || !build_image_resources(parsed.value(), images, error)) {
+        dmLogError("Could not reload SpriteLoop package '%s': %s", resource->path.c_str(),
+                   parsed ? error.c_str() : parsed.error().message.c_str());
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
+    if (params->m_Filename != nullptr) resource->path = params->m_Filename;
     const std::uint8_t* bytes = static_cast<const std::uint8_t*>(params->m_Buffer);
     resource->bytes.assign(bytes, bytes + params->m_BufferSize);
     return dmResource::RESULT_OK;

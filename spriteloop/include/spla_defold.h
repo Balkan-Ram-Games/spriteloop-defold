@@ -102,6 +102,7 @@ struct SplaDefoldComponent {
     bool loop = true;
     bool visible = true;
     bool autoplay = true;
+    void* world = nullptr;
 };
 
 // Shared parsed package and uploaded texture set for component-owned SpriteLoop instances.
@@ -193,6 +194,15 @@ SplaDefoldInstance* create_instance_from_memory(const char* path,
                                                 const std::uint8_t* bytes,
                                                 std::size_t byte_count,
                                                 std::string& error);
+
+// Remap runtime choices by stable IDs after loading a new package revision.
+void restore_reloaded_instance_state(const SplaDefoldInstance& previous,
+                                      SplaDefoldInstance& replacement,
+                                      const char* fallback_animation,
+                                      const char* fallback_skin);
+
+// Discard all render data before releasing/replacing a component's instance.
+void invalidate_component_render_data(SplaDefoldComponent* component);
 
 // Acquires a component-shared package resource from the process-local cache. The first acquire for
 // a path parses the package and uploads textures; later acquires only increment ref_count.

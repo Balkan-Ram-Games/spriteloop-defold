@@ -300,6 +300,58 @@ SplaDefoldInstance* create_instance_from_shared_resource(
     return instance.release();
 }
 
+void restore_reloaded_instance_state(const SplaDefoldInstance& previous,
+                                      SplaDefoldInstance& replacement,
+                                      const char* fallback_animation,
+                                      const char* fallback_skin)
+{
+    replacement.game_object = previous.game_object;
+    replacement.local_position = previous.local_position;
+    replacement.local_rotation = previous.local_rotation;
+    replacement.local_scale = previous.local_scale;
+    replacement.x = previous.x; replacement.y = previous.y;
+    replacement.scale_x = previous.scale_x; replacement.scale_y = previous.scale_y;
+    replacement.visible = previous.visible;
+    replacement.tint_r = previous.tint_r;
+    replacement.tint_g = previous.tint_g;
+    replacement.tint_b = previous.tint_b;
+    replacement.tint_revision = previous.tint_revision + 1;
+
+    const auto& old_package = instance_package(previous);
+    const int skin = previous.skin_state.skin_index;
+    if (skin < 0 || skin >= static_cast<int>(old_package.skins.size()) ||
+        !set_instance_skin(replacement, old_package.skins[skin].id.c_str())) {
+        if (fallback_skin && fallback_skin[0]) set_instance_skin(replacement, fallback_skin);
+    }
+    for (std::size_t i = 0; i < previous.skin_state.variant_overrides_by_part.size() &&
+                            i < old_package.parts.size(); ++i) {
+        const int variant = previous.skin_state.variant_overrides_by_part[i];
+        if (variant >= 0 && variant < static_cast<int>(old_package.variants.size())) {
+            set_instance_variant(replacement, old_package.parts[i].id.c_str(),
+                                 old_package.variants[variant].id.c_str());
+        }
+    }
+    replacement.skin_revision = previous.skin_revision + 1;
+
+    if (previous.player && replacement.player) {
+        replacement.player->set_loop_override(previous.player->effective_loop());
+        if (const auto* animation = previous.player->current_animation()) {
+            const bool emit_events = previous.player->playback_events_enabled();
+            const bool same_animation = replacement.player->play(animation->id, emit_events);
+            if (!same_animation && fallback_animation && fallback_animation[0]) {
+                (void)replacement.player->play(fallback_animation, emit_events);
+            }
+            // Reloading must not synthesize a destination-frame event. Old queued
+            // events belong to the previous package revision and are discarded.
+            (void)replacement.player->consume_events();
+            // Seek by index: converting the old double clock through the public
+            // float time() can round backwards across a frame boundary.
+            if (same_animation) replacement.player->set_frame(previous.player->current_frame_index(), false);
+            if (!previous.player->is_playing()) replacement.player->stop();
+        }
+    }
+}
+
 void set_default_max_pending_events(int max_pending_events)
 {
     default_max_pending_events() =

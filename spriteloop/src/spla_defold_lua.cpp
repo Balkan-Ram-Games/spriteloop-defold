@@ -1,6 +1,7 @@
 #include "spla_defold_lua.h"
 
 #include "spla_defold.h"
+#include "spla_defold_masks.h"
 
 #include <dmsdk/sdk.h>
 
@@ -726,6 +727,7 @@ int component_load_bytes(lua_State* lua_state)
         replacement->local_rotation = component->instance->local_rotation;
         replacement->local_scale = component->instance->local_scale;
         replacement->visible = component->instance->visible;
+        spla_defold::invalidate_component_render_data(component);
         spla_defold::destroy_instance(component->instance, dmGraphics::GetInstalledContext());
     } else {
         replacement->game_object = component->game_object;

@@ -6,9 +6,11 @@
 in highp vec4 position;
 in mediump vec2 texcoord0;
 in lowp vec4 color;
+in lowp float texture_is_premultiplied;
 
 out mediump vec2 var_texcoord0;
 out lowp vec4 var_color;
+out lowp float var_texture_is_premultiplied;
 
 uniform vs_uniforms
 {
@@ -21,4 +23,5 @@ void main()
     gl_Position = view_proj * vec4(position.xyz, 1.0);
     var_texcoord0 = texcoord0;
     var_color = color;
+    var_texture_is_premultiplied = texture_is_premultiplied;
 }

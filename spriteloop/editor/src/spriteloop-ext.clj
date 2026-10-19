@@ -357,6 +357,37 @@
                  argb
                  nil)))))
 
+(defn- inset-preview-alpha [^BufferedImage image padding]
+  (let [w (.getWidth image)
+        h (.getHeight image)
+        result (BufferedImage. w h BufferedImage/TYPE_INT_ARGB)
+        alpha (fn [x y]
+                (double (bit-and 255 (unsigned-bit-shift-right
+                                      (.getRGB image (int (max 0 (min (dec w) x)))
+                                                     (int (max 0 (min (dec h) y)))) 24))))
+        sample (fn [x y]
+                 (if (or (< x -0.5) (< y -0.5) (> x (- w 0.5)) (> y (- h 0.5)))
+                   0.0
+                   (let [ix (Math/floor x) iy (Math/floor y)
+                         fx (- x ix) fy (- y iy)]
+                     (+ (* (- 1.0 fy) (+ (* (- 1.0 fx) (alpha ix iy)) (* fx (alpha (inc ix) iy))))
+                        (* fy (+ (* (- 1.0 fx) (alpha ix (inc iy))) (* fx (alpha (inc ix) (inc iy)))))))))
+        empty? (>= padding (min w h))
+        radius (int (Math/ceil padding))
+        offsets (when (and (pos? padding) (not empty?))
+                  (concat (for [y (range (- radius) (inc radius))
+                                x (range (- radius) (inc radius))
+                                :when (<= (+ (* x x) (* y y)) (* padding padding))] [x y])
+                          (for [i (range 24)
+                                :let [a (/ (* i 2.0 Math/PI) 24.0)]]
+                            [(* padding (Math/cos a)) (* padding (Math/sin a))])))]
+    (doseq [y (range h) x (range w)]
+      (let [a (if empty? 0.0
+                 (reduce (fn [a [dx dy]] (min a (sample (+ x dx) (+ y dy))))
+                         (alpha x y) offsets))]
+        (.setRGB result x y (unchecked-int (bit-or 0xffffff (bit-shift-left (Math/round (double a)) 24))))))
+    result))
+
 ;; Draws one frame part into the flattened Java2D preview image.
 ;; entries contains ZIP entry bytes, parts-by-id and variants-by-id index the
 ;; manifest, and frame-part supplies the transform, opacity and tint.
@@ -365,7 +396,9 @@
     (when-let [preview-image (preview-part-image part variants-by-id skin)]
       (when-let [asset-bytes (get entries (:asset preview-image))]
         (when-let [source-image (ImageIO/read (ByteArrayInputStream. asset-bytes))]
-          (let [^BufferedImage image (tinted-preview-image source-image frame-part)
+          (let [^BufferedImage image (if-let [padding (::coverage-padding frame-part)]
+                                       (inset-preview-alpha source-image padding)
+                                       (tinted-preview-image source-image frame-part))
                 pivot-x (number-or (:pivot-x preview-image) (* 0.5 (.getWidth image)))
                 pivot-y (number-or (:pivot-y preview-image) (* 0.5 (.getHeight image)))
                 tx (number-or (:x frame-part) 0.0)
@@ -412,13 +445,33 @@
         (try
           (.setRenderingHint graphics RenderingHints/KEY_INTERPOLATION RenderingHints/VALUE_INTERPOLATION_BILINEAR)
           (.setRenderingHint graphics RenderingHints/KEY_RENDERING RenderingHints/VALUE_RENDER_QUALITY)
-          (doseq [frame-part (sort-by #(preview-part-draw-order
-                                        (get parts-by-id (:part %))
-                                        variants-by-id
-                                        skin
-                                        %)
-                                      (:parts frame))]
-            (draw-frame-part! graphics entries parts-by-id variants-by-id skin frame-part))
+          (let [ordered (sort-by #(preview-part-draw-order (get parts-by-id (:part %))
+                                                          variants-by-id skin %)
+                                 (:parts frame))
+                mask-key (fn [frame-part]
+                           (when-let [mask (:mask (get parts-by-id (:part frame-part)))]
+                             [(:source mask) (number-or (:padding mask) 0.0)]))]
+            (doseq [group (partition-by mask-key ordered)]
+              (if-let [[source padding] (mask-key (first group))]
+                (let [artwork (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
+                      coverage (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
+                      art-g (.createGraphics artwork)
+                      mask-g (.createGraphics coverage)]
+                  (try
+                    (doseq [^java.awt.Graphics2D g [art-g mask-g]]
+                      (.setRenderingHint g RenderingHints/KEY_INTERPOLATION RenderingHints/VALUE_INTERPOLATION_BILINEAR))
+                    (doseq [frame-part group]
+                      (draw-frame-part! art-g entries parts-by-id variants-by-id skin frame-part))
+                    (doseq [frame-part (:parts frame) :when (= source (:part frame-part))]
+                      (draw-frame-part! mask-g entries parts-by-id variants-by-id skin
+                                        (assoc frame-part :opacity 1.0 :tint [1.0 1.0 1.0]
+                                                          ::coverage-padding padding)))
+                    (.setComposite art-g AlphaComposite/DstIn)
+                    (.drawImage art-g coverage 0 0 nil)
+                    (.drawImage graphics artwork 0 0 nil)
+                    (finally (.dispose art-g) (.dispose mask-g))))
+                (doseq [frame-part group]
+                  (draw-frame-part! graphics entries parts-by-id variants-by-id skin frame-part)))))
           (finally
             (.dispose graphics)))
         image))))
@@ -586,7 +639,7 @@
                         :renderable (render-util/make-aabb-outline-renderable #{:spriteloop})}))}))
 
 ;; Graph output: build targets for the compiled .spriteloopc resource and its raw .spla package.
-(g/defnk produce-build-targets [_node-id resource package package-sha1 save-value own-build-errors material-resource dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource package package-sha1 save-value own-build-errors material-resource mask-material-resource dep-build-targets]
   (g/precluding-errors own-build-errors
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-source (into {}
@@ -595,7 +648,8 @@
                                dep-build-targets)
           dep-resources (map (fn [[label resource]]
                                [label (get deps-by-source resource)])
-                             [[:material material-resource]])
+                             [[:material material-resource]
+                              [:mask-material mask-material-resource]])
           package-build-target (when package
                                  (bt/with-content-hash
                                    {:node-id _node-id
@@ -694,7 +748,7 @@
               [:material] (or (resource/resource->proj-path material) default-material)}}))
 
 ;; Graph output: serializable DDF map saved into the .spriteloop file.
-(g/defnk produce-save-value [package default-animation default-skin playback-rate loop visible autoplay material]
+(g/defnk produce-save-value [package default-animation default-skin playback-rate loop visible autoplay material mask-material]
   (protobuf/make-map-without-defaults @spriteloop-desc-cls
     :package (resource/resource->proj-path package)
     :default-animation default-animation
@@ -703,6 +757,7 @@
     :loop loop
     :visible visible
     :autoplay autoplay
+    :mask-material (resource/resource->proj-path mask-material)
     :material (or (resource/resource->proj-path material) default-material)))
 
 ;; Graph output: validation errors that should block builds.
@@ -726,6 +781,7 @@
     loop :loop
     visible :visible
     autoplay :autoplay
+    mask-material (resolve-resource (:mask-material :or "/spriteloop/masks/mask.material"))
     material (resolve-resource (:material :or default-material))))
 
 ;; Defold 1.14.0 passes shared load options and node information; older editors
@@ -787,6 +843,15 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"}))
             (dynamic error (g/fnk [_node-id material]
                              (validate-material _node-id material))))
+
+  (property mask-material resource/Resource
+            (value (gu/passthrough mask-material-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :mask-material-resource]
+                                            [:build-targets :dep-build-targets])))
+            (dynamic visible (g/constantly false)))
+  (input mask-material-resource resource/Resource)
 
   (input package-resource resource/Resource)
   (input material-resource resource/Resource)
