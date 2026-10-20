@@ -61,6 +61,8 @@ struct State {
 std::unordered_map<const SplaDefoldComponent*, std::unique_ptr<State>> states;
 std::unordered_map<const void*, std::weak_ptr<Images>> image_cache;
 unsigned next_pass = 1;
+bool masks_prepared = false;
+bool masks_prepare_success = true;
 unsigned pass_id() {
     // Exactly representable by a float. IDs only need to be unique in a frame.
     if (next_pass >= 16000000) next_pass = 1;
@@ -309,8 +311,10 @@ dmGraphics::HRenderTarget new_target(unsigned width, unsigned height, bool neare
     return dmGraphics::NewRenderTarget(dmGraphics::GetInstalledContext(), dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
 }
 
-// The native component dispatch runs inside the graphics frame. Keep every state
-// changed by the offscreen work so the default render script continues normally.
+// Composition may run before render-script commands (explicit preparation), or
+// during a screen draw (the built-in renderer fallback). There is no public SDK
+// getter for the active target or its binding parameters. Custom render scripts
+// must prepare before commands execute; dispatch then never changes their target.
 struct GraphicsState {
     dmGraphics::HContext context = dmGraphics::GetInstalledContext();
     dmGraphics::PipelineState pipeline = dmGraphics::GetPipelineState(context);
@@ -318,6 +322,8 @@ struct GraphicsState {
     uint32_t width = 0, height = 0;
     GraphicsState() { dmGraphics::GetViewport(context, &x, &y, &width, &height); }
     ~GraphicsState() {
+        // Intentional screen boundary, not arbitrary caller-target restoration.
+        // Custom scene targets are bound later by queued render commands.
         dmGraphics::SetRenderTarget(context, 0, {});
         dmGraphics::SetViewport(context, x, y, width, height);
         const auto set = [this](dmGraphics::State state, bool enabled) {
@@ -348,6 +354,8 @@ bool render_component_masks(const SplaDefoldComponent* component) {
     if (it == states.end() || !it->second) return false;
     auto& state = *it->second;
     if (!state.dirty) return state.result != 0;
+    // A failed explicit prepass must not retry inside an offscreen scene draw.
+    if (masks_prepared) return false;
     GraphicsState saved;
     auto context = saved.context;
     const auto width = static_cast<unsigned>(std::max(1.0f, state.right - state.left));
@@ -437,6 +445,18 @@ bool render_component_masks(const SplaDefoldComponent* component) {
     dmGraphics::DisableProgram(context);
     state.dirty = false;
     return true;
+}
+
+void begin_mask_frame() { masks_prepared = false; }
+
+bool prepare_component_masks() {
+    if (masks_prepared) return masks_prepare_success;
+    bool success = true;
+    for (const auto& entry : states)
+        if (entry.second && !render_component_masks(entry.first)) success = false;
+    masks_prepared = true;
+    masks_prepare_success = success;
+    return success;
 }
 
 }

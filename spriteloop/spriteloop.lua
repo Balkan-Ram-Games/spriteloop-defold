@@ -17,6 +17,14 @@ local function call(name, ...)
     return native[name](...)
 end
 
+-- Call once at the start of custom render-script update(), before scene draws.
+-- Composes dirty masks before Defold executes the queued render commands.
+-- Not for game-object/GUI scripts, init, on_message or on_reload; no context guard.
+-- Returns success for all mask states; repeated calls reuse this frame's result.
+function M.prepare_masks()
+    return call("prepare_masks")
+end
+
 -- Plays an animation id or name on the SpriteLoop component at url.
 -- options can include loop and emit_events booleans.
 function M.play_anim(url, animation_id, options)

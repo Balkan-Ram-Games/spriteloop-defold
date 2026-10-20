@@ -312,6 +312,24 @@ spla.set_tint(handle, 0.5, 0.8, 1)
 spla.clear_tint(handle)
 ```
 
+## Masks in custom render scripts
+
+Masks work automatically with the built-in renderer. If you use masks with a
+custom render script, call `prepare_masks()` once at the start of its `update()`:
+
+```lua
+local spriteloop = require "spriteloop.spriteloop"
+
+function update(self, dt)
+    assert(spriteloop.prepare_masks(), "SpriteLoop mask preparation failed")
+    -- Your existing rendering code follows.
+end
+```
+
+One call handles all SpriteLoop components. Projects without masks need no extra
+setup. Call this only from render-script `update()`, never from game-object or
+GUI scripts, `init()`, `on_message()` or `on_reload()`.
+
 ## Supported Native Extension Libraries
 
 The repository currently includes prebuilt native extension libraries for these

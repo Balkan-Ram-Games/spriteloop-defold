@@ -15,12 +15,19 @@ namespace spla_defold {
 
 namespace {
 
-// Called once during app-level extension startup.
-// params is unused because SpriteLoop has no app-global state to initialize.
+ExtensionResult pre_render_spla(ExtensionParams*)
+{
+    spla_defold::begin_mask_frame();
+    return EXTENSION_RESULT_OK;
+}
+
+// Register the frame boundary used by custom render-script mask preparation.
+// PRE_RENDER only resets bookkeeping: GPU work must wait until BeginFrame.
 dmExtension::Result app_initialize_spla(dmExtension::AppParams* params)
 {
     (void)params;
-    return dmExtension::RESULT_OK;
+    return dmExtension::RegisterCallback(dmExtension::CALLBACK_PRE_RENDER, pre_render_spla)
+        ? dmExtension::RESULT_OK : dmExtension::RESULT_INIT_ERROR;
 }
 
 // Called when the extension is initialized for a running game.

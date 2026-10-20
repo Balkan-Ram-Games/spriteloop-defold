@@ -11,4 +11,7 @@ void destroy_all_component_masks();
 const SplaDefoldBakedFrame* component_mask_frame(const SplaDefoldComponent* component);
 dmGraphics::HTexture component_mask_texture(const SplaDefoldComponent* component);
 bool render_component_masks(const SplaDefoldComponent* component);
+// Called before render-script update, then explicitly from custom render scripts.
+void begin_mask_frame();
+bool prepare_component_masks();
 }

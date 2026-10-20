@@ -1195,8 +1195,16 @@ int component_get_cache_info(lua_State* lua_state)
     return 1;
 }
 
+// Runs immediately from render-script update, before queued commands execute.
+int component_prepare_masks(lua_State* lua_state)
+{
+    lua_pushboolean(lua_state, spla_defold::prepare_component_masks());
+    return 1;
+}
+
 // Component-oriented Lua module table.
 const luaL_reg component_module_methods[] = {
+    {"prepare_masks", component_prepare_masks},
     {"load_bytes", component_load_bytes},
     {"play_anim", component_play_anim},
     {"stop_anim", component_stop_anim},

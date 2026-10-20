@@ -2,6 +2,13 @@
   type: table
   desc: SpriteLoop component playback API.
   members:
+  - name: prepare_masks
+    type: function
+    desc: Prepares dirty mask textures for all SpriteLoop components. Call once at the start of custom render-script update(), before rendering commands. Do not call from game-object or GUI scripts, init(), on_message() or on_reload(); calling context is not checked. The built-in renderer handles masks automatically. Repeated calls in a frame reuse the result; no mask states means success without composition.
+    returns:
+    - name: success
+      type: boolean
+      desc: True if all mask states prepared successfully. On failure, affected dirty masks are skipped for the frame and retried next frame.
   - name: play_anim
     type: function
     desc: Plays an animation on a SpriteLoop component.
