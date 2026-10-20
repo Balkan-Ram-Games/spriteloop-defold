@@ -141,7 +141,7 @@ struct PreparedComponentGeometry {
 
 bool masked(const SplaDefoldComponent* component)
 {
-    return package_has_masks(instance_package(*component->instance));
+    return component->instance->has_masks;
 }
 
 dmRender::HMaterial component_material(const SplaDefoldComponent* component)
@@ -481,7 +481,8 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
     }
 
     const SplaDefoldInstance& instance = *component->instance;
-    if (masked(component) && !render_component_masks(component)) return prepared;
+    const bool has_masks = masked(component);
+    if (has_masks && !render_component_masks(component)) return prepared;
     dmGraphics::HTexture atlas_texture = component_texture(component);
     if (atlas_texture == 0) {
         return prepared;
@@ -490,7 +491,7 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
     const dmVMath::Matrix4& world_matrix = dmGameObject::GetWorldMatrix(instance.game_object);
     const spriteloop::SplaAnimation* animation = instance.player->current_animation();
     const int frame_index = instance.player->current_frame_index();
-    const SplaDefoldBakedFrame* baked_frame = masked(component)
+    const SplaDefoldBakedFrame* baked_frame = has_masks
         ? component_mask_frame(component) : current_baked_frame(instance);
     if (animation == nullptr || baked_frame == nullptr) {
         return prepared;
@@ -527,7 +528,7 @@ PreparedComponentGeometry prepare_component_geometry(SpriteLoopWorld* world,
 
         for (const SplaDefoldBakedVertex& baked_vertex : baked_frame->vertices) {
             SpriteLoopVertex vertex = transform_baked_vertex(instance, world_matrix, baked_vertex);
-            vertex.texture_is_premultiplied = masked(component) ? 1.0f : 0.0f;
+            vertex.texture_is_premultiplied = has_masks ? 1.0f : 0.0f;
             cache.vertices.push_back(vertex);
         }
         cache.valid = true;

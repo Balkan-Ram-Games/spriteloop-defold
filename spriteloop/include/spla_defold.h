@@ -69,6 +69,8 @@ struct SplaDefoldInstance {
     // Default component geometry lives in shared_resource; customized and Lua-owned
     // geometry lives in baked_animations. Access it through instance_baked_animations().
     bool uses_shared_baked_animations = false;
+    // Package mask references are immutable for this instance's lifetime.
+    bool has_masks = false;
     std::vector<SplaDefoldBakedAnimation> baked_animations;
     spriteloop::SplaPartImageMap image_map;
     spriteloop::SplaSkinState skin_state;
@@ -122,6 +124,8 @@ struct SplaDefoldSharedPackageResource {
     std::vector<SplaDefoldBakedAnimation> baked_animations;
     spriteloop::SplaPartImageMap image_map;
     std::uint32_t ref_count = 0;
+    // Computed once when this package content is loaded, shared by its instances.
+    bool has_masks = false;
 };
 
 struct SplaDefoldRenderStats {

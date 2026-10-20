@@ -1,4 +1,5 @@
 #include "spla_defold.h"
+#include "spla_defold_masks.h"
 
 #include "spriteloop/spla.hpp"
 
@@ -199,6 +200,7 @@ SplaDefoldInstance* create_instance_from_memory(const char* path,
     instance->path = path;
     instance->byte_count = byte_count;
     instance->package = std::move(package_result).value();
+    instance->has_masks = package_has_masks(instance->package);
 
     if (!build_image_resources(instance->package, instance->image_resources, error)) {
         return nullptr;
@@ -242,6 +244,7 @@ SplaDefoldSharedPackageResource* acquire_shared_package_resource(const char* pat
     resource->byte_count = byte_count;
     resource->content_hash = content_hash;
     resource->package = std::move(package_result).value();
+    resource->has_masks = package_has_masks(resource->package);
 
     if (!build_image_resources(resource->package, resource->image_resources, error)) {
         return nullptr;
@@ -293,6 +296,7 @@ SplaDefoldInstance* create_instance_from_shared_resource(
     instance->path = shared_resource->path;
     instance->byte_count = shared_resource->byte_count;
     instance->shared_resource = shared_resource;
+    instance->has_masks = shared_resource->has_masks;
     instance->player.reset(
         new spriteloop::SplaPlayer(shared_resource->package, default_max_pending_events()));
     rebuild_instance_baked_data(*instance);
