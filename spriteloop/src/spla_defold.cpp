@@ -3,6 +3,7 @@
 #include "spla_defold_masks.h"
 
 #include <dmsdk/sdk.h>
+#include <dmsdk/dlib/configfile_gen.hpp>
 
 // Native extension entry point for SpriteLoop.
 //
@@ -34,6 +35,14 @@ dmExtension::Result app_initialize_spla(dmExtension::AppParams* params)
 // params supplies Defold's Lua state, where both SpriteLoop Lua modules are registered.
 dmExtension::Result initialize_spla(dmExtension::Params* params)
 {
+    const int mask_cache_budget_mb = dmConfigFile::GetInt(
+        params->m_ConfigFile, "spriteloop.mask_cache_budget_mb", 32);
+    if (mask_cache_budget_mb < 0 || !spla_defold::set_mask_composition_cache_budget(
+            static_cast<uint64_t>(mask_cache_budget_mb) * 1024 * 1024)) {
+        dmLogWarning("spriteloop.mask_cache_budget_mb must be between 0 and 128 MiB (got %d); using 32 MiB",
+                   mask_cache_budget_mb);
+        spla_defold::set_mask_composition_cache_budget(32ULL * 1024 * 1024);
+    }
     spla_defold::register_lua_module(params->m_L);
     dmLogInfo("Registered %s extension module '%s'", SPLA_DEFOLD_EXTENSION_NAME,
               SPLA_DEFOLD_MODULE_NAME);

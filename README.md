@@ -334,6 +334,12 @@ Repeated masked animations automatically share cached results to improve
 performance. Each instance keeps its own transform and tint. Performance gains
 depend on animation variety and cache capacity.
 
+Set **SpriteLoop → Mask Cache Budget Mb** in Project Settings
+(`spriteloop.mask_cache_budget_mb`) to choose the retained mask texture budget in
+MiB. The default is 32; supported values are 0–128, with 0 disabling retention.
+Invalid values use the default and log a warning.
+This budget does not include other graphics memory.
+
 ## Supported Native Extension Libraries
 
 The repository currently includes prebuilt native extension libraries for these
