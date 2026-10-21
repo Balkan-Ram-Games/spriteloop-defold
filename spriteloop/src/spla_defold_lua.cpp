@@ -1202,9 +1202,49 @@ int component_prepare_masks(lua_State* lua_state)
     return 1;
 }
 
+// Benchmark diagnostics; Lua conversion stays beside the other component bindings.
+int component_diagnostic_composition_cache(lua_State* lua_state)
+{
+    if (lua_gettop(lua_state) > 0) {
+        const lua_Integer budget = luaL_checkinteger(lua_state, 1);
+        if (budget < 0 || !spla_defold::set_mask_composition_cache_budget(static_cast<uint64_t>(budget)))
+            return luaL_error(lua_state, "invalid composition budget");
+    }
+    const auto stats = spla_defold::mask_composition_cache_stats();
+    lua_newtable(lua_state);
+    const auto field = [lua_state](const char* name, uint64_t value) {
+        lua_pushnumber(lua_state, static_cast<lua_Number>(value));
+        lua_setfield(lua_state, -2, name);
+    };
+    field("budget", stats.budget);
+    field("retained_bytes", stats.retained_bytes);
+    field("live_bytes", stats.live_bytes);
+    field("peak_live_bytes", stats.peak_live_bytes);
+    field("live_entries", stats.live_entries);
+    field("scratch_bytes", stats.scratch_bytes);
+    field("owners", stats.owners);
+    field("entries", stats.entries);
+    field("fallback_bytes", stats.fallback_bytes);
+    field("pinned_unretained_bytes", stats.pinned_unretained_bytes);
+    field("requests", stats.requests);
+    field("hits", stats.hits);
+    field("render_hits", stats.render_hits);
+    field("misses", stats.misses);
+    field("compositions", stats.compositions);
+    field("draws", stats.draws);
+    field("clears", stats.clears);
+    field("binds", stats.binds);
+    field("evictions", stats.evictions);
+    field("fallbacks", stats.fallbacks);
+    field("allocations", stats.allocations);
+    field("deletions", stats.deletions);
+    return 1;
+}
+
 // Component-oriented Lua module table.
 const luaL_reg component_module_methods[] = {
     {"prepare_masks", component_prepare_masks},
+    {"diagnostic_composition_cache", component_diagnostic_composition_cache},
     {"load_bytes", component_load_bytes},
     {"play_anim", component_play_anim},
     {"stop_anim", component_stop_anim},

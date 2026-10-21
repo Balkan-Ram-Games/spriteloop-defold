@@ -330,6 +330,10 @@ One call handles all SpriteLoop components. Projects without masks need no extra
 setup. Call this only from render-script `update()`, never from game-object or
 GUI scripts, `init()`, `on_message()` or `on_reload()`.
 
+Repeated masked animations automatically share cached results to improve
+performance. Each instance keeps its own transform and tint. Performance gains
+depend on animation variety and cache capacity.
+
 ## Supported Native Extension Libraries
 
 The repository currently includes prebuilt native extension libraries for these

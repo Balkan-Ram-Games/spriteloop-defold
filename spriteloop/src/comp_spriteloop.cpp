@@ -1020,6 +1020,9 @@ bool load_component_package(SpriteLoopContext* context,
 void resource_reloaded(const dmResource::ResourceReloadedParams* params)
 {
     auto* world = static_cast<SpriteLoopWorld*>(params->m_UserData);
+    // Conservative invalidation includes material/program reload.
+    // Rebuild every compositor state before any cached result can be reused.
+    destroy_all_component_masks();
     void* reloaded = dmResource::GetResource(params->m_Resource);
     for (auto* component : world->components) {
         auto* resource = component->resource;

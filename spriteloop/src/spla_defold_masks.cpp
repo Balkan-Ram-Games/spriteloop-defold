@@ -6,9 +6,10 @@
 #include <dmsdk/gamesys/resources/res_material.h>
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <cstdlib>
 #include <map>
+#include <tuple>
+#include <cstdint>
 #include <memory>
 #include <unordered_map>
 
@@ -29,6 +30,45 @@ struct CachedGeometry {
     uint64_t touched=0;
     ~CachedGeometry() {if(buffer) dmGraphics::DeleteVertexBuffer(buffer);}
 };
+// Cache counters measure texture payload, not driver allocation overhead.
+struct CacheStats {
+    uint64_t requests=0, hits=0, render_hits=0, misses=0, compositions=0;
+    uint64_t draws=0, clears=0, binds=0, evictions=0, fallbacks=0;
+    uint64_t allocations=0, deletions=0, live_bytes=0, peak_bytes=0;
+    uint64_t retained_bytes=0, live_entries=0, clock=0;
+} cache_stats;
+size_t result_budget=32*1024*1024;
+using ResultKey=std::tuple<uintptr_t,bool,uintptr_t>;
+struct Result {
+    dmResource::HFactory factory=nullptr;
+    dmGameSystem::MaterialResource* material=nullptr;
+    dmGraphics::HRenderTarget target=0;
+    dmGraphics::HTexture texture=0;
+    SplaDefoldBakedFrame quad;
+    float left=0,bottom=0,right=1,top=1;
+    size_t bytes=0;
+    uint64_t touched=0;
+    ~Result() {
+        if(target) {
+            dmGraphics::DeleteRenderTarget(dmGraphics::GetInstalledContext(),target);
+            cache_stats.live_bytes-=bytes;--cache_stats.live_entries;
+            ++cache_stats.deletions;
+        }
+        if(material) dmResource::Release(factory,material);
+    }
+};
+struct Scratch {
+    dmGraphics::HRenderTarget group=0,coverage=0;
+    unsigned width=0,height=0;
+    bool nearest=false;
+    size_t bytes=0;
+    void clear() {
+        auto context=dmGraphics::GetInstalledContext();
+        if(group) dmGraphics::DeleteRenderTarget(context,group);
+        if(coverage) dmGraphics::DeleteRenderTarget(context,coverage);
+        group=coverage=0;width=height=0;bytes=0;
+    }
+} scratch;
 struct Images {
     spriteloop::SplaPackage const* package = nullptr;
     std::vector<SplaDefoldImageResource> decoded;
@@ -40,7 +80,11 @@ struct Images {
     // Bound retained GPU payload per image/package owner. Evicted live buffers
     // remain owned by their current consumers until those consumers move on.
     static constexpr size_t geometry_budget=8*1024*1024;
+    // Owner lifetime scopes frame pointers to one actual package generation.
+    // Only component States retain Images; the cache cannot keep a package alive.
+    std::map<ResultKey,std::shared_ptr<Result>> results;
     ~Images() {
+        for(const auto& entry:results) cache_stats.retained_bytes-=entry.second->bytes;
         destroy_atlas_texture(dmGraphics::GetInstalledContext(), artwork);
         for (auto& entry : alpha) destroy_atlas_texture(dmGraphics::GetInstalledContext(), entry.second);
     }
@@ -52,6 +96,8 @@ struct State {
     dmGraphics::HVertexDeclaration declaration = 0;
     dmGraphics::HVertexBuffer buffer = 0; // borrowed from prepared
     std::shared_ptr<CachedGeometry> prepared;
+    std::shared_ptr<Result> completed;
+    bool cacheable=false;
     dmGraphics::HTexture result = 0;
     dmGraphics::HRenderTarget result_target = 0, group_target = 0, coverage_target = 0;
     dmGraphics::HProgram program = dmGraphics::INVALID_PROGRAM_HANDLE;
@@ -79,6 +125,35 @@ struct State {
 };
 std::unordered_map<const SplaDefoldComponent*, std::unique_ptr<State>> states;
 std::unordered_map<const void*, std::weak_ptr<Images>> image_cache;
+ResultKey result_key(const State& state) {
+    return ResultKey(reinterpret_cast<uintptr_t>(state.baked_frame),state.nearest,
+                     reinterpret_cast<uintptr_t>(state.material));
+}
+void trim_results(size_t incoming=0) {
+    while(cache_stats.retained_bytes+incoming>result_budget) {
+        std::shared_ptr<Images> owner;
+        ResultKey key;
+        uint64_t oldest=UINT64_MAX;
+        for(auto& item:image_cache) if(auto images=item.second.lock())
+            for(const auto& entry:images->results) if(entry.second->touched<oldest) {
+                oldest=entry.second->touched;owner=images;key=entry.first;
+            }
+        if(!owner) break;
+        cache_stats.retained_bytes-=owner->results.at(key)->bytes;
+        owner->results.erase(key);++cache_stats.evictions;
+    }
+}
+bool reuse_result(State& state) {
+    if(!state.cacheable || !result_budget) return false;
+    auto found=state.images->results.find(result_key(state));
+    if(found==state.images->results.end()) return false;
+    state.completed=found->second;
+    auto& result=*state.completed;result.touched=++cache_stats.clock;
+    state.result=result.texture;state.quad=result.quad;
+    state.left=result.left;state.bottom=result.bottom;
+    state.right=result.right;state.top=result.top;state.dirty=false;
+    return true;
+}
 unsigned next_pass = 1;
 bool masks_prepared = false;
 bool masks_prepare_success = true;
@@ -254,6 +329,15 @@ bool submit_component_masks(SplaDefoldComponent* component, dmResource::HFactory
     const auto* frame = frame_for(*component->instance);
     if (!frame) return false;
     if (state.baked_frame == frame && state.skin_revision == component->instance->skin_revision) return true;
+    ++cache_stats.requests;
+    state.completed.reset();
+    state.result=0;
+    state.baked_frame=frame;
+    state.skin_revision=component->instance->skin_revision;
+    state.cacheable=component->instance->uses_shared_baked_animations;
+    if(reuse_result(state)) {++cache_stats.hits;return true;}
+    ++cache_stats.misses;
+    state.baked_frame=nullptr; // Failed preparation must remain retryable.
     const bool cacheable=component->instance->uses_shared_baked_animations;
     auto& images=*state.images;
     const auto geometry_key=std::make_pair(reinterpret_cast<uintptr_t>(frame),state.nearest);
@@ -267,6 +351,7 @@ bool submit_component_masks(SplaDefoldComponent* component, dmResource::HFactory
         state.baked_frame=frame;state.skin_revision=component->instance->skin_revision;state.dirty=true;
         return true;
     }
+
     const auto artwork = artwork_texture(state);
     if (!artwork) return false;
     state.dirty = true;
@@ -334,11 +419,12 @@ bool submit_component_masks(SplaDefoldComponent* component, dmResource::HFactory
 
 void destroy_component_masks(SplaDefoldComponent* component) {
     states.erase(component);
+    if(states.empty()) scratch.clear();
     for (auto it = image_cache.begin(); it != image_cache.end();) {
         if (it->second.expired()) it = image_cache.erase(it); else ++it;
     }
 }
-void destroy_all_component_masks() { states.clear(); image_cache.clear(); }
+void destroy_all_component_masks() { states.clear(); image_cache.clear(); scratch.clear(); }
 const SplaDefoldBakedFrame* component_mask_frame(const SplaDefoldComponent* component) {
     auto it = states.find(component);
     return it == states.end() || !it->second ? nullptr : &it->second->quad;
@@ -383,6 +469,7 @@ struct GraphicsState {
     ~GraphicsState() {
         // Intentional screen boundary, not arbitrary caller-target restoration.
         // Custom scene targets are bound later by queued render commands.
+        ++cache_stats.binds;
         dmGraphics::SetRenderTarget(context, 0, {});
         dmGraphics::SetViewport(context, x, y, width, height);
         const auto set = [this](dmGraphics::State state, bool enabled) {
@@ -415,26 +502,64 @@ bool render_component_masks(const SplaDefoldComponent* component) {
     if (!state.dirty) return state.result != 0;
     // A failed explicit prepass must not retry inside an offscreen scene draw.
     if (masks_prepared) return false;
+    // Submissions precede the prepass: another actor may have produced this key.
+    if(reuse_result(state)) {++cache_stats.render_hits;return true;}
     GraphicsState saved;
     auto context = saved.context;
     const auto width = static_cast<unsigned>(std::max(1.0f, state.right - state.left));
     const auto height = static_cast<unsigned>(std::max(1.0f, state.top - state.bottom));
     const auto limit = std::min(65535u, dmGraphics::GetMaxTextureSize(context));
     if (width > limit || height > limit) { dmLogError("SpriteLoop mask bounds exceed texture dimensions"); return false; }
-    if (width != state.width || height != state.height) {
-        if (state.result_target) dmGraphics::DeleteRenderTarget(context, state.result_target);
-        if (state.group_target) dmGraphics::DeleteRenderTarget(context, state.group_target);
-        if (state.coverage_target) dmGraphics::DeleteRenderTarget(context, state.coverage_target);
-        state.result_target = new_target(width, height, state.nearest);
-        state.group_target = new_target(width, height, state.nearest);
-        state.coverage_target = new_target(width, height, state.nearest);
-        if (!state.result_target || !state.group_target || !state.coverage_target) {
-            state.width = state.height = 0;
-            state.result = 0;
-            return false;
+    const size_t bytes=size_t(width)*height*4;
+    const bool share=state.cacheable && bytes<=result_budget && result_budget>0;
+    std::shared_ptr<Result> pending;
+    dmGraphics::HRenderTarget result_target=0,group_target=0,coverage_target=0;
+    if(share) {
+        // No per-actor scratch targets on the shared path. Misses execute serially.
+        if(state.result_target) dmGraphics::DeleteRenderTarget(context,state.result_target);
+        if(state.group_target) dmGraphics::DeleteRenderTarget(context,state.group_target);
+        if(state.coverage_target) dmGraphics::DeleteRenderTarget(context,state.coverage_target);
+        state.result_target=state.group_target=state.coverage_target=0;
+        state.width=state.height=0;
+        if(width!=scratch.width || height!=scratch.height || state.nearest!=scratch.nearest) {
+            scratch.clear();
+            scratch.group=new_target(width,height,state.nearest);
+            scratch.coverage=new_target(width,height,state.nearest);
+            if(!scratch.group || !scratch.coverage) {scratch.clear();return false;}
+            scratch.width=width;scratch.height=height;scratch.nearest=state.nearest;
+            scratch.bytes=bytes*2;
         }
-        state.width = width; state.height = height;
-        state.result = dmGraphics::GetRenderTargetTexture(context, state.result_target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+        trim_results(bytes);
+        pending=std::make_shared<Result>();
+        pending->target=new_target(width,height,state.nearest);
+        if(!pending->target) return false;
+        // Keep the material identity alive even if its last actor goes away
+        // while another material's actors keep this package cache alive.
+        pending->factory=state.factory;pending->material=state.material;
+        dmResource::IncRef(state.factory,state.material);
+        pending->bytes=bytes;++cache_stats.allocations;++cache_stats.live_entries;
+        cache_stats.live_bytes+=bytes;
+        cache_stats.peak_bytes=std::max(cache_stats.peak_bytes,cache_stats.live_bytes);
+        pending->texture=dmGraphics::GetRenderTargetTexture(context,pending->target,dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+        pending->quad=state.quad;
+        pending->left=state.left;pending->bottom=state.bottom;
+        pending->right=state.right;pending->top=state.top;
+        result_target=pending->target;group_target=scratch.group;coverage_target=scratch.coverage;
+    } else {
+        ++cache_stats.fallbacks;
+        if(width!=state.width || height!=state.height || !state.result_target ||
+           !state.group_target || !state.coverage_target) {
+            if(state.result_target) dmGraphics::DeleteRenderTarget(context,state.result_target);
+            if(state.group_target) dmGraphics::DeleteRenderTarget(context,state.group_target);
+            if(state.coverage_target) dmGraphics::DeleteRenderTarget(context,state.coverage_target);
+            state.result_target=new_target(width,height,state.nearest);
+            state.group_target=new_target(width,height,state.nearest);
+            state.coverage_target=new_target(width,height,state.nearest);
+            state.width=state.height=0;state.result=0;
+            if(!state.result_target || !state.group_target || !state.coverage_target) return false;
+            state.width=width;state.height=height;
+        }
+        result_target=state.result_target;group_target=state.group_target;coverage_target=state.coverage_target;
     }
     dmGraphics::SetViewport(context, 0, 0, width, height);
     dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
@@ -452,6 +577,7 @@ bool render_component_masks(const SplaDefoldComponent* component) {
     const auto projection = dmVMath::Matrix4::orthographic(state.left, state.right, state.bottom, state.top, -1, 1);
     dmGraphics::SetConstantM4(context, &projection, 1, dmGraphics::FindUniformLocation(state.program, "view_proj"));
     const auto clear = [context](dmGraphics::HRenderTarget target) {
+        ++cache_stats.clears;++cache_stats.binds;
         dmGraphics::SetRenderTarget(context, target, {});
         dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
     };
@@ -480,28 +606,39 @@ bool render_component_masks(const SplaDefoldComponent* component) {
                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, 1.0f);
             dmGraphics::SetSampler(context, dmGraphics::FindUniformLocation(state.program, "texture_sampler"), 0);
             dmGraphics::SetSampler(context, dmGraphics::FindUniformLocation(state.program, "coverage_sampler"), 1);
+            ++cache_stats.draws;
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, batch.start, batch.count, 1);
             dmGraphics::DisableTexture(context, 1, alpha);
             dmGraphics::DisableTexture(context, 0, texture);
         }
     };
-    clear(state.result_target);
+    clear(result_target);
     for (const auto& pass : state.passes) {
         if (!pass.coverage) {
-            dmGraphics::SetRenderTarget(context, state.result_target, {});
+            ++cache_stats.binds;
+            dmGraphics::SetRenderTarget(context, result_target, {});
             draw(pass.art, 0);
         } else {
-            clear(state.group_target); draw(pass.art, 0);
-            clear(state.coverage_target); draw(pass.coverage, 1);
-            dmGraphics::SetRenderTarget(context, state.result_target, {});
+            clear(group_target); draw(pass.art, 0);
+            clear(coverage_target); draw(pass.coverage, 1);
+            ++cache_stats.binds;
+            dmGraphics::SetRenderTarget(context, result_target, {});
             draw(pass.composite, 2,
-                dmGraphics::GetRenderTargetTexture(context, state.group_target, dmGraphics::BUFFER_TYPE_COLOR0_BIT),
-                dmGraphics::GetRenderTargetTexture(context, state.coverage_target, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
+                dmGraphics::GetRenderTargetTexture(context, group_target, dmGraphics::BUFFER_TYPE_COLOR0_BIT),
+                dmGraphics::GetRenderTargetTexture(context, coverage_target, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
         }
     }
     dmGraphics::DisableVertexDeclaration(context, state.declaration);
     dmGraphics::DisableVertexBuffer(context, state.buffer);
     dmGraphics::DisableProgram(context);
+    ++cache_stats.compositions;
+    state.result=dmGraphics::GetRenderTargetTexture(context,result_target,dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    if(pending) {
+        pending->touched=++cache_stats.clock;
+        state.images->results.emplace(result_key(state),pending);
+        cache_stats.retained_bytes+=pending->bytes;
+        state.completed=pending;
+    }
     state.dirty = false;
     return true;
 }
@@ -518,5 +655,50 @@ bool prepare_component_masks() {
     return success;
 }
 
+
+bool set_mask_composition_cache_budget(uint64_t bytes)
+{
+    if (bytes > 128 * 1024 * 1024) return false;
+    result_budget = static_cast<size_t>(bytes);
+    trim_results();
+    return true;
 }
 
+MaskCompositionCacheStats mask_composition_cache_stats()
+{
+    MaskCompositionCacheStats stats;
+    stats.budget = result_budget;
+    stats.retained_bytes = cache_stats.retained_bytes;
+    stats.live_bytes = cache_stats.live_bytes;
+    stats.peak_live_bytes = cache_stats.peak_bytes;
+    stats.live_entries = cache_stats.live_entries;
+    stats.scratch_bytes = scratch.bytes;
+    for (const auto& item : image_cache) {
+        if (auto images = item.second.lock()) {
+            ++stats.owners;
+            stats.entries += images->results.size();
+        }
+    }
+    for (const auto& item : states) {
+        if (!item.second) continue;
+        const auto& state = *item.second;
+        stats.fallback_bytes += uint64_t(state.width) * state.height * 4 *
+            ((state.result_target ? 1 : 0) + (state.group_target ? 1 : 0) + (state.coverage_target ? 1 : 0));
+    }
+    stats.pinned_unretained_bytes = cache_stats.live_bytes - cache_stats.retained_bytes;
+    stats.requests = cache_stats.requests;
+    stats.hits = cache_stats.hits;
+    stats.render_hits = cache_stats.render_hits;
+    stats.misses = cache_stats.misses;
+    stats.compositions = cache_stats.compositions;
+    stats.draws = cache_stats.draws;
+    stats.clears = cache_stats.clears;
+    stats.binds = cache_stats.binds;
+    stats.evictions = cache_stats.evictions;
+    stats.fallbacks = cache_stats.fallbacks;
+    stats.allocations = cache_stats.allocations;
+    stats.deletions = cache_stats.deletions;
+    return stats;
+}
+
+} // namespace spla_defold
