@@ -6,6 +6,7 @@
 #include <dmsdk/gamesys/resources/res_material.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <map>
 #include <memory>
@@ -17,11 +18,28 @@ namespace {
 struct Vertex { float x, y, pass, u, v, r, g, b, a; };
 struct Pass { unsigned art = 0, coverage = 0, composite = 0; };
 struct Batch { unsigned start, count, pass; dmGraphics::HTexture texture; };
+// Immutable local-space frame data; world transform/tint remain per component.
+struct CachedGeometry {
+    dmGraphics::HVertexBuffer buffer=0;
+    std::vector<Batch> batches;
+    std::vector<Pass> passes;
+    SplaDefoldBakedFrame quad;
+    float left=0,bottom=0,right=1,top=1;
+    size_t bytes=0;
+    uint64_t touched=0;
+    ~CachedGeometry() {if(buffer) dmGraphics::DeleteVertexBuffer(buffer);}
+};
 struct Images {
     spriteloop::SplaPackage const* package = nullptr;
     std::vector<SplaDefoldImageResource> decoded;
     std::map<std::pair<float, bool>, dmGraphics::HTexture> alpha;
     dmGraphics::HTexture artwork = 0;
+    std::map<std::pair<uintptr_t,bool>,std::shared_ptr<CachedGeometry>> geometry;
+    size_t geometry_bytes=0;
+    uint64_t geometry_clock=0;
+    // Bound retained GPU payload per image/package owner. Evicted live buffers
+    // remain owned by their current consumers until those consumers move on.
+    static constexpr size_t geometry_budget=8*1024*1024;
     ~Images() {
         destroy_atlas_texture(dmGraphics::GetInstalledContext(), artwork);
         for (auto& entry : alpha) destroy_atlas_texture(dmGraphics::GetInstalledContext(), entry.second);
@@ -32,7 +50,8 @@ struct State {
     dmResource::HFactory factory = nullptr;
     dmGameSystem::MaterialResource* material = nullptr;
     dmGraphics::HVertexDeclaration declaration = 0;
-    dmGraphics::HVertexBuffer buffer = 0;
+    dmGraphics::HVertexBuffer buffer = 0; // borrowed from prepared
+    std::shared_ptr<CachedGeometry> prepared;
     dmGraphics::HTexture result = 0;
     dmGraphics::HRenderTarget result_target = 0, group_target = 0, coverage_target = 0;
     dmGraphics::HProgram program = dmGraphics::INVALID_PROGRAM_HANDLE;
@@ -54,7 +73,7 @@ struct State {
         if (coverage_target) dmGraphics::DeleteRenderTarget(context, coverage_target);
         if (program != dmGraphics::INVALID_PROGRAM_HANDLE) dmGraphics::DeleteProgram(context, program);
         if (declaration) dmGraphics::DeleteVertexDeclaration(declaration);
-        if (buffer) dmGraphics::DeleteVertexBuffer(buffer);
+
         if (material) dmResource::Release(factory, material);
     }
 };
@@ -206,7 +225,7 @@ std::unique_ptr<State> create_state(SplaDefoldComponent* component, dmResource::
     dmGraphics::AddVertexStream(streams, "color", 4, dmGraphics::TYPE_FLOAT, false);
     state->declaration = dmGraphics::NewVertexDeclaration(context, streams);
     dmGraphics::DeleteVertexStreamDeclaration(streams);
-    state->buffer = dmGraphics::NewVertexBuffer(context, 0, nullptr, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
     const auto& instance = *component->instance;
     const void* key = instance.shared_resource ? static_cast<const void*>(instance.shared_resource) : &instance;
     state->images = image_cache[key].lock();
@@ -235,6 +254,19 @@ bool submit_component_masks(SplaDefoldComponent* component, dmResource::HFactory
     const auto* frame = frame_for(*component->instance);
     if (!frame) return false;
     if (state.baked_frame == frame && state.skin_revision == component->instance->skin_revision) return true;
+    const bool cacheable=component->instance->uses_shared_baked_animations;
+    auto& images=*state.images;
+    const auto geometry_key=std::make_pair(reinterpret_cast<uintptr_t>(frame),state.nearest);
+    const auto cached=images.geometry.find(geometry_key);
+    if(cacheable && cached!=images.geometry.end()) {
+        const auto& g=*cached->second;
+        cached->second->touched=++images.geometry_clock;
+        state.prepared=cached->second;
+        state.buffer=g.buffer;state.batches=g.batches;state.passes=g.passes;
+        state.quad=g.quad;state.left=g.left;state.bottom=g.bottom;state.right=g.right;state.top=g.top;
+        state.baked_frame=frame;state.skin_revision=component->instance->skin_revision;state.dirty=true;
+        return true;
+    }
     const auto artwork = artwork_texture(state);
     if (!artwork) return false;
     state.dirty = true;
@@ -266,8 +298,35 @@ bool submit_component_masks(SplaDefoldComponent* component, dmResource::HFactory
         }
         state.passes.push_back(pass);
     }
-    dmGraphics::SetVertexBufferData(state.buffer, static_cast<unsigned>(state.vertices.size() * sizeof(Vertex)),
-                                  state.vertices.data(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    const size_t bytes=state.vertices.size()*sizeof(Vertex);
+    const bool immutable=cacheable && bytes<=Images::geometry_budget;
+    // Customized and oversized frames retain a private dynamic buffer. Never
+    // overwrite a buffer still referenced by the cache or another component.
+    auto prepared=!immutable && state.prepared && state.prepared.use_count()==1
+        ? state.prepared : std::make_shared<CachedGeometry>();
+    prepared->bytes=bytes;
+    if(prepared->buffer) {
+        dmGraphics::SetVertexBufferData(prepared->buffer,static_cast<unsigned>(bytes),
+            state.vertices.data(),dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    } else {
+        prepared->buffer=dmGraphics::NewVertexBuffer(dmGraphics::GetInstalledContext(),
+            static_cast<unsigned>(bytes),state.vertices.data(),immutable
+                ? dmGraphics::BUFFER_USAGE_STATIC_DRAW : dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    }
+    if(!prepared->buffer) return false;
+    prepared->batches=state.batches;prepared->passes=state.passes;prepared->quad=state.quad;
+    prepared->left=state.left;prepared->bottom=state.bottom;prepared->right=state.right;prepared->top=state.top;
+    prepared->touched=++images.geometry_clock;
+    state.prepared=prepared;state.buffer=prepared->buffer;
+    if(cacheable && prepared->bytes<=Images::geometry_budget) {
+        while(images.geometry_bytes+prepared->bytes>Images::geometry_budget && !images.geometry.empty()) {
+            auto victim=images.geometry.begin();
+            for(auto it=images.geometry.begin();it!=images.geometry.end();++it)
+                if(it->second->touched<victim->second->touched) victim=it;
+            images.geometry_bytes-=victim->second->bytes;images.geometry.erase(victim);
+        }
+        images.geometry.emplace(geometry_key,prepared);images.geometry_bytes+=prepared->bytes;
+    }
     state.baked_frame = frame;
     state.skin_revision = component->instance->skin_revision;
     return true;
