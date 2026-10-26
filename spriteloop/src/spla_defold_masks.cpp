@@ -105,6 +105,7 @@ struct State {
     const SplaDefoldBakedFrame* baked_frame = nullptr;
     std::uint32_t skin_revision = 0;
     bool dirty = true;
+    bool bounds_error_logged = false;
     bool nearest = false;
     std::shared_ptr<Images> images;
     std::vector<Vertex> vertices;
@@ -152,6 +153,7 @@ bool reuse_result(State& state) {
     state.result=result.texture;state.quad=result.quad;
     state.left=result.left;state.bottom=result.bottom;
     state.right=result.right;state.top=result.top;state.dirty=false;
+    state.bounds_error_logged=false;
     return true;
 }
 unsigned next_pass = 1;
@@ -509,7 +511,15 @@ bool render_component_masks(const SplaDefoldComponent* component) {
     const auto width = static_cast<unsigned>(std::max(1.0f, state.right - state.left));
     const auto height = static_cast<unsigned>(std::max(1.0f, state.top - state.bottom));
     const auto limit = std::min(65535u, dmGraphics::GetMaxTextureSize(context));
-    if (width > limit || height > limit) { dmLogError("SpriteLoop mask bounds exceed texture dimensions"); return false; }
+    if (width > limit || height > limit) {
+        if (!state.bounds_error_logged) {
+            dmLogError("SpriteLoop mask bounds exceed texture dimensions (requested %ux%u, limit %u)",
+                       width, height, limit);
+            state.bounds_error_logged = true;
+        }
+        return false;
+    }
+    state.bounds_error_logged = false;
     const size_t bytes=size_t(width)*height*4;
     const bool share=state.cacheable && bytes<=result_budget && result_budget>0;
     std::shared_ptr<Result> pending;
