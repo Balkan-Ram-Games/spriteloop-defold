@@ -321,7 +321,7 @@ custom render script, call `prepare_masks()` once at the start of its `update()`
 local spriteloop = require "spriteloop.spriteloop"
 
 function update(self, dt)
-    assert(spriteloop.prepare_masks(), "SpriteLoop mask preparation failed")
+    spriteloop.prepare_masks()
     -- Your existing rendering code follows.
 end
 ```
