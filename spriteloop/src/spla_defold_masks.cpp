@@ -163,15 +163,54 @@ struct Result {
         if(material) dmResource::Release(factory,material);
     }
 };
-struct Scratch {
+// Shared-path scratch pairs, one per exact size. Mixed mask sizes would
+// otherwise resize a single pair on every size change.
+struct ScratchPair {
     dmGraphics::HRenderTarget group=0,coverage=0;
     unsigned width=0,height=0;
     bool nearest=false;
+    uint64_t touched=0;
+    size_t bytes() const {return size_t(width)*height*4*2;}
+};
+struct Scratch {
+    static constexpr size_t max_pairs=4;
+    static constexpr size_t max_bytes=16*1024*1024;
+    std::vector<ScratchPair> pairs;
+    uint64_t clock=0;
     size_t bytes=0;
+    // Returns a pair of the exact size, or null when allocation fails.
+    ScratchPair* acquire(unsigned width, unsigned height, bool nearest) {
+        ++clock;
+        for(auto& pair:pairs)
+            if(pair.width==width && pair.height==height && pair.nearest==nearest) {pair.touched=clock;return &pair;}
+        const size_t incoming=size_t(width)*height*4*2;
+        // Evict least recently used pairs to the free list; always admit the new pair.
+        while(!pairs.empty() && (pairs.size()>=max_pairs || bytes+incoming>max_bytes)) {
+            auto oldest=std::min_element(pairs.begin(),pairs.end(),
+                [](const ScratchPair& a,const ScratchPair& b){return a.touched<b.touched;});
+            release(*oldest);
+            pairs.erase(oldest);
+        }
+        ScratchPair pair;
+        pair.width=width;pair.height=height;pair.nearest=nearest;pair.touched=clock;
+        pair.group=acquire_target(width,height,nearest);
+        pair.coverage=acquire_target(width,height,nearest);
+        if(!pair.group || !pair.coverage) {release(pair);return nullptr;}
+        pairs.push_back(pair);
+        bytes+=pair.bytes();
+        return &pairs.back();
+    }
+    void release(ScratchPair& pair) {
+        if(pair.group && pair.coverage) bytes-=pair.bytes();
+        release_target(pair.group,pair.width,pair.height,pair.nearest);
+        release_target(pair.coverage,pair.width,pair.height,pair.nearest);
+    }
     void clear() {
-        if(group && valid_target(group)) delete_target(group);
-        if(coverage && valid_target(coverage)) delete_target(coverage);
-        group=coverage=0;width=height=0;bytes=0;
+        for(auto& pair:pairs) {
+            if(pair.group && valid_target(pair.group)) delete_target(pair.group);
+            if(pair.coverage && valid_target(pair.coverage)) delete_target(pair.coverage);
+        }
+        pairs.clear();bytes=0;
     }
 } scratch;
 struct Images {
@@ -238,18 +277,29 @@ ResultKey result_key(const State& state) {
     return ResultKey(reinterpret_cast<uintptr_t>(state.baked_frame),state.nearest,
                      reinterpret_cast<uintptr_t>(state.material));
 }
-void trim_results(size_t incoming=0) {
+// Evicts least recently used results until the incoming bytes fit. Among the
+// few oldest, a result of the incoming size is preferred so its target can be
+// reused without a resize.
+void trim_results(size_t incoming=0, unsigned width=0, unsigned height=0, bool nearest=false) {
+    constexpr size_t size_match_window=4;
+    struct Candidate {uint64_t touched;std::shared_ptr<Images> owner;ResultKey key;bool same_size;};
     while(cache_stats.retained_bytes+incoming>result_budget) {
-        std::shared_ptr<Images> owner;
-        ResultKey key;
-        uint64_t oldest=UINT64_MAX;
+        std::vector<Candidate> candidates;
         for(auto& item:image_cache) if(auto images=item.second.lock())
-            for(const auto& entry:images->results) if(entry.second->touched<oldest) {
-                oldest=entry.second->touched;owner=images;key=entry.first;
+            for(const auto& entry:images->results) {
+                const auto& result=*entry.second;
+                candidates.push_back({result.touched,images,entry.first,
+                    result.width==width && result.height==height && result.nearest==nearest});
             }
-        if(!owner) break;
-        cache_stats.retained_bytes-=owner->results.at(key)->bytes;
-        owner->results.erase(key);++cache_stats.evictions;
+        if(candidates.empty()) break;
+        const auto window=std::min(size_match_window,candidates.size());
+        std::partial_sort(candidates.begin(),candidates.begin()+window,candidates.end(),
+            [](const Candidate& a,const Candidate& b){return a.touched<b.touched;});
+        auto victim=std::find_if(candidates.begin(),candidates.begin()+window,
+            [](const Candidate& c){return c.same_size;});
+        if(victim==candidates.begin()+window) victim=candidates.begin();
+        cache_stats.retained_bytes-=victim->owner->results.at(victim->key)->bytes;
+        victim->owner->results.erase(victim->key);++cache_stats.evictions;
     }
 }
 bool reuse_result(State& state) {
@@ -614,20 +664,11 @@ bool render_component_masks(const SplaDefoldComponent* component) {
     if(share) {
         // No per-actor scratch targets on the shared path. Misses execute serially.
         state.release_targets();
-        if(width!=scratch.width || height!=scratch.height || state.nearest!=scratch.nearest ||
-           !scratch.group || !scratch.coverage) {
-            if(state.nearest!=scratch.nearest) {
-                release_target(scratch.group,scratch.width,scratch.height,scratch.nearest);
-                release_target(scratch.coverage,scratch.width,scratch.height,scratch.nearest);
-            }
-            fit_target(scratch.group,scratch.width,scratch.height,width,height,state.nearest);
-            fit_target(scratch.coverage,scratch.width,scratch.height,width,height,state.nearest);
-            scratch.width=width;scratch.height=height;scratch.nearest=state.nearest;
-            scratch.bytes=bytes*2;
-            if(!scratch.group || !scratch.coverage) return false;
-        }
+        const auto* pair=scratch.acquire(width,height,state.nearest);
+        if(!pair) return false;
+        const auto pair_group=pair->group,pair_coverage=pair->coverage;
         // Eviction returns unpinned targets to the free list for this allocation.
-        trim_results(bytes);
+        trim_results(bytes,width,height,state.nearest);
         pending=std::make_shared<Result>();
         pending->target=acquire_target(width,height,state.nearest);
         if(!pending->target) return false;
@@ -643,7 +684,7 @@ bool render_component_masks(const SplaDefoldComponent* component) {
         pending->quad=state.quad;
         pending->left=state.left;pending->bottom=state.bottom;
         pending->right=state.right;pending->top=state.top;
-        result_target=pending->target;group_target=scratch.group;coverage_target=scratch.coverage;
+        result_target=pending->target;group_target=pair_group;coverage_target=pair_coverage;
     } else {
         ++cache_stats.fallbacks;
         if(width!=state.width || height!=state.height || !state.result_target ||
