@@ -19,7 +19,6 @@ namespace spla_defold {
 namespace {
 
 constexpr const char* default_material_path = "/spriteloop/spriteloop/materials/spriteloop.materialc";
-constexpr const char* default_material_source_path = "/spriteloop/spriteloop/materials/spriteloop.material";
 
 // Returns true when value ends with suffix.
 bool ends_with(const std::string& value, const char* suffix)
@@ -39,20 +38,6 @@ std::string compiled_material_path_or_default(dmGameSystemDDF::SpriteLoopDesc* d
             : default_material_path;
     if (ends_with(path, ".material")) {
         path += "c";
-    }
-    return path;
-}
-
-// Returns the source material path used for Bob preload hints.
-// desc may be null; compiled paths are converted back to .material paths.
-std::string source_material_path_or_default(dmGameSystemDDF::SpriteLoopDesc* desc)
-{
-    std::string path =
-        desc != nullptr && desc->m_Material != nullptr && desc->m_Material[0] != '\0'
-            ? desc->m_Material
-            : default_material_source_path;
-    if (ends_with(path, ".materialc")) {
-        path.resize(path.size() - 1);
     }
     return path;
 }
@@ -105,7 +90,8 @@ dmResource::Result acquire_resources(dmResource::HFactory factory, SpriteLoopRes
 
 // Bob/engine preload callback.
 // params contains the serialized DDF buffer; the parsed DDF is stored in m_PreloadData and the
-// source material is announced as a preload hint.
+// compiled material and package are declared as dependencies. Defold 1.14.1+ fails the
+// resource when a declared dependency cannot load, so hints must use runtime paths.
 dmResource::Result resource_preload(const dmResource::ResourcePreloadParams* params)
 {
     dmGameSystemDDF::SpriteLoopDesc* desc = nullptr;
@@ -114,7 +100,7 @@ dmResource::Result resource_preload(const dmResource::ResourcePreloadParams* par
         return dmResource::RESULT_FORMAT_ERROR;
     }
 
-    const std::string material_path = source_material_path_or_default(desc);
+    const std::string material_path = compiled_material_path_or_default(desc);
     dmResource::PreloadHint(params->m_HintInfo, material_path.c_str());
     if (desc->m_Package != nullptr && desc->m_Package[0] != '\0') {
         dmResource::PreloadHint(params->m_HintInfo, desc->m_Package);
