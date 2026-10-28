@@ -36,8 +36,112 @@ struct CacheStats {
     uint64_t draws=0, clears=0, binds=0, evictions=0, fallbacks=0;
     uint64_t allocations=0, deletions=0, live_bytes=0, peak_bytes=0;
     uint64_t retained_bytes=0, live_entries=0, clock=0;
+    uint64_t target_creations=0, target_deletions=0, target_reuses=0, target_resizes=0;
+    uint64_t invalid_targets=0;
 } cache_stats;
 size_t result_budget=32*1024*1024;
+
+dmGraphics::HRenderTarget new_target(unsigned width, unsigned height, bool nearest) {
+    dmGraphics::RenderTargetCreationParams params = {};
+    auto& creation = params.m_ColorBufferCreationParams[0];
+    creation.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+    creation.m_Width = creation.m_OriginalWidth = static_cast<uint16_t>(width);
+    creation.m_Height = creation.m_OriginalHeight = static_cast<uint16_t>(height);
+    creation.m_Depth = creation.m_OriginalDepth = 1;
+    creation.m_LayerCount = creation.m_MipMapCount = 1;
+    creation.m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
+    auto& texture = params.m_ColorBufferParams[0];
+    texture.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    texture.m_Width = static_cast<uint16_t>(width);
+    texture.m_Height = static_cast<uint16_t>(height);
+    texture.m_Depth = texture.m_LayerCount = 1;
+    texture.m_MinFilter = texture.m_MagFilter = nearest ? dmGraphics::TEXTURE_FILTER_NEAREST : dmGraphics::TEXTURE_FILTER_LINEAR;
+    texture.m_UWrap = texture.m_VWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+    params.m_ColorBufferLoadOps[0] = dmGraphics::ATTACHMENT_OP_LOAD;
+    params.m_ColorBufferStoreOps[0] = dmGraphics::ATTACHMENT_OP_STORE;
+    return dmGraphics::NewRenderTarget(dmGraphics::GetInstalledContext(), dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+}
+
+// Defold 1.14.0/1.14.1 OpenGL inserts and releases render targets in the asset
+// registry without the lock its asynchronous texture deletion takes. A target
+// can be invalid when NewRenderTarget returns, and deleting it then crashes in
+// the engine. Recycle targets and resize them in place, so steady-state
+// composition neither creates nor deletes them, and never delete a handle that
+// fails validation.
+struct FreeTarget { dmGraphics::HRenderTarget target; unsigned width, height; bool nearest; };
+std::vector<FreeTarget> free_targets;
+constexpr size_t max_free_targets=8, max_free_bytes=8*1024*1024;
+bool invalid_target_logged=false;
+
+bool valid_target(dmGraphics::HRenderTarget target) {
+    if(dmGraphics::GetRenderTargetTexture(dmGraphics::GetInstalledContext(),target,dmGraphics::BUFFER_TYPE_COLOR0_BIT))
+        return true;
+    // Abandon the handle: a leak is recoverable, the engine's deletion is not.
+    ++cache_stats.invalid_targets;
+    if(!invalid_target_logged) {
+        dmLogError("SpriteLoop mask: graphics returned an invalid render target; skipping it");
+        invalid_target_logged=true;
+    }
+    return false;
+}
+void delete_target(dmGraphics::HRenderTarget target) {
+    dmGraphics::DeleteRenderTarget(dmGraphics::GetInstalledContext(),target);
+    ++cache_stats.target_deletions;
+}
+size_t free_bytes() {
+    size_t bytes=0;
+    for(const auto& entry:free_targets) bytes+=size_t(entry.width)*entry.height*4;
+    return bytes;
+}
+// Prefers an exact size, then resizes any target with the same filtering.
+dmGraphics::HRenderTarget acquire_target(unsigned width, unsigned height, bool nearest) {
+    auto match=free_targets.end();
+    for(auto it=free_targets.begin();it!=free_targets.end();++it) {
+        if(it->nearest!=nearest) continue;
+        if(it->width==width && it->height==height) {match=it;break;}
+        if(match==free_targets.end()) match=it;
+    }
+    if(match!=free_targets.end()) {
+        const auto entry=*match;
+        free_targets.erase(match);
+        ++cache_stats.target_reuses;
+        if(entry.width!=width || entry.height!=height) {
+            dmGraphics::SetRenderTargetSize(dmGraphics::GetInstalledContext(),entry.target,width,height);
+            ++cache_stats.target_resizes;
+        }
+        return entry.target;
+    }
+    auto target=new_target(width,height,nearest);
+    if(!target) return 0;
+    ++cache_stats.target_creations;
+    return valid_target(target) ? target : 0;
+}
+void release_target(dmGraphics::HRenderTarget& target, unsigned width, unsigned height, bool nearest) {
+    if(!target) return;
+    if(valid_target(target)) {
+        free_targets.push_back({target,width,height,nearest});
+        // Always keep the newest target, even when it alone exceeds the byte cap.
+        while(free_targets.size()>max_free_targets ||
+              (free_targets.size()>1 && free_bytes()>max_free_bytes)) {
+            delete_target(free_targets.front().target);
+            free_targets.erase(free_targets.begin());
+        }
+    }
+    target=0;
+}
+// Resizes an existing target in place, or acquires one when it is missing.
+void fit_target(dmGraphics::HRenderTarget& target, unsigned old_width, unsigned old_height,
+                unsigned width, unsigned height, bool nearest) {
+    if(!target) {target=acquire_target(width,height,nearest);return;}
+    if(old_width==width && old_height==height) return;
+    dmGraphics::SetRenderTargetSize(dmGraphics::GetInstalledContext(),target,width,height);
+    ++cache_stats.target_resizes;
+}
+void clear_free_targets() {
+    for(const auto& entry:free_targets) delete_target(entry.target);
+    free_targets.clear();
+}
+
 using ResultKey=std::tuple<uintptr_t,bool,uintptr_t>;
 struct Result {
     dmResource::HFactory factory=nullptr;
@@ -46,11 +150,13 @@ struct Result {
     dmGraphics::HTexture texture=0;
     SplaDefoldBakedFrame quad;
     float left=0,bottom=0,right=1,top=1;
+    unsigned width=0,height=0;
+    bool nearest=false;
     size_t bytes=0;
     uint64_t touched=0;
     ~Result() {
         if(target) {
-            dmGraphics::DeleteRenderTarget(dmGraphics::GetInstalledContext(),target);
+            release_target(target,width,height,nearest);
             cache_stats.live_bytes-=bytes;--cache_stats.live_entries;
             ++cache_stats.deletions;
         }
@@ -63,9 +169,8 @@ struct Scratch {
     bool nearest=false;
     size_t bytes=0;
     void clear() {
-        auto context=dmGraphics::GetInstalledContext();
-        if(group) dmGraphics::DeleteRenderTarget(context,group);
-        if(coverage) dmGraphics::DeleteRenderTarget(context,coverage);
+        if(group && valid_target(group)) delete_target(group);
+        if(coverage && valid_target(coverage)) delete_target(coverage);
         group=coverage=0;width=height=0;bytes=0;
     }
 } scratch;
@@ -113,11 +218,14 @@ struct State {
     std::vector<Pass> passes;
     SplaDefoldBakedFrame quad;
     float left = 0, bottom = 0, right = 1, top = 1;
+    void release_targets() {
+        for (auto* target : {&result_target, &group_target, &coverage_target})
+            release_target(*target, width, height, nearest);
+        width = height = 0;
+    }
     ~State() {
         const auto context = dmGraphics::GetInstalledContext();
-        if (result_target) dmGraphics::DeleteRenderTarget(context, result_target);
-        if (group_target) dmGraphics::DeleteRenderTarget(context, group_target);
-        if (coverage_target) dmGraphics::DeleteRenderTarget(context, coverage_target);
+        release_targets();
         if (program != dmGraphics::INVALID_PROGRAM_HANDLE) dmGraphics::DeleteProgram(context, program);
         if (declaration) dmGraphics::DeleteVertexDeclaration(declaration);
 
@@ -421,12 +529,12 @@ bool submit_component_masks(SplaDefoldComponent* component, dmResource::HFactory
 
 void destroy_component_masks(SplaDefoldComponent* component) {
     states.erase(component);
-    if(states.empty()) scratch.clear();
+    if(states.empty()) {scratch.clear();clear_free_targets();}
     for (auto it = image_cache.begin(); it != image_cache.end();) {
         if (it->second.expired()) it = image_cache.erase(it); else ++it;
     }
 }
-void destroy_all_component_masks() { states.clear(); image_cache.clear(); scratch.clear(); }
+void destroy_all_component_masks() { states.clear(); image_cache.clear(); scratch.clear(); clear_free_targets(); }
 const SplaDefoldBakedFrame* component_mask_frame(const SplaDefoldComponent* component) {
     auto it = states.find(component);
     return it == states.end() || !it->second ? nullptr : &it->second->quad;
@@ -437,27 +545,6 @@ dmGraphics::HTexture component_mask_texture(const SplaDefoldComponent* component
 }
 
 namespace {
-dmGraphics::HRenderTarget new_target(unsigned width, unsigned height, bool nearest) {
-    dmGraphics::RenderTargetCreationParams params = {};
-    auto& creation = params.m_ColorBufferCreationParams[0];
-    creation.m_Type = dmGraphics::TEXTURE_TYPE_2D;
-    creation.m_Width = creation.m_OriginalWidth = static_cast<uint16_t>(width);
-    creation.m_Height = creation.m_OriginalHeight = static_cast<uint16_t>(height);
-    creation.m_Depth = creation.m_OriginalDepth = 1;
-    creation.m_LayerCount = creation.m_MipMapCount = 1;
-    creation.m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
-    auto& texture = params.m_ColorBufferParams[0];
-    texture.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-    texture.m_Width = static_cast<uint16_t>(width);
-    texture.m_Height = static_cast<uint16_t>(height);
-    texture.m_Depth = texture.m_LayerCount = 1;
-    texture.m_MinFilter = texture.m_MagFilter = nearest ? dmGraphics::TEXTURE_FILTER_NEAREST : dmGraphics::TEXTURE_FILTER_LINEAR;
-    texture.m_UWrap = texture.m_VWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
-    params.m_ColorBufferLoadOps[0] = dmGraphics::ATTACHMENT_OP_LOAD;
-    params.m_ColorBufferStoreOps[0] = dmGraphics::ATTACHMENT_OP_STORE;
-    return dmGraphics::NewRenderTarget(dmGraphics::GetInstalledContext(), dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
-}
-
 // Composition may run before render-script commands (explicit preparation), or
 // during a screen draw (the built-in renderer fallback). There is no public SDK
 // getter for the active target or its binding parameters. Custom render scripts
@@ -526,23 +613,25 @@ bool render_component_masks(const SplaDefoldComponent* component) {
     dmGraphics::HRenderTarget result_target=0,group_target=0,coverage_target=0;
     if(share) {
         // No per-actor scratch targets on the shared path. Misses execute serially.
-        if(state.result_target) dmGraphics::DeleteRenderTarget(context,state.result_target);
-        if(state.group_target) dmGraphics::DeleteRenderTarget(context,state.group_target);
-        if(state.coverage_target) dmGraphics::DeleteRenderTarget(context,state.coverage_target);
-        state.result_target=state.group_target=state.coverage_target=0;
-        state.width=state.height=0;
-        if(width!=scratch.width || height!=scratch.height || state.nearest!=scratch.nearest) {
-            scratch.clear();
-            scratch.group=new_target(width,height,state.nearest);
-            scratch.coverage=new_target(width,height,state.nearest);
-            if(!scratch.group || !scratch.coverage) {scratch.clear();return false;}
+        state.release_targets();
+        if(width!=scratch.width || height!=scratch.height || state.nearest!=scratch.nearest ||
+           !scratch.group || !scratch.coverage) {
+            if(state.nearest!=scratch.nearest) {
+                release_target(scratch.group,scratch.width,scratch.height,scratch.nearest);
+                release_target(scratch.coverage,scratch.width,scratch.height,scratch.nearest);
+            }
+            fit_target(scratch.group,scratch.width,scratch.height,width,height,state.nearest);
+            fit_target(scratch.coverage,scratch.width,scratch.height,width,height,state.nearest);
             scratch.width=width;scratch.height=height;scratch.nearest=state.nearest;
             scratch.bytes=bytes*2;
+            if(!scratch.group || !scratch.coverage) return false;
         }
+        // Eviction returns unpinned targets to the free list for this allocation.
         trim_results(bytes);
         pending=std::make_shared<Result>();
-        pending->target=new_target(width,height,state.nearest);
+        pending->target=acquire_target(width,height,state.nearest);
         if(!pending->target) return false;
+        pending->width=width;pending->height=height;pending->nearest=state.nearest;
         // Keep the material identity alive even if its last actor goes away
         // while another material's actors keep this package cache alive.
         pending->factory=state.factory;pending->material=state.material;
@@ -559,18 +648,18 @@ bool render_component_masks(const SplaDefoldComponent* component) {
         ++cache_stats.fallbacks;
         if(width!=state.width || height!=state.height || !state.result_target ||
            !state.group_target || !state.coverage_target) {
-            if(state.result_target) dmGraphics::DeleteRenderTarget(context,state.result_target);
-            if(state.group_target) dmGraphics::DeleteRenderTarget(context,state.group_target);
-            if(state.coverage_target) dmGraphics::DeleteRenderTarget(context,state.coverage_target);
-            state.result_target=new_target(width,height,state.nearest);
-            state.group_target=new_target(width,height,state.nearest);
-            state.coverage_target=new_target(width,height,state.nearest);
-            state.width=state.height=0;state.result=0;
+            for(auto* target:{&state.result_target,&state.group_target,&state.coverage_target})
+                fit_target(*target,state.width,state.height,width,height,state.nearest);
+            state.width=width;state.height=height;state.result=0;
             if(!state.result_target || !state.group_target || !state.coverage_target) return false;
-            state.width=width;state.height=height;
         }
         result_target=state.result_target;group_target=state.group_target;coverage_target=state.coverage_target;
     }
+    // A zero attachment would reach EnableTexture and assert in debug engines.
+    const auto group_texture=dmGraphics::GetRenderTargetTexture(context,group_target,dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    const auto coverage_texture=dmGraphics::GetRenderTargetTexture(context,coverage_target,dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    const auto result_texture=dmGraphics::GetRenderTargetTexture(context,result_target,dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    if(!group_texture || !coverage_texture || !result_texture) return false;
     dmGraphics::SetViewport(context, 0, 0, width, height);
     dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
     dmGraphics::DisableState(context, dmGraphics::STATE_STENCIL_TEST);
@@ -633,16 +722,14 @@ bool render_component_masks(const SplaDefoldComponent* component) {
             clear(coverage_target); draw(pass.coverage, 1);
             ++cache_stats.binds;
             dmGraphics::SetRenderTarget(context, result_target, {});
-            draw(pass.composite, 2,
-                dmGraphics::GetRenderTargetTexture(context, group_target, dmGraphics::BUFFER_TYPE_COLOR0_BIT),
-                dmGraphics::GetRenderTargetTexture(context, coverage_target, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
+            draw(pass.composite, 2, group_texture, coverage_texture);
         }
     }
     dmGraphics::DisableVertexDeclaration(context, state.declaration);
     dmGraphics::DisableVertexBuffer(context, state.buffer);
     dmGraphics::DisableProgram(context);
     ++cache_stats.compositions;
-    state.result=dmGraphics::GetRenderTargetTexture(context,result_target,dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    state.result=result_texture;
     if(pending) {
         pending->touched=++cache_stats.clock;
         state.images->results.emplace(result_key(state),pending);
@@ -708,6 +795,13 @@ MaskCompositionCacheStats mask_composition_cache_stats()
     stats.fallbacks = cache_stats.fallbacks;
     stats.allocations = cache_stats.allocations;
     stats.deletions = cache_stats.deletions;
+    stats.target_creations = cache_stats.target_creations;
+    stats.target_deletions = cache_stats.target_deletions;
+    stats.target_reuses = cache_stats.target_reuses;
+    stats.target_resizes = cache_stats.target_resizes;
+    stats.invalid_targets = cache_stats.invalid_targets;
+    stats.free_targets = free_targets.size();
+    stats.free_target_bytes = free_bytes();
     return stats;
 }
 

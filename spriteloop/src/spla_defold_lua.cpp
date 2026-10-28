@@ -1238,6 +1238,13 @@ int component_diagnostic_composition_cache(lua_State* lua_state)
     field("fallbacks", stats.fallbacks);
     field("allocations", stats.allocations);
     field("deletions", stats.deletions);
+    field("target_creations", stats.target_creations);
+    field("target_deletions", stats.target_deletions);
+    field("target_reuses", stats.target_reuses);
+    field("target_resizes", stats.target_resizes);
+    field("invalid_targets", stats.invalid_targets);
+    field("free_targets", stats.free_targets);
+    field("free_target_bytes", stats.free_target_bytes);
     return 1;
 }
 

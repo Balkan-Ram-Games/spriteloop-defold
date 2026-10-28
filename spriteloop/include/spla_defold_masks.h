@@ -39,6 +39,14 @@ struct MaskCompositionCacheStats {
     uint64_t fallbacks = 0;
     uint64_t allocations = 0;
     uint64_t deletions = 0;
+    // Render-target handles, as opposed to cache entries above.
+    uint64_t target_creations = 0;
+    uint64_t target_deletions = 0;
+    uint64_t target_reuses = 0;
+    uint64_t target_resizes = 0;
+    uint64_t invalid_targets = 0;
+    uint64_t free_targets = 0;
+    uint64_t free_target_bytes = 0;
 };
 MaskCompositionCacheStats mask_composition_cache_stats();
 // Returns false for budgets above 128 MiB; zero disables result retention.
