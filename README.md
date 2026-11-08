@@ -1,6 +1,6 @@
 # SpriteLoop for Defold
 
-[![Defold extension version](https://img.shields.io/badge/Defold%20extension-v0.15.0--alpha-4f7cff?style=for-the-badge)](https://github.com/Balkan-Ram-Games/spriteloop-defold/releases/tag/v0.15.0-alpha)
+[![Defold extension version](https://img.shields.io/badge/Defold%20extension-v0.16.0--alpha-4f7cff?style=for-the-badge)](https://github.com/Balkan-Ram-Games/spriteloop-defold/releases/tag/v0.16.0-alpha)
 
 > For SpriteLoop desktop app bugs and feature requests, use the
 > [SpriteLoop app issue tracker](https://github.com/Balkan-Ram-Games/spriteloop-app/issues).
@@ -16,7 +16,7 @@ and a small example project.
 Add a tagged GitHub archive URL to your Defold project dependencies:
 
 ```text
-https://github.com/Balkan-Ram-Games/spriteloop-defold/archive/refs/tags/v0.15.0-alpha.zip
+https://github.com/Balkan-Ram-Games/spriteloop-defold/archive/refs/tags/v0.16.0-alpha.zip
 ```
 
 Then fetch libraries from the Defold editor. The archive exposes the extension
@@ -30,9 +30,11 @@ again.
 
 ### Editor compatibility
 
-The editor plugin is validated with Defold 1.13.2 and 1.14.0. It uses the
-shader reflection pipeline available since 1.12.2 and accepts both the older
+The editor plugin is validated with Defold 1.13.2, 1.14.0 and 1.14.1. It uses
+the shader reflection pipeline available since 1.12.2 and accepts both the older
 resource loader arguments and the shared load context introduced in 1.14.0.
+Defold 1.14.1 needs this release or newer: earlier extension versions fail to
+load SpriteLoop resources with its rewritten resource loader.
 
 Older editors may require rebuilding `pluginSpla.jar` with their matching Bob
 version: the current generated protobuf classes cannot load in Defold 1.12.2.
@@ -338,7 +340,32 @@ Set **SpriteLoop → Mask Cache Budget Mb** in Project Settings
 (`spriteloop.mask_cache_budget_mb`) to choose the retained mask texture budget in
 MiB. The default is 32; supported values are 0–128, with 0 disabling retention.
 Invalid values use the default and log a warning.
-This budget does not include other graphics memory.
+This budget does not include other graphics memory. Mask rendering also keeps
+up to 8 MiB of recycled render targets and up to 16 MiB of scratch targets.
+
+For web projects with masks, use Defold 1.14.1 or newer. Earlier versions check
+framebuffer status on every render-target bind, which makes heavy mask scenes
+much slower in browsers.
+
+## Project Settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `spriteloop.max_count` | 1024 | Maximum SpriteLoop components per collection. |
+| `spriteloop.max_pending_events` | 256 | Maximum queued animation events per component. |
+| `spriteloop.mask_cache_budget_mb` | 32 | Retained mask texture budget in MiB (0–128). |
+
+## Known Limitations
+
+- iOS and macOS Metal are untested at runtime; builds pass in CI.
+- Android OpenGL ES: an engine race in render-target deletion
+  ([defold/defold#13581](https://github.com/defold/defold/issues/13581)) can crash
+  Android. SpriteLoop recycles its own mask targets to avoid it, but render
+  targets created by your own Lua code are still exposed until Defold fixes it.
+- Characters from different `.spla` exports use separate textures and do not
+  batch together. Large mixed crowds cost about one draw call per visible actor.
+- Vulkan builds may log `Could not find '@render' socket.` once at startup. It is
+  a harmless Defold engine message and is unrelated to SpriteLoop.
 
 ## Supported Native Extension Libraries
 
