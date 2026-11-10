@@ -28,16 +28,16 @@ fetch the extension files without errors, but already-loaded editor resources ma
 not recognize the newly registered custom component type until the editor starts
 again.
 
-### Editor compatibility
+### Defold compatibility
 
-The editor plugin is validated with Defold 1.13.2, 1.14.0 and 1.14.1. It uses
-the shader reflection pipeline available since 1.12.2 and accepts both the older
-resource loader arguments and the shared load context introduced in 1.14.0.
-Defold 1.14.1 needs this release or newer: earlier extension versions fail to
-load SpriteLoop resources with its rewritten resource loader.
+This release requires Defold 1.14.1 or newer. It renders through the persistent
+render item API added to the dmSDK in 1.14.1, so it does not compile against
+older engines. Projects that must stay on Defold 1.13.2 or 1.14.0 can keep
+using `v0.16.0-alpha`.
 
-Older editors may require rebuilding `pluginSpla.jar` with their matching Bob
-version: the current generated protobuf classes cannot load in Defold 1.12.2.
+Projects that target OpenGL ES 2.0 or WebGL 1 must uncheck **Exclude GLES 2.0**
+in `game.project`. Defold 1.14.1 no longer includes those shader variants by
+default.
 
 ## Use
 
@@ -342,10 +342,6 @@ MiB. The default is 32; supported values are 0–128, with 0 disabling retention
 Invalid values use the default and log a warning.
 This budget does not include other graphics memory. Mask rendering also keeps
 up to 8 MiB of recycled render targets and up to 16 MiB of scratch targets.
-
-For web projects with masks, use Defold 1.14.1 or newer. Earlier versions check
-framebuffer status on every render-target bind, which makes heavy mask scenes
-much slower in browsers.
 
 ## Project Settings
 

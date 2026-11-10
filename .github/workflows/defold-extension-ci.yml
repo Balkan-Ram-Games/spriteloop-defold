@@ -6,12 +6,10 @@ on:
       defold_version:
         description: Defold version to validate with the checked-in pluginSpla.jar
         required: true
-        default: "1.14.0"
+        default: "1.14.1"
         type: choice
         options:
-          - "1.14.0"
-          - "1.14.1-beta"
-          - "1.13.2"
+          - "1.14.1"
 
 env:
   DEFOLD_VERSION: ${{ inputs.defold_version }}

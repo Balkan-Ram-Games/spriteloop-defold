@@ -105,6 +105,18 @@ struct SplaDefoldComponent {
     bool visible = true;
     bool autoplay = true;
     void* world = nullptr;
+    // Persistent Defold render item (dmRender::HRenderItem) and the state last applied to it.
+    // Item transform and visibility inputs are re-sent only when they change, so stationary
+    // components keep Defold's cached visibility.
+    std::uint64_t render_item = 0;
+    const void* render_item_material = nullptr;
+    dmGraphics::HTexture render_item_texture = 0;
+    std::uint32_t render_item_batch_key = 0;
+    dmVMath::Matrix4 render_item_transform;
+    const SplaDefoldInstance* render_item_instance = nullptr;
+    std::uint32_t render_item_skin_revision = 0;
+    bool render_item_transform_valid = false;
+    bool render_item_enabled = false;
 };
 
 // Shared parsed package and uploaded texture set for component-owned SpriteLoop instances.

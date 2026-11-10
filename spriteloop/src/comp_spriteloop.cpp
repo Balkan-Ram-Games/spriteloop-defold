@@ -21,8 +21,8 @@
 // Production Defold component type for SpriteLoop.
 //
 // The component loads a .spla package referenced by a compiled .spriteloopc resource, advances
-// its player during update, and submits geometry through Defold's component render-list APIs using
-// Defold-managed buffers, textures, and materials.
+// its player during update, and submits geometry through Defold's persistent render-item API
+// (Defold 1.14.1+) using Defold-managed buffers, textures, and materials.
 namespace spla_defold {
 
 namespace {
@@ -89,6 +89,8 @@ struct RenderSlot {
 // components; it stores the live components and transient render buffers for that context.
 struct SpriteLoopWorld {
     SpriteLoopContext* context = nullptr;
+    // Persistent render dispatch registered for this world; every component owns one item in it.
+    dmRender::HRenderItemDispatch render_dispatch = 0;
     std::vector<SplaDefoldComponent*> components;
     std::vector<dmRender::RenderObject> render_objects;
     std::vector<SpriteLoopVertex> vertex_data;
@@ -191,6 +193,54 @@ void invalidate_uploaded_geometry(SpriteLoopWorld* world)
     world->slot_lookup.clear();
 }
 
+// Render items carry the component pointer as user data. Items are deleted before their
+// component, so callbacks never see a dangling pointer.
+SplaDefoldComponent* component_from_render_entry(const dmRender::RenderListEntry& entry)
+{
+    return reinterpret_cast<SplaDefoldComponent*>(static_cast<uintptr_t>(entry.m_UserData));
+}
+
+void create_component_render_item(SpriteLoopWorld* world, SplaDefoldComponent* component)
+{
+    const dmRender::HRenderContext render_context = world->context->render_context;
+    if (render_context == 0 || world->render_dispatch == 0) {
+        return;
+    }
+    component->render_item = dmRender::NewRenderItem(
+        render_context, world->render_dispatch,
+        static_cast<uint64_t>(reinterpret_cast<uintptr_t>(component)));
+    if (component->render_item == 0) {
+        dmLogError("SpriteLoop could not create a render item for '%s'",
+                   component->package_path.c_str());
+        return;
+    }
+    // Same ordering as the former render-list entries: world-position sorting.
+    dmRender::SetOrder(render_context, component->render_item, dmRender::RENDER_ORDER_WORLD, 0);
+}
+
+void delete_component_render_item(SpriteLoopWorld* world, SplaDefoldComponent* component)
+{
+    if (component->render_item != 0 && world != nullptr && world->context->render_context != 0) {
+        dmRender::DeleteRenderItem(world->context->render_context, component->render_item);
+    }
+    component->render_item = 0;
+    component->render_item_material = nullptr;
+    component->render_item_texture = 0;
+    component->render_item_batch_key = 0;
+    component->render_item_transform_valid = false;
+    component->render_item_enabled = false;
+}
+
+void set_component_render_item_enabled(dmRender::HRenderContext render_context,
+                                       SplaDefoldComponent* component,
+                                       bool enabled)
+{
+    if (component->render_item != 0 && component->render_item_enabled != enabled) {
+        dmRender::Enable(render_context, component->render_item, enabled);
+        component->render_item_enabled = enabled;
+    }
+}
+
 // Removes a component pointer from a world without deleting the component itself.
 void remove_component(SpriteLoopWorld* world, SplaDefoldComponent* component)
 {
@@ -199,6 +249,7 @@ void remove_component(SpriteLoopWorld* world, SplaDefoldComponent* component)
         return;
     }
 
+    delete_component_render_item(world, component);
     geometry_cache().erase(component);
     invalidate_uploaded_geometry(world);
     world->components.erase(std::remove(world->components.begin(), world->components.end(),
@@ -752,15 +803,7 @@ void render_list_dispatch(const dmRender::RenderListDispatchParams& params)
         }
 
         for (uint32_t* i = params.m_Begin; i != params.m_End; ++i) {
-            const uint32_t component_index =
-                static_cast<uint32_t>(params.m_Buf[*i].m_UserData);
-            if (component_index >= world->components.size()) {
-                can_reuse_complete_batch = false;
-                reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_signature_entry);
-                continue;
-            }
-
-            const SplaDefoldComponent* component = world->components[component_index];
+            const SplaDefoldComponent* component = component_from_render_entry(params.m_Buf[*i]);
             if (!component_should_render(component)) {
                 can_reuse_complete_batch = false;
                 reject_reuse(world, &SplaDefoldRenderStats::reuse_reject_signature_entry);
@@ -926,14 +969,8 @@ void render_list_visibility(const dmRender::RenderListVisibilityParams& params)
     world->frame_stats.frustum_culled = 0;
     for (uint32_t i = 0; i < params.m_NumEntries; ++i) {
         dmRender::RenderListEntry& entry = params.m_Entries[i];
-        const uint32_t component_index = static_cast<uint32_t>(entry.m_UserData);
-        if (component_index >= world->components.size()) {
-            entry.m_Visibility = dmRender::VISIBILITY_NONE;
-            continue;
-        }
-
         entry.m_Visibility =
-            component_intersects_frustum(world->components[component_index], params.m_Frustum)
+            component_intersects_frustum(component_from_render_entry(entry), params.m_Frustum)
                 ? dmRender::VISIBILITY_FULL
                 : dmRender::VISIBILITY_NONE;
         if (entry.m_Visibility == dmRender::VISIBILITY_FULL) {
@@ -1025,6 +1062,10 @@ void resource_reloaded(const dmResource::ResourceReloadedParams* params)
     destroy_all_component_masks();
     void* reloaded = dmResource::GetResource(params->m_Resource);
     for (auto* component : world->components) {
+        // A reloaded material keeps its handle but may change tags, and a reloaded package
+        // may change bounds: re-apply both on the next render.
+        component->render_item_material = nullptr;
+        component->render_item_transform_valid = false;
         auto* resource = component->resource;
         const bool descriptor_changed = reloaded == resource;
         const bool package_changed = reloaded == resource->package_bytes &&
@@ -1088,6 +1129,14 @@ dmGameObject::CreateResult component_new_world(
     world->index_buffer = dmGraphics::NewIndexBuffer(
         world->context->graphics_context, 0, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+    if (world->context->render_context != 0) {
+        world->render_dispatch = dmRender::RegisterRenderListDispatch(
+            world->context->render_context, &render_list_dispatch, &render_list_visibility, world);
+        if (world->render_dispatch == 0) {
+            dmLogError("SpriteLoop could not register a render dispatch; "
+                       "components in this collection will not render");
+        }
+    }
 
     *params.m_World = world;
     return dmGameObject::CREATE_RESULT_OK;
@@ -1099,6 +1148,15 @@ dmGameObject::CreateResult component_delete_world(
 {
     SpriteLoopWorld* world = static_cast<SpriteLoopWorld*>(params.m_World);
     dmResource::UnregisterResourceReloadedCallback(world->context->factory, resource_reloaded, world);
+    // Components are normally destroyed first; delete any remaining items before unregistering.
+    for (SplaDefoldComponent* component : world->components) {
+        delete_component_render_item(world, component);
+    }
+    if (world->render_dispatch != 0) {
+        dmRender::UnregisterRenderListDispatch(world->context->render_context,
+                                               world->render_dispatch);
+        world->render_dispatch = 0;
+    }
     dmGraphics::DeleteVertexDeclaration(world->vertex_declaration);
     dmGraphics::DeleteVertexBuffer(world->vertex_buffer);
     dmGraphics::DeleteIndexBuffer(world->index_buffer);
@@ -1166,6 +1224,7 @@ dmGameObject::CreateResult component_create(const dmGameObject::ComponentCreateP
     }
 
     world->components.push_back(component);
+    create_component_render_item(world, component);
     *params.m_UserData = reinterpret_cast<uintptr_t>(component);
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -1248,15 +1307,48 @@ dmGameObject::UpdateResult component_update(
     return dmGameObject::UPDATE_RESULT_OK;
 }
 
-// Component callback: submits visible SpriteLoop components to Defold's component render list.
-// Geometry is generated later by render_list_dispatch so batching/order stay under Defold control.
+// Full component transform: game object world matrix times the component-local transform.
+// Its translation equals component_render_sort_position(), which Defold uses for sorting, and it
+// changes whenever an input of render_list_visibility changes (except bounds, tracked separately).
+dmVMath::Matrix4 component_render_item_transform(const SplaDefoldComponent* component)
+{
+    const SplaDefoldInstance& instance = *component->instance;
+    return dmGameObject::GetWorldMatrix(component->game_object) *
+           dmVMath::Matrix4::translation(dmVMath::Vector3(instance.local_position)) *
+           dmVMath::Matrix4::rotation(instance.local_rotation) *
+           dmVMath::Matrix4::scale(instance.local_scale);
+}
+
+// Sends the item transform only when it or the bounds inputs changed. An unchanged item keeps
+// the visibility Defold cached for the current frustum, so render_list_visibility skips it.
+void update_component_render_item_transform(dmRender::HRenderContext render_context,
+                                            SplaDefoldComponent* component)
+{
+    const dmVMath::Matrix4 transform = component_render_item_transform(component);
+    const SplaDefoldInstance* instance = component->instance;
+    if (component->render_item_transform_valid &&
+        component->render_item_instance == instance &&
+        component->render_item_skin_revision == instance->skin_revision &&
+        std::memcmp(&component->render_item_transform, &transform, sizeof(transform)) == 0) {
+        return;
+    }
+    dmRender::SetWorldTransform(render_context, component->render_item, transform);
+    component->render_item_transform = transform;
+    component->render_item_instance = instance;
+    component->render_item_skin_revision = instance->skin_revision;
+    component->render_item_transform_valid = true;
+}
+
+// Component callback: updates each component's persistent render item and submits this world's
+// render dispatch. Geometry is generated later by render_list_dispatch so batching/order stay
+// under Defold control.
 dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRenderParams& params)
 {
     SpriteLoopContext* context = static_cast<SpriteLoopContext*>(params.m_Context);
     SpriteLoopWorld* world = static_cast<SpriteLoopWorld*>(params.m_World);
     dmRender::HRenderContext render_context = context->render_context;
     const uint32_t component_count = static_cast<uint32_t>(world->components.size());
-    if (component_count == 0 || render_context == 0) {
+    if (component_count == 0 || render_context == 0 || world->render_dispatch == 0) {
         set_render_stats(world->update_stats);
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -1264,54 +1356,46 @@ dmGameObject::UpdateResult component_render(const dmGameObject::ComponentsRender
     world->frame_stats = world->update_stats;
     world->frame_stats.component_count = component_count;
 
-    uint32_t visible_count = 0;
-    for (uint32_t i = 0; i < component_count; ++i) {
-        if (component_is_render_candidate(world->components[i])) {
-            ++visible_count;
+    uint32_t enabled_count = 0;
+    for (SplaDefoldComponent* component : world->components) {
+        bool enabled = component_is_render_candidate(component);
+        if (enabled) {
+            ++world->frame_stats.render_candidates;
+            if (masked(component) &&
+                !submit_component_masks(component, context->factory, render_context)) {
+                enabled = false;
+            }
         }
+        if (enabled && component->render_item != 0) {
+            dmRender::HMaterial material = component_material(component);
+            dmGraphics::HTexture texture = component_texture(component);
+            if (component->render_item_material != material) {
+                dmRender::SetMaterial(render_context, component->render_item, material);
+                component->render_item_material = material;
+                component->render_item_texture = 0;  // force a batch key refresh
+            }
+            if (component->render_item_texture != texture) {
+                const uint32_t batch_key = render_batch_key(material, texture);
+                if (component->render_item_batch_key != batch_key) {
+                    dmRender::SetBatchKey(render_context, component->render_item, batch_key);
+                    component->render_item_batch_key = batch_key;
+                }
+                component->render_item_texture = texture;
+            }
+            update_component_render_item_transform(render_context, component);
+            ++enabled_count;
+            ++world->frame_stats.render_entries_submitted;
+        }
+        set_component_render_item_enabled(render_context, component, enabled);
     }
-    world->frame_stats.render_candidates = visible_count;
 
-    if (visible_count == 0) {
+    if (enabled_count == 0) {
         set_render_stats(world->frame_stats);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    world->render_objects.reserve(visible_count);
-
-    dmRender::RenderListEntry* render_list =
-        dmRender::RenderListAlloc(render_context, visible_count);
-    dmRender::HRenderListDispatch dispatch =
-        dmRender::RenderListMakeDispatch(render_context, &render_list_dispatch,
-                                         &render_list_visibility, world);
-    dmRender::RenderListEntry* write_ptr = render_list;
-    for (uint32_t i = 0; i < component_count; ++i) {
-        SplaDefoldComponent* component = world->components[i];
-        if (!component_is_render_candidate(component)) {
-            continue;
-        }
-
-        if (masked(component) && !submit_component_masks(component, context->factory, render_context)) {
-            continue;
-        }
-        dmRender::HMaterial material = component_material(component);
-        dmGraphics::HTexture texture = component_texture(component);
-        write_ptr->m_WorldPosition = component_render_sort_position(component);
-        write_ptr->m_UserData = i;
-        write_ptr->m_BatchKey = render_batch_key(material, texture);
-        write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(material);
-        write_ptr->m_Dispatch = dispatch;
-        // Minor order has higher priority than world depth in Defold's sort key.
-        // Keep it uniform so different package textures can interleave by Z.
-        // Material/texture batching is already represented by m_BatchKey.
-        write_ptr->m_MinorOrder = 0;
-        write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
-        write_ptr->m_Visibility = dmRender::VISIBILITY_FULL;
-        ++write_ptr;
-        ++world->frame_stats.render_entries_submitted;
-    }
-
-    dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+    world->render_objects.reserve(enabled_count);
+    dmRender::SubmitRenderListDispatch(render_context, world->render_dispatch);
     return dmGameObject::UPDATE_RESULT_OK;
 }
 
@@ -1377,6 +1461,7 @@ void invalidate_component_render_data(SplaDefoldComponent* component)
 {
     destroy_component_masks(component);
     geometry_cache().erase(component);
+    component->render_item_transform_valid = false;
     invalidate_uploaded_geometry(static_cast<SpriteLoopWorld*>(component->world));
 }
 

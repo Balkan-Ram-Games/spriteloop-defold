@@ -4,7 +4,7 @@ dependencies#0 = https://github.com/AsakuraMizu/defpfd/archive/master.zip
 
 [library]
 include_dirs = spriteloop
-defold_min_version = 1.12.2
+defold_min_version = 1.14.1
 
 [bootstrap]
 main_collection = /example/main/root.collectionc
